@@ -24,26 +24,27 @@ There are multiple workflows for generating or validating a covered buildings li
 
 ### CBL Workflow package
 
-The CBL Web Tool depends on a general [CBL workflow package](https://github.com/SEED-platform/cbl-workflow). For development, it is recommended to checkout this dependency locally at the same directory level as the cbl-web-tool.
+The CBL Web Tool depends on a general [CBL workflow package](https://github.com/SEED-platform/cbl-workflow). For development, it is recommended to checkout this dependency locally at the same directory level as the cbl-web-tool. The package will be automatically installed when running poetry update in the CBL web tool.
 
 ```bash
 git clone git@github.com:SEED-platform/cbl-workflow.git
 ```
 
-The package will be automatically installed when running poetry update in the CBL web tool.
-
 #### flask_app
 
-- Create a MapBox account and create new key, a free tier should suffice <https://www.mapbox.com/>
-- Create a MapQuest account and create a new key, a free tier should suffice <https://www.mapquest.com/>
+1. Create a MapBox account and create new key, a free tier should suffice <https://www.mapbox.com/>
 
-1. A virtual environment is recommended: create a Virtual Environment in the root directory:
-   - `python -m venv myenv` or `pyenv virtualenv 3.12.7 venv-name`
-   - `source myenv/bin/activate` (macOS/Linux) or `myenv\Scripts\activate` (Windows) to enter your virtual environment
-1. Install poetry in your virtual environment with `pip install poetry`
-1. Install dependencies in your virtual environment with `poetry install`
-1. Change to the **flask_app** directory
-1. Create a `.env` file in your MapQuest API key in the format:
+2. Create a MapQuest account and create a new key, a free tier should suffice <https://www.mapquest.com/>
+
+3. A virtual environment is recommended. create a Virtual Environment in the root directory. Run either `python -m venv myenv` or `pyenv virtualenv 3.12.7 venv-name` or `source myenv/bin/activate` (macOS/Linux) or `myenv\Scripts\activate` (Windows) to enter your virtual environment.
+
+4. Install poetry in your virtual environment with `pip install poetry`
+
+5. Install dependencies in your virtual environment with `poetry install`
+
+6. Change to the **flask_app** directory
+
+7. Create a `.env` file in your MapQuest API key in the format:
 
    ```dotenv
    MAPQUEST_API_KEY=XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
@@ -54,16 +55,22 @@ The package will be automatically installed when running poetry update in the CB
 #### angular-app
 
 1. Change to the **angular-app** directory
-1. Install `nvm` (macos: `brew install nvm`)
-1. Ensure you are running Node v20.11.1: `node -v`, if not run `nvm install 20.11.1`
-1. Install angular and other dependencies by running `npm install`
-1. Install angular's CLI in a global location by running `npm install -g @angular/cli@17`
-1. Copy the environment template in `angular-app/src/environments/environment.ts.template` to a new file named `angular-app/src/environments/environment.ts`. Replace the mapboxToken with your own.
+
+2. Install `nvm` (macos: `brew install nvm`)
+
+3. Ensure you are running Node v20.11.1: `node -v`, if not run `nvm install 20.11.1`
+
+4. Install angular and other dependencies by running `npm install`
+
+5. Install angular's CLI in a global location by running `npm install -g @angular/cli@17`
+
+6. Copy the environment template in `angular-app/src/environments/environment.ts.template` to a new file named `angular-app/src/environments/environment.ts`. Replace the mapboxToken with your own.
 
 ### Running the Web App
 
 1. Run the web app by opening two terminals: one with the working directory as angular-app and running `ng serve -o` and the other with the working directory as flask_app(in your virtual environment) and running `python app.py`
-1. After connecting to the web application using the following link <http://localhost:4200/>, upload a file in the format of a json (example below) or excel/csv with columns for street_address, city, and state:
+
+2. After connecting to the web application using the following link <http://localhost:4200/>, upload a file in the format of a json (example below) or excel/csv with columns for street_address, city, and state:
 
    ```json
    [
@@ -85,11 +92,11 @@ The package will be automatically installed when running poetry update in the CB
    ]
    ```
 
-1. Once the file is uploaded and your data appears in a table on the web page, click the `Check Data` button to ensure that the data in the file meets the format requirements for the tool.
-   There are three required column names that can be edited in the table: street_address, city, and state
-1. If the data conforms to the data check requirements, a button labeled `Run CBL Workflow` will appear. Click this button to generate a covered buildings list. Note: it will take some time to generate the list and display it.
-1. Once the list is generated, a table and map with highlighted building footprints will appear side-by-side on the web page. In this menu, there are a multitude of functions to utilize:
+3. Once the file is uploaded and your data appears in a table on the web page, click the `Check Data` button to ensure that the data in the file meets the format requirements for the tool. There are three required column names that can be edited in the table: street_address, city, and state.
 
+4. If the data conforms to the data check requirements, a button labeled `Run CBL Workflow` will appear. Click this button to generate a covered buildings list. Note: it will take some time to generate the list and display it.
+
+5. Once the list is generated, a table and map with highlighted building footprints will appear side-by-side on the web page. In this menu, there are a multitude of functions to utilize:
    - The user can select on a row in the table and fly to a specific building, as well as edit data in the rows of the table.
    - A footprint can be manually edited/redrawn by double-clicking on an existing footprint and dragging any of the polygon's vertices.
    - For a specific piece of data, if a row is selected, the user can click the trashcan icon on the map and remove the footprint corresponding to that row in the table. A new footprint for this row can be redrawn using the pencil icon and the data in the row will be automatically updated.
@@ -103,17 +110,14 @@ The package will be automatically installed when running poetry update in the CB
 - adding building heights from heuristics and multiple datasets
 - reimporting CBL lists
 
-# Releasing
+## Releasing
 
 - These instructions are not yet complete
-
----
-
 - Release CBL workflow
 - Update this repo's `pyproject.toml` to point to the cbl-workflow version on PyPi
 - Update CHANGELOG by running auto generation on GitHub.
 - Tag on GitHub
 
-### Disclaimer
+## Disclaimer
 
-When using this tool with the MapQuest geocoding API (or any other geocoder) always confirm that the terms of service allow for using and storing geocoding results (as with the MapQuest Enterprise license)
+When using this tool with the MapQuest geocoding API (or any other geocoder) always confirm that the terms of service allow for using and storing geocoding results (as with the MapQuest Enterprise license).

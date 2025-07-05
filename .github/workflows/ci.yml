@@ -46,7 +46,12 @@ jobs:
           # copy over the environment.ts, otherwise tests will fail.
           cp src/environments/environment.ts.template src/environments/environment.ts
       - name: Run pre-commit
-        run: poetry run pre-commit run --all-files
+        run: |
+          poetry run pre-commit run --all-files || {
+            echo "Pre-commit failed. Here are the changes:"
+            git diff
+            exit 1
+          }
       - name: Run Python Tests
         run: poetry run pytest
       # Don't run angular tests for now, we will need to have a valid
