@@ -4,5 +4,15 @@
   <h1 class="text-4xl font-bold">Map-based Workflow</h1>
   <p class="mt-5 text-lg">This page will guide you through the map-based workflow for creating a Covered Building List (CBL).</p>
   <div class="map-container" id="map"></div>
-  <button class="export-btn" (click)="exportGeoJSON()">Export GeoJSON (to console)</button>
+
+  <!-- Control buttons -->
+  <div class="controls-container">
+    <button class="export-btn" (click)="exportGeoJSON()">Export GeoJSON (to console)</button>
+    <button class="download-btn geojson-btn" [disabled]="!hasPolygon" (click)="downloadMSFootprints()">Download MS Footprints</button>
+  </div>
+
+  <!-- Status message -->
+  <div class="status-message" *ngIf="statusMessage" [ngClass]="{ error: isError, success: !isError }">
+    {{ statusMessage }}
+  </div>
 </div>

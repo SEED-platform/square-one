@@ -1,14 +1,16 @@
-import { Component, AfterViewInit } from '@angular/core';
+import { Component, AfterViewInit, ChangeDetectorRef } from '@angular/core';
+import { CommonModule } from '@angular/common';
 import * as mapboxgl from 'mapbox-gl';
 import MapboxGeocoder from '@mapbox/mapbox-gl-geocoder';
 import MapboxDraw from '@mapbox/mapbox-gl-draw';
 import { environment } from '../../environments/environment';
 import { NavigationComponent } from '../shared/navigation/navigation.component';
+import { HttpClient } from '@angular/common/http';
 
 @Component({
   selector: 'app-map-workflow',
   standalone: true,
-  imports: [NavigationComponent],
+  imports: [NavigationComponent, CommonModule],
   templateUrl: './map-workflow.component.html',
   styleUrl: './map-workflow.component.css'
 })
@@ -16,10 +18,14 @@ export class MapWorkflowComponent implements AfterViewInit {
   private map!: mapboxgl.Map;
   private draw!: MapboxDraw;
 
-  ngAfterViewInit(): void {
-    console.log('MapWorkflowComponent: ngAfterViewInit called');
-    console.log('Mapbox token:', environment.mapboxToken);
+  // Component state
+  hasPolygon = false;
+  statusMessage = '';
+  isError = false;
 
+  constructor(private http: HttpClient, private cdr: ChangeDetectorRef) {}
+
+  ngAfterViewInit(): void {
     try {
       this.map = new mapboxgl.Map({
         accessToken: environment.mapboxToken,
@@ -29,13 +35,9 @@ export class MapWorkflowComponent implements AfterViewInit {
         zoom: 15
       });
 
-      console.log('Map created successfully');
-
       this.map.addControl(new mapboxgl.NavigationControl());
 
       this.map.on('load', () => {
-        console.log('Map loaded, adding geocoder');
-
         const geocoder = new MapboxGeocoder({
           accessToken: environment.mapboxToken,
           mapboxgl: mapboxgl,
@@ -45,18 +47,7 @@ export class MapWorkflowComponent implements AfterViewInit {
           countries: 'us',
         });
 
-        console.log('Geocoder created:', geocoder);
-
-        geocoder.on('result', (e: any) => {
-          console.log('Geocoder result:', e);
-        });
-
-        geocoder.on('error', (e: any) => {
-          console.error('Geocoder error:', e);
-        });
-
         this.map.addControl(geocoder);
-        console.log('Geocoder added to map');
 
         this.draw = new MapboxDraw({
           displayControlsDefault: false,
@@ -67,12 +58,11 @@ export class MapWorkflowComponent implements AfterViewInit {
         });
 
         this.map.addControl(this.draw);
-        console.log('Draw control added to map');
 
         // bind various draw methods
-        this.map.on('draw.create', this.exportGeoJSON.bind(this));
-        this.map.on('draw.update', this.exportGeoJSON.bind(this));
-        this.map.on('draw.delete', this.exportGeoJSON.bind(this));
+        this.map.on('draw.create', this.onDrawChange.bind(this));
+        this.map.on('draw.update', this.onDrawChange.bind(this));
+        this.map.on('draw.delete', this.onDrawChange.bind(this));
       });
 
     } catch (error) {
@@ -80,8 +70,96 @@ export class MapWorkflowComponent implements AfterViewInit {
     }
   }
 
+  private onDrawChange(): void {
+    const data = this.draw.getAll();
+    this.hasPolygon = data.features.length > 0;
+    this.cdr.detectChanges();
+    this.exportGeoJSON();
+  }
+
   exportGeoJSON(): void {
     const data = this.draw.getAll();
     console.log('Exported GeoJSON:', data);
+  }
+
+  downloadMSFootprints(): void {
+    const data = this.draw.getAll();
+
+    if (!data.features || data.features.length === 0) {
+      this.showStatusMessage('Please draw a polygon first', true);
+      return;
+    }
+
+    // Get the first polygon
+    const polygon = data.features[0];
+
+    if (polygon.geometry.type !== 'Polygon') {
+      this.showStatusMessage('Please draw a polygon (not a point or line)', true);
+      return;
+    }
+
+    this.showStatusMessage('Downloading Microsoft footprints...', false);
+
+    const payload = {
+      polygon: polygon.geometry
+    };
+
+    this.http.post('http://localhost:5001/api/download_ms_footprints', payload, {
+      responseType: 'blob',
+      observe: 'response'
+    }).subscribe({
+      next: (response) => {
+        // Create a blob URL and trigger download
+        const blob = response.body;
+        if (blob) {
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'ms_footprints.geojson';
+
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          window.URL.revokeObjectURL(url);
+
+          this.showStatusMessage('Successfully downloaded ms_footprints.geojson', false);
+        } else {
+          this.showStatusMessage('Error: No file received', true);
+        }
+      },
+      error: (error) => {
+        console.error('Download error:', error);
+        let errorMessage = 'Error downloading Microsoft footprints';
+
+        if (error.status === 0) {
+          errorMessage = 'Cannot connect to server. Please ensure the Flask app is running.';
+        } else if (error.error instanceof Blob) {
+          // Try to read error message from blob
+          error.error.text().then((text: string) => {
+            try {
+              const errorData = JSON.parse(text);
+              this.showStatusMessage(errorData.error || errorMessage, true);
+            } catch {
+              this.showStatusMessage(errorMessage, true);
+            }
+          });
+          return;
+        } else if (error.error?.error) {
+          errorMessage = error.error.error;
+        }
+
+        this.showStatusMessage(errorMessage, true);
+      }
+    });
+  }
+
+  private showStatusMessage(message: string, isError: boolean): void {
+    this.statusMessage = message;
+    this.isError = isError;
+
+    // Clear message after 5 seconds
+    setTimeout(() => {
+      this.statusMessage = '';
+    }, 5000);
   }
 }

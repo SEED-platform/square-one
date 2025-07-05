@@ -4,22 +4,25 @@ import json.scanner
 import logging
 import os
 import sys
+import tempfile
 import traceback
 import warnings
 from collections import OrderedDict
+from pathlib import Path
 from typing import Any
 
 import geopandas as gpd
 import mercantile
+import pandas as pd
 import requests
 from cbl_workflow.utils.common import Location
 from cbl_workflow.utils.geocode_addresses import geocode_addresses
 from cbl_workflow.utils.normalize_address import normalize_address
-from cbl_workflow.utils.ubid import encode_ubid
+from cbl_workflow.utils.ubid import bounding_box, centroid, encode_ubid
 from cbl_workflow.utils.update_dataset_links import update_dataset_links
 from cbl_workflow.utils.update_quadkeys import update_quadkeys
 from dotenv import load_dotenv
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_file
 from flask_cors import CORS
 from shapely.geometry import Point, Polygon
 
@@ -485,6 +488,154 @@ def update_api_key():
         return jsonify({"message": "API key updated successfully!"}), 200
     else:
         return jsonify({"message": "No API key provided!"}), 400
+
+
+@app.route("/api/download_ms_footprints", methods=["POST"])
+def download_ms_footprints():
+    """
+    Download Microsoft footprint buildings within a selected polygon.
+    Takes a polygon GeoJSON and returns a GeoJSON/Excel file with all intersecting MS footprints.
+    """
+    app.logger.info("=== Starting download_ms_footprints function ===")
+
+    try:
+        # Get the polygon from the request
+        request_data = request.get_json()
+        app.logger.info(f"Request data: {request_data}")
+
+        if not request_data or "polygon" not in request_data:
+            app.logger.error("No polygon data provided in request")
+            return jsonify({"error": "No polygon data provided"}), 400
+
+        polygon_data = request_data["polygon"]
+
+        app.logger.info(f"Polygon data: {polygon_data}")
+
+        # Convert polygon to GeoDataFrame
+        if isinstance(polygon_data, dict) and "coordinates" in polygon_data:
+            # Single polygon
+            polygon_geom = Polygon(polygon_data["coordinates"][0])
+        elif isinstance(polygon_data, list) and len(polygon_data) > 0:
+            # Multiple coordinates
+            polygon_geom = Polygon(polygon_data[0])
+        else:
+            app.logger.error("Invalid polygon format")
+            return jsonify({"error": "Invalid polygon format"}), 400
+
+        # Create GeoDataFrame for the area of interest
+        aoi_gdf = gpd.GeoDataFrame([{"geometry": polygon_geom}], crs="EPSG:4326")
+        app.logger.info(f"Area of interest created: {aoi_gdf.bounds}")
+
+        # Get bounds of the area of interest
+        bounds = aoi_gdf.bounds.iloc[0]
+        minx, miny, maxx, maxy = bounds["minx"], bounds["miny"], bounds["maxx"], bounds["maxy"]
+        app.logger.info(f"Area of interest bounds: {minx}, {miny}, {maxx}, {maxy}")
+
+        # Get quadkeys for the area
+        quadkeys = set()
+        for tile in list(mercantile.tiles(minx, miny, maxx, maxy, zooms=9)):
+            quadkeys.add(int(mercantile.quadkey(tile)))
+        quadkeys = list(quadkeys)
+
+        app.logger.info(f"The input area spans {len(quadkeys)} tiles: {quadkeys}")
+
+        # Update dataset links and quadkeys
+        data_dir = Path(config.data_dir)
+        quadkeys_dir = data_dir / "quadkeys"
+
+        try:
+            update_dataset_links(save_directory=quadkeys_dir)
+            update_quadkeys(list(quadkeys), quadkeys_dir)
+            app.logger.info("Dataset links and quadkeys updated successfully")
+        except Exception as e:
+            app.logger.error(f"Error updating dataset links/quadkeys: {e}")
+            return jsonify({"error": f"Error updating dataset: {e}"}), 500
+
+        # Load and process Microsoft footprints
+        idx = 0
+        ms_gdf = gpd.GeoDataFrame()
+        loaded_quadkeys = {}
+
+        for quadkey in quadkeys:
+            if quadkey not in loaded_quadkeys:
+                app.logger.info(f"Loading quadkey id: {quadkey}")
+                quadkey_file = quadkeys_dir / f"{quadkey}.geojsonl.gz"
+
+                if not quadkey_file.exists():
+                    app.logger.warning(f"Quadkey file not found: {quadkey_file}")
+                    continue
+
+                try:
+                    with gzip.open(quadkey_file, "rb") as f:
+                        gdf = gpd.read_file(f)
+                        app.logger.info(f"  Quadkey: {quadkey} has {len(gdf)} footprints")
+
+                        # Filter geometries within the area of interest
+                        gdf = gdf[gdf.geometry.within(aoi_gdf.geometry.iloc[0])]
+                        app.logger.info(f"  Quadkey: {quadkey} has {len(gdf)} footprints within the area of interest")
+
+                        # Save the quadkey to be combined later
+                        loaded_quadkeys[quadkey] = gdf
+
+                except Exception as e:
+                    app.logger.error(f"Error loading quadkey {quadkey}: {e}")
+                    continue
+
+        # Merge the GeoDataFrames
+        for loaded_gdf in loaded_quadkeys.values():
+            loaded_gdf["id"] = range(idx, idx + len(loaded_gdf))
+            idx += len(loaded_gdf)
+            ms_gdf = pd.concat([ms_gdf, loaded_gdf], ignore_index=True)
+
+        if len(ms_gdf) == 0:
+            app.logger.warning("No Microsoft footprints found in the area")
+            return jsonify({"message": "No Microsoft footprints found in the selected area"}), 200
+
+        app.logger.info(f"Total Microsoft footprints found: {len(ms_gdf)}")
+
+        # Process the data
+        # Handle -1 heights
+        ms_gdf["height"] = ms_gdf["height"].apply(lambda x: x if x != -1 else None)
+
+        # Add UBID encoding
+        try:
+            ms_gdf["ubid"] = ms_gdf.apply(lambda x: encode_ubid(x["geometry"]), axis=1)
+            ms_gdf["ubid_bounding_box"] = ms_gdf.apply(lambda x: bounding_box(x["ubid"]), axis=1)
+            ms_gdf["ubid_centroid"] = ms_gdf.apply(lambda x: centroid(x["ubid"]), axis=1)
+        except Exception as e:
+            app.logger.error(f"Error encoding UBIDs: {e}")
+            return jsonify({"error": f"Error encoding UBIDs: {e}"}), 500
+
+        # Calculate areas
+        try:
+            ms_gdf_crs = ms_gdf.to_crs(epsg=3857)
+            ms_gdf["ms_footprint_area_m2"] = ms_gdf_crs.area
+            ms_gdf["ms_footprint_area_ft2"] = ms_gdf["ms_footprint_area_m2"] * 10.764
+        except Exception as e:
+            app.logger.error(f"Error calculating areas: {e}")
+            return jsonify({"error": f"Error calculating areas: {e}"}), 500
+
+        # Create temporary files for output
+        try:
+            # Create GeoJSON file
+            # Drop geometry columns that can't be serialized to GeoJSON
+            drop_geom_columns = ["ubid_bounding_box", "ubid_centroid"]
+            output_gdf = ms_gdf.drop(columns=[col for col in drop_geom_columns if col in ms_gdf.columns])
+
+            with tempfile.NamedTemporaryFile(suffix=".geojson", delete=False) as tmp_file:
+                output_gdf.to_file(tmp_file.name, driver="GeoJSON")
+
+                return send_file(tmp_file.name, as_attachment=True, download_name="ms_footprints.geojson", mimetype="application/geo+json")
+
+        except Exception as e:
+            app.logger.error(f"Error creating output file: {e}")
+            return jsonify({"error": f"Error creating output file: {e}"}), 500
+
+    except Exception as e:
+        app.logger.error(f"Unexpected error in download_ms_footprints: {e}")
+        app.logger.error(f"Exception type: {type(e).__name__}")
+        app.logger.error(f"Exception traceback: {traceback.format_exc()}")
+        return jsonify({"error": f"Unexpected error: {e}"}), 500
 
 
 def return_one():

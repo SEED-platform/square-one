@@ -3,19 +3,77 @@
   height: calc(100vh - 8rem); /* Subtract navigation height */
 }
 
-.export-btn {
+.controls-container {
   position: absolute;
   top: 10px;
   right: 10px;
   z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.export-btn,
+.download-btn {
   padding: 10px 15px;
-  background-color: #0074d9;
   color: white;
   border: none;
   border-radius: 5px;
   cursor: pointer;
+  font-size: 14px;
+  white-space: nowrap;
+  transition: background-color 0.2s;
+}
+
+.export-btn {
+  background-color: #0074d9;
 }
 
 .export-btn:hover {
   background-color: #005bb5;
+}
+
+.download-btn {
+  background-color: #28a745;
+}
+
+.download-btn:hover:not(:disabled) {
+  background-color: #218838;
+}
+
+.download-btn:disabled {
+  background-color: #6c757d;
+  cursor: not-allowed;
+}
+
+.geojson-btn {
+  background-color: #17a2b8;
+}
+
+.geojson-btn:hover:not(:disabled) {
+  background-color: #138496;
+}
+
+.status-message {
+  position: fixed;
+  top: 100px;
+  right: 20px;
+  z-index: 1000;
+  padding: 10px 15px;
+  border-radius: 5px;
+  font-weight: bold;
+  max-width: 300px;
+  word-wrap: break-word;
+}
+
+.status-message.success {
+  background-color: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
+
+.status-message.error {
+  background-color: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
 }
