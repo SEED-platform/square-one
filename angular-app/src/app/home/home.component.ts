@@ -6,6 +6,7 @@ import { Router } from '@angular/router';
 import type { Subscription } from 'rxjs';
 import { FirstTableComponent } from '../first-table/first-table.component';
 import { FileUploadComponent } from './file-upload/file-upload.component';
+import { NavigationComponent } from '../shared/navigation/navigation.component';
 import { FileExportService } from '../services/file-export.service';
 import { GeoJsonService } from '../services/geojson.service';
 import { FlaskRequests } from '../services/server.service';
@@ -16,7 +17,7 @@ import LZString from 'lz-string';
   standalone: true,
   templateUrl: './home.component.html',
   styleUrl: './home.component.css',
-  imports: [ReactiveFormsModule, CommonModule, FileUploadComponent]
+  imports: [ReactiveFormsModule, CommonModule, FileUploadComponent, NavigationComponent]
 })
 export class HomeComponent implements OnInit, OnDestroy {
   userFile: any;

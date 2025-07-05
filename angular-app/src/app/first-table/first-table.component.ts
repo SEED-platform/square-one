@@ -9,6 +9,7 @@ import Papa from 'papaparse';
 import { GeoJsonService } from '../services/geojson.service';
 import { FlaskRequests } from '../services/server.service';
 import { CustomHeaderComponent } from './custom-header/custom-header.component';
+import { NavigationComponent } from '../shared/navigation/navigation.component';
 import LZString from 'lz-string';
 
 @Component({
@@ -16,7 +17,7 @@ import LZString from 'lz-string';
   standalone: true,
   templateUrl: './first-table.component.html',
   styleUrl: 'first-table.component.css',
-  imports: [AgGridAngular, FormsModule, CommonModule]
+  imports: [AgGridAngular, FormsModule, CommonModule, NavigationComponent]
 })
 export class FirstTableComponent implements OnInit {
   userList = [];
