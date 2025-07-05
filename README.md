@@ -36,9 +36,7 @@ git clone git@github.com:SEED-platform/cbl-workflow.git
 
 2. Create a MapQuest account and create a new key, a free tier should suffice <https://www.mapquest.com/>
 
-3. A virtual environment is recommended. create a Virtual Environment in the root directory:
-   - `python -m venv myenv` or `pyenv virtualenv 3.12.7 venv-name`
-   - `source myenv/bin/activate` (macOS/Linux) or `myenv\Scripts\activate` (Windows) to enter your virtual environment
+3. A virtual environment is recommended. create a Virtual Environment in the root directory. Run either `python -m venv myenv` or `pyenv virtualenv 3.12.7 venv-name` or `source myenv/bin/activate` (macOS/Linux) or `myenv\Scripts\activate` (Windows) to enter your virtual environment.
 
 4. Install poetry in your virtual environment with `pip install poetry`
 
