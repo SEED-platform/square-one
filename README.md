@@ -85,9 +85,10 @@ The package will be automatically installed when running poetry update in the CB
    ]
    ```
 
-1. Once the file is uploaded and your data appears in a table on the web page, click the `Check Data` button to ensure that the data in the file meets the format requirements for the tool.
-   There are three required column names that can be edited in the table: street_address, city, and state
+1. Once the file is uploaded and your data appears in a table on the web page, click the `Check Data` button to ensure that the data in the file meets the format requirements for the tool. There are three required column names that can be edited in the table: street_address, city, and state.
+
 1. If the data conforms to the data check requirements, a button labeled `Run CBL Workflow` will appear. Click this button to generate a covered buildings list. Note: it will take some time to generate the list and display it.
+
 1. Once the list is generated, a table and map with highlighted building footprints will appear side-by-side on the web page. In this menu, there are a multitude of functions to utilize:
 
    - The user can select on a row in the table and fly to a specific building, as well as edit data in the rows of the table.
