@@ -51,6 +51,7 @@ export class CblTableComponent implements OnInit, OnDestroy {
   private isEditing = false;
   private selectedRowIdStorage?: string;
   private initialLoad = true; // Flag to track initial load
+  private isDeletingRows = false; // Flag to track when deleting rows to prevent zoom reset
 
   // Reverse geocoding dialog properties
   showReverseGeocodeDialog = false;
@@ -81,6 +82,21 @@ export class CblTableComponent implements OnInit, OnDestroy {
     return `${totalFeatures} building${totalFeatures === 1 ? '' : 's'} loaded (${featuresWithFootprints} with footprint data)`;
   }
 
+  get selectedRowsInfo(): string {
+    if (!this.gridApi) {
+      return '';
+    }
+
+    const selectedRows = this.gridApi.getSelectedRows();
+    const selectedCount = selectedRows.length;
+
+    if (selectedCount === 0) {
+      return 'No buildings selected';
+    }
+
+    return `${selectedCount} building${selectedCount === 1 ? '' : 's'} selected`;
+  }
+
   navigateToMapWorkflow() {
     this.router.navigate(['/map-workflow']);
   }
@@ -109,6 +125,9 @@ export class CblTableComponent implements OnInit, OnDestroy {
         }
         this.updateTable(); // Update table only on initial load
         this.initialLoad = false; // Set the flag to false after the initial load
+      } else if (!this.isDeletingRows) {
+        // Only update table if we're not in the middle of deleting rows
+        this.updateTable();
       }
     });
 
@@ -117,7 +136,7 @@ export class CblTableComponent implements OnInit, OnDestroy {
       if (clickEvent) {
         if (clickEvent.id !== '') {
           this.selectedRowIdStorage = clickEvent.id;
-          this.scrollToFeatureById(this.selectedRowIdStorage);
+          this.scrollToFeatureById(this.selectedRowIdStorage, clickEvent.isShiftClick);
           console.log('THIS IS SELECTED ROW ID', this, this.selectedRowIdStorage); //keep selected row incase the table re renders and you want to go back to it
           sessionStorage.setItem('SELECTEDROW', JSON.stringify(this.selectedRowIdStorage));
         }
@@ -176,8 +195,11 @@ export class CblTableComponent implements OnInit, OnDestroy {
     this.setColumnDefs();
 
     if (this.gridApi) {
-      this.gridApi.deselectAll();
-      this.scrollToTop();
+      // Only reset zoom/scroll if we're not deleting rows
+      if (!this.isDeletingRows) {
+        this.gridApi.deselectAll();
+        this.scrollToTop();
+      }
     }
   }
 
@@ -270,7 +292,16 @@ export class CblTableComponent implements OnInit, OnDestroy {
         },
         onCellClicked: (params: any) => {
           if (this.hasFootprintData(params.data)) {
+            // First zoom to the building
             this.zoomToBuilding(params.data);
+
+            // Then also select the row to keep table and map in sync
+            const rowNode = params.node;
+            if (rowNode) {
+              // Clear other selections first (single-click behavior)
+              this.gridApi.deselectAll();
+              rowNode.setSelected(true);
+            }
           }
         },
         valueGetter: (params: ValueGetterParams) => {
@@ -307,6 +338,9 @@ export class CblTableComponent implements OnInit, OnDestroy {
 
   scrollToTop() {
     if (this.rowData.length > 0) {
+      // Clear any existing selections first
+      this.gridApi.deselectAll();
+
       this.gridApi.ensureIndexVisible(0, 'top');
       const rowNode1 = this.gridApi!.getDisplayedRowAtIndex(0)!;
       this.gridApi!.flashCells({ rowNodes: [rowNode1] });
@@ -316,7 +350,7 @@ export class CblTableComponent implements OnInit, OnDestroy {
     }
   }
 
-  scrollToFeatureById(id: string) {
+  scrollToFeatureById(id: string, isShiftClick: boolean = false) {
     // Find the feature in rowData'
     const feature = this.rowData.find((f: any) => f.id === id);
 
@@ -329,6 +363,12 @@ export class CblTableComponent implements OnInit, OnDestroy {
     console.log(this.rowData.indexOf(feature));
 
     if (feature && this.gridApi) {
+      // For shift-click, don't clear existing selections to allow multi-select
+      if (!isShiftClick) {
+        // Clear any existing selections first (single-click behavior from map)
+        this.gridApi.deselectAll();
+      }
+
       this.gridApi.ensureIndexVisible(this.rowData.indexOf(feature), 'middle');
       const index = this.rowData.indexOf(feature);
       const rowNode = this.gridApi.getDisplayedRowAtIndex(index);
@@ -340,6 +380,14 @@ export class CblTableComponent implements OnInit, OnDestroy {
   }
 
   onRowClicked(event: any) {
+    // Check if Shift key is pressed for multi-select
+    if (!event.event.shiftKey) {
+      // Single click without shift - clear other selections first
+      this.gridApi.deselectAll();
+      event.node.setSelected(true);
+    }
+    // If shift is pressed, let the default multi-select behavior happen
+
     this.geoJsonService.setIsDataSentFromTable(false);
     this.onRowSelected(event);
   }
@@ -369,6 +417,11 @@ export class CblTableComponent implements OnInit, OnDestroy {
     }
   }
 
+  onSelectionChanged(event: any) {
+    // Trigger change detection for the selectedRowsInfo getter
+    this.cdr.detectChanges();
+  }
+
   onCellEditingStarted(event: any) {
     this.isEditing = true;
   }
@@ -380,6 +433,9 @@ export class CblTableComponent implements OnInit, OnDestroy {
 
   handleDelete() {
     if (this.rowData.length !== 0) {
+      // Set flag to prevent zoom reset during deletion
+      this.isDeletingRows = true;
+
       const selectedData = this.gridApi.getSelectedRows();
       const res = this.gridApi.applyTransaction({ remove: selectedData })!;
 
@@ -391,7 +447,16 @@ export class CblTableComponent implements OnInit, OnDestroy {
         });
       }
 
-      this.updateTable();
+      // Update the data arrays to stay in sync
+      this.featuresArray = this.geoJson.features;
+      this.rowData = this.featuresArray;
+
+      // Clear the flag after a short delay to allow any triggered updates to complete
+      setTimeout(() => {
+        this.isDeletingRows = false;
+        // Trigger change detection to update the selected count
+        this.cdr.detectChanges();
+      }, 100);
     }
   }
 
@@ -449,8 +514,7 @@ export class CblTableComponent implements OnInit, OnDestroy {
     }
 
     if (selectedData.length > 1) {
-      alert('Please select only one row for reverse geocoding');
-      return;
+      alert('Please select only one row for reverse geocoding. Using the first selected row.');
     }
 
     this.selectedRowForReverseGeocode = selectedData[0];

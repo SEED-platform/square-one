@@ -19,8 +19,8 @@ export class GeoJsonService implements OnDestroy {
   private isSentFromTable = false; // Flag to track selection source
   private geoJsonSubject: BehaviorSubject<any> = new BehaviorSubject<any>(this.getGeoJsonFromSessionStorage());
 
-  private clickEventSubject = new BehaviorSubject<{ latitude: number; longitude: number; id: string } | null>(null);
-  public clickEvent$: Observable<{ latitude: number; longitude: number; id: string } | null> = this.clickEventSubject.asObservable();
+  private clickEventSubject = new BehaviorSubject<{ latitude: number; longitude: number; id: string; isShiftClick?: boolean } | null>(null);
+  public clickEvent$: Observable<{ latitude: number; longitude: number; id: string; isShiftClick?: boolean } | null> = this.clickEventSubject.asObservable();
 
   private selectedFeatureSubject = new BehaviorSubject<{ latitude: number; longitude: number; id: string; quality: string } | null>(null);
   public selectedFeature$: Observable<{ latitude: number; longitude: number; id: string; quality: string } | null> = this.selectedFeatureSubject.asObservable();
@@ -211,8 +211,8 @@ export class GeoJsonService implements OnDestroy {
     console.log('NEW GEO IN SOURCE', currentGeoJson);
   }
 
-  emitClickEvent(latitude: number, longitude: number, id: string): void {
-    this.clickEventSubject.next({ latitude, longitude, id });
+  emitClickEvent(latitude: number, longitude: number, id: string, isShiftClick: boolean = false): void {
+    this.clickEventSubject.next({ latitude, longitude, id, isShiftClick });
   }
 
   emitSelectedFeature(latitude: number, longitude: number, id: string, quality: string): void {

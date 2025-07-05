@@ -40,6 +40,7 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
   private satelliteView = false;
   private draw: MapboxDraw | undefined;
   private clickedBuildingId = '';
+  private selectedPolygonIds: string[] = []; // Track multiple selected polygons
   private selectedPolygonId = '';
   private globalGeoJsonObject: any;
   private emptyBuildingId = 'none selected';
@@ -223,16 +224,40 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
       // Find the corresponding feature in geoJsonObject
       const clickedFeature = geoJsonObject.features.find((feature: any) => feature.id === String(clickedFeatureId));
       if (clickedFeature) {
-        this.resetPolygonColor(this.clickedBuildingId);
+        // Check if shift key is pressed for multi-select
+        const isShiftClick = event.originalEvent?.shiftKey || false;
+
+        if (!isShiftClick) {
+          // Single click - reset all previous selections
+          this.selectedPolygonIds.forEach(id => {
+            if (id !== clickedFeature.id) {
+              this.resetPolygonColor(id);
+            }
+          });
+          this.selectedPolygonIds = [clickedFeature.id];
+        } else {
+          // Shift click - add to selection or remove if already selected
+          const index = this.selectedPolygonIds.indexOf(clickedFeature.id);
+          if (index === -1) {
+            // Add to selection
+            this.selectedPolygonIds.push(clickedFeature.id);
+          } else {
+            // Remove from selection
+            this.selectedPolygonIds.splice(index, 1);
+            this.resetPolygonColor(clickedFeature.id);
+          }
+        }
+
         this.clickedBuildingId = clickedFeature.id;
         this.emptyBuildingId = 'none selected';
         const { latitude, longitude } = clickedFeature.properties;
-        //reset any clicked polygon outline
 
-        console.log('THIS IS CLICKED ID ON MAP', this.clickedBuildingId);
-        // Emit the click event with the latitude and longitude
+        console.log('THIS IS CLICKED ID ON MAP', this.clickedBuildingId, 'Shift pressed:', isShiftClick);
+        console.log('Selected polygon IDs:', this.selectedPolygonIds);
+
+        // Emit the click event with the latitude and longitude and shift state
         this.geoJsonService.setIsDataSentFromTable(true);
-        this.geoJsonService.emitClickEvent(latitude, longitude, this.clickedBuildingId);
+        this.geoJsonService.emitClickEvent(latitude, longitude, this.clickedBuildingId, isShiftClick);
         //this.geoJsonService.setMapCoordinates(latitude, longitude);
       } else {
         console.error(`Feature with ID ${clickedFeatureId} not found in geoJsonObject.`);
