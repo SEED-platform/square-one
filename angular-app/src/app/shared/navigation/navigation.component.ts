@@ -13,14 +13,14 @@ export class NavigationComponent {
 
   navigateToHome(): void {
     const currentRoute = this.router.url;
-    
+
     if (currentRoute === '/first-table') {
       const confirmLeave = confirm('Are you sure you want to go back to home? You lose your session data.');
       if (!confirmLeave) {
         return;
       }
     }
-    
+
     sessionStorage.setItem('HOMEACCESS', JSON.stringify(true));
     sessionStorage.setItem('CURRENTPAGE', '');
     this.router.navigate(['/']);
