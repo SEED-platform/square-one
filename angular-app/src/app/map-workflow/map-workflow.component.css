@@ -1,6 +1,6 @@
 .map-container {
   width: 80%;
-  height: 80vh;
+  height: calc(100vh - 8rem); /* Subtract navigation height */
 }
 
 .export-btn {

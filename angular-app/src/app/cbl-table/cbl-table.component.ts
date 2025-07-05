@@ -9,13 +9,14 @@ import * as XLSX from 'xlsx';
 import type { Subscription } from 'rxjs';
 import { MapboxMapComponent } from '../mapbox-map/mapbox-map.component';
 import { DropdownMenuComponent } from './dropdown-menu/dropdown-menu.component';
+import { NavigationComponent } from '../shared/navigation/navigation.component';
 import { GeoJsonService } from '../services/geojson.service';
 import { FlaskRequests } from '../services/server.service';
 
 @Component({
   selector: 'app-cbl-table',
   standalone: true,
-  imports: [AgGridAngular, CommonModule, MapboxMapComponent, DropdownMenuComponent],
+  imports: [AgGridAngular, CommonModule, MapboxMapComponent, DropdownMenuComponent, NavigationComponent],
   templateUrl: './cbl-table.component.html',
   styleUrl: './cbl-table.component.css',
   encapsulation: ViewEncapsulation.None

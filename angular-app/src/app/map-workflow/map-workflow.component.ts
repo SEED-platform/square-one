@@ -3,10 +3,12 @@ import * as mapboxgl from 'mapbox-gl';
 import MapboxGeocoder from '@mapbox/mapbox-gl-geocoder';
 import MapboxDraw from '@mapbox/mapbox-gl-draw';
 import { environment } from '../../environments/environment';
+import { NavigationComponent } from '../shared/navigation/navigation.component';
 
 @Component({
   selector: 'app-map-workflow',
   standalone: true,
+  imports: [NavigationComponent],
   templateUrl: './map-workflow.component.html',
   styleUrl: './map-workflow.component.css'
 })
