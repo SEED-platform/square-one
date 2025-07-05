@@ -4,11 +4,8 @@ version = "0.1.0"
 description = ""
 authors = ["Devin Brady <devin.brady@nrel.gov>", "Alex Swindler <axelstudios>", "Nicholas Long <nllong>", "Roger Braun <roger.braun@nrel.gov>", "Rahman Mian <rahman.mian@nrel.gov>"]
 readme = "README.md"
-# should probably rename utils to cbl_workflow, then place
-# the utils in that folder.
 packages = [
-    { include = "flask_app" },
-    { include = "flask_app/utils" }
+    { include = "flask_app" }
 ]
 
 [tool.poetry.dependencies]
