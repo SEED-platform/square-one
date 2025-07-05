@@ -24,13 +24,11 @@ There are multiple workflows for generating or validating a covered buildings li
 
 ### CBL Workflow package
 
-The CBL Web Tool depends on a general [CBL workflow package](https://github.com/SEED-platform/cbl-workflow). For development, it is recommended to checkout this dependency locally at the same directory level as the cbl-web-tool.
+The CBL Web Tool depends on a general [CBL workflow package](https://github.com/SEED-platform/cbl-workflow). For development, it is recommended to checkout this dependency locally at the same directory level as the cbl-web-tool. The package will be automatically installed when running poetry update in the CBL web tool.
 
 ```bash
 git clone git@github.com:SEED-platform/cbl-workflow.git
 ```
-
-The package will be automatically installed when running poetry update in the CBL web tool.
 
 #### flask_app
 
@@ -102,7 +100,6 @@ The package will be automatically installed when running poetry update in the CB
 4. If the data conforms to the data check requirements, a button labeled `Run CBL Workflow` will appear. Click this button to generate a covered buildings list. Note: it will take some time to generate the list and display it.
 
 5. Once the list is generated, a table and map with highlighted building footprints will appear side-by-side on the web page. In this menu, there are a multitude of functions to utilize:
-
    - The user can select on a row in the table and fly to a specific building, as well as edit data in the rows of the table.
    - A footprint can be manually edited/redrawn by double-clicking on an existing footprint and dragging any of the polygon's vertices.
    - For a specific piece of data, if a row is selected, the user can click the trashcan icon on the map and remove the footprint corresponding to that row in the table. A new footprint for this row can be redrawn using the pencil icon and the data in the row will be automatically updated.
