@@ -103,7 +103,7 @@ The package will be automatically installed when running poetry update in the CB
 - adding building heights from heuristics and multiple datasets
 - reimporting CBL lists
 
-# Releasing
+## Releasing
 
 - These instructions are not yet complete
 
@@ -114,6 +114,6 @@ The package will be automatically installed when running poetry update in the CB
 - Update CHANGELOG by running auto generation on GitHub.
 - Tag on GitHub
 
-### Disclaimer
+## Disclaimer
 
 When using this tool with the MapQuest geocoding API (or any other geocoder) always confirm that the terms of service allow for using and storing geocoding results (as with the MapQuest Enterprise license)
