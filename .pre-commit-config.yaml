@@ -30,8 +30,6 @@ repos:
     hooks:
       - id: prettier
         types_or: [yaml, markdown, css, scss, html, javascript]
-        args: [--list-different]
-        # additional_dependencies: ["prettier-plugin-tailwindcss"]
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.12.2
     hooks:
