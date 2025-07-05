@@ -234,12 +234,22 @@ export class CblTableComponent implements OnInit, OnDestroy {
   onRowSelected(event: any) {
     if (event.node.isSelected()) {
       const data = event.node.data;
+      if (!data) {
+        console.warn('Row data is undefined');
+        return;
+      }
+
       const id = data.id;
+      if (id === undefined || id === null) {
+        console.warn('Row id is undefined or null');
+        return;
+      }
+
       this.selectedRowIdStorage = id;
       sessionStorage.setItem('SELECTEDROW', JSON.stringify(this.selectedRowIdStorage));
-      const latitude = data.properties.latitude;
-      const longitude = data.properties.longitude;
-      const quality = data.properties.quality;
+      const latitude = data.properties?.latitude;
+      const longitude = data.properties?.longitude;
+      const quality = data.properties?.quality;
       if (!this.geoJsonService.isDataSentFromTable()) {
         this.geoJsonService.emitSelectedFeature(latitude, longitude, id, quality);
       }
@@ -260,8 +270,13 @@ export class CblTableComponent implements OnInit, OnDestroy {
       const selectedData = this.gridApi.getSelectedRows();
       const res = this.gridApi.applyTransaction({ remove: selectedData })!;
 
-      console.log('THIS IS BEING SENT FROM THE MAP TO TABLE', res.remove[0].data);
-      this.geoJsonService.removeEntirePolygonRefInMap(res.remove[0].data.id);
+      // Remove all deleted rows from the map, not just the first one
+      if (res.remove && res.remove.length > 0) {
+        res.remove.forEach((removedRow: any) => {
+          console.log('Removing from map:', removedRow.data);
+          this.geoJsonService.removeEntirePolygonRefInMap(removedRow.data.id);
+        });
+      }
 
       this.updateTable();
     }

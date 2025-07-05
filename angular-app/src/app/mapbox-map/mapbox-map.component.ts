@@ -82,6 +82,13 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
     this.removedBuildingSubscription = this.geoJsonService.removeBuildingId$.subscribe((feature) => {
       if (feature && feature.id) {
         console.log(typeof feature.id);
+
+        // Check if globalGeoJsonObject and its features array exist
+        if (!this.globalGeoJsonObject || !this.globalGeoJsonObject.features) {
+          console.warn('globalGeoJsonObject or features array is not initialized');
+          return;
+        }
+
         const clickedFeature = this.globalGeoJsonObject.features.find((f: any) => f.id === feature.id);
         if (clickedFeature) {
           console.log('this is being deleted', clickedFeature);
@@ -539,6 +546,12 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
     console.log('DELETE EVENT BEING CALLED');
 
     const deletePolygonId = this.clickedBuildingId;
+
+    if (!this.globalGeoJsonObject || !this.globalGeoJsonObject.features) {
+      console.warn('globalGeoJsonObject or features array is not initialized for delete operation');
+      return;
+    }
+
     const clickedFeature = this.globalGeoJsonObject.features.find((feature: any) => feature.id === deletePolygonId);
     console.log(clickedFeature);
     if (clickedFeature) {
@@ -577,7 +590,7 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
       const jsonData = {
         coordinates: newBuildingCoordinates,
         propertyNames: this.geoJsonPropertyNames,
-        featuresLength: this.globalGeoJsonObject.features.length
+        featuresLength: this.globalGeoJsonObject?.features?.length || 0
       };
 
       console.log('yurrrr', this.geoJsonPropertyNames);
@@ -608,7 +621,7 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
       const jsonData = {
         coordinates: existingBuildingCoordinates,
         propertyNames: this.geoJsonPropertyNames,
-        featuresLength: this.globalGeoJsonObject.features.length
+        featuresLength: this.globalGeoJsonObject?.features?.length || 0
       };
 
       const jsonDataString = JSON.stringify(jsonData);
@@ -620,9 +633,14 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
           const existingBuildingLatitude = this.newGeoJson.properties.latitude;
           const existingBuildingUbid = this.newGeoJson.properties.ubid;
 
+          if (!this.globalGeoJsonObject || !this.globalGeoJsonObject.features) {
+            console.warn('globalGeoJsonObject or features array is not initialized for existing building update');
+            return;
+          }
+
           const clickedFeature = this.globalGeoJsonObject.features.find((feature: any) => feature.id === existingBuildingId);
 
-          if (clickedFeature.properties.quality === 'Poor' || clickedFeature.properties.quality === 'very Poor') {
+          if (clickedFeature && clickedFeature.properties && (clickedFeature.properties.quality === 'Poor' || clickedFeature.properties.quality === 'very Poor')) {
             clickedFeature.properties.longitude = existingBuildingLatitude;
             clickedFeature.properties.latitude = existingBuildingLongitude;
             clickedFeature.properties.ubid = existingBuildingUbid;
