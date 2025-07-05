@@ -23,7 +23,6 @@ from flask_cors import CORS
 from shapely.geometry import Point
 
 import flask_app.config as config
-from flask_app.exceptions import LocationError
 from flask_app.services.common_service import (
     create_geojson_response,
     handle_service_exceptions,
@@ -153,9 +152,8 @@ def check_data():
     file_data = json.loads(json_string)
     json_data = json.dumps(file_data)
 
-    isGoodData = True  # check_data_quality(file_data)
-    if isinstance(isGoodData, LocationError):
-        return jsonify({"message": f"{isGoodData.message}", "user_data": json_data}), 400
+    # is_good_data = True  # check_data_quality(file_data)
+    # TODO: implement check_data_quality
 
     return jsonify({"message": "success", "user_data": json_data}), 200
 
