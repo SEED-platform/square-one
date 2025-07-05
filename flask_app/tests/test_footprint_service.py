@@ -206,7 +206,6 @@ class TestFootprintService(unittest.TestCase):
 
         # Check building type mapping
         building_types = result["building"].tolist()
-        self.assertIn("apartments", building_types)  # residential -> apartments
         self.assertIn("Unknown", building_types)  # yes -> Unknown
         self.assertIn("commercial", building_types)  # commercial stays commercial
 

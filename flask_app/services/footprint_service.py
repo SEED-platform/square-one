@@ -290,9 +290,6 @@ class FootprintService:
                 # Map "yes" buildings to "Unknown"
                 osm_gdf.loc[osm_gdf["building"] == "yes", "building"] = "Unknown"
 
-                # Map residential to apartments
-                osm_gdf.loc[osm_gdf["building"] == "residential", "building"] = "apartments"
-
             # Handle height and levels
             if "height" not in osm_gdf.columns:
                 osm_gdf["height"] = 0
