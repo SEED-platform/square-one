@@ -73,12 +73,20 @@
       </div>
     </div>
 
-    <button
-      class="mr-5 inline-flex justify-center gap-x-1.5 rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
-      (click)="handleDelete()"
-    >
-      Delete Selected Row(s)
-    </button>
+    <div class="mr-5 flex gap-2">
+      <button
+        class="inline-flex justify-center gap-x-1.5 rounded-md bg-green-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-700"
+        (click)="addNewRow()"
+      >
+        Add New Row
+      </button>
+      <button
+        class="inline-flex justify-center gap-x-1.5 rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-700"
+        (click)="handleDelete()"
+      >
+        Delete Selected Row(s)
+      </button>
+    </div>
   </div>
   <div class="mt-0 flex h-[100vh] w-[90%] justify-center p-0" id="data-container" *ngIf="geoJson">
     <app-mapbox-map></app-mapbox-map>

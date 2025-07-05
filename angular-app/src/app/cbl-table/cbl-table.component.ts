@@ -8,7 +8,6 @@ import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import type { Subscription } from 'rxjs';
 import { MapboxMapComponent } from '../mapbox-map/mapbox-map.component';
-import { DropdownMenuComponent } from './dropdown-menu/dropdown-menu.component';
 import { NavigationComponent } from '../shared/navigation/navigation.component';
 import { GeoJsonService } from '../services/geojson.service';
 import { FlaskRequests } from '../services/server.service';
@@ -16,7 +15,7 @@ import { FlaskRequests } from '../services/server.service';
 @Component({
   selector: 'app-cbl-table',
   standalone: true,
-  imports: [AgGridAngular, CommonModule, MapboxMapComponent, DropdownMenuComponent, NavigationComponent],
+  imports: [AgGridAngular, CommonModule, MapboxMapComponent, NavigationComponent],
   templateUrl: './cbl-table.component.html',
   styleUrl: './cbl-table.component.css',
   encapsulation: ViewEncapsulation.None
@@ -157,37 +156,125 @@ export class CblTableComponent implements OnInit, OnDestroy {
     return string.charAt(0).toUpperCase() + string.slice(1);
   };
 
+  // Check if building has footprint data
+  hasFootprintData(building: any): boolean {
+    if (!building || !building.geometry) {
+      return false;
+    }
+
+    // Check if geometry has coordinates and they're not empty
+    const coordinates = building.geometry.coordinates;
+    if (!coordinates || !Array.isArray(coordinates)) {
+      return false;
+    }
+
+    // For polygon, check if it has actual coordinate data
+    if (building.geometry.type === 'Polygon') {
+      return coordinates.length > 0 &&
+             Array.isArray(coordinates[0]) &&
+             coordinates[0].length > 0;
+    }
+
+    // For other geometry types, check if coordinates exist
+    return coordinates.length > 0;
+  }
+
+  // Zoom to building footprint on the map
+  zoomToBuilding(building: any) {
+    if (!building || !building.geometry || !building.geometry.coordinates) {
+      console.warn('Building has no geometry data to zoom to');
+      return;
+    }
+
+    // Get the building's coordinates
+    const coordinates = building.geometry.coordinates;
+
+    if (building.geometry.type === 'Polygon' && coordinates.length > 0 && coordinates[0].length > 0) {
+      // For polygon, calculate the center and emit the coordinates
+      const polygon = coordinates[0];
+      let minLng = polygon[0][0], maxLng = polygon[0][0];
+      let minLat = polygon[0][1], maxLat = polygon[0][1];
+
+      // Find bounds
+      for (const coord of polygon) {
+        minLng = Math.min(minLng, coord[0]);
+        maxLng = Math.max(maxLng, coord[0]);
+        minLat = Math.min(minLat, coord[1]);
+        maxLat = Math.max(maxLat, coord[1]);
+      }
+
+      // Calculate center
+      const centerLng = (minLng + maxLng) / 2;
+      const centerLat = (minLat + maxLat) / 2;
+
+      // Emit to map service to zoom to this location
+      this.geoJsonService.setMapCoordinates(centerLat, centerLng);
+
+      // Also select the feature
+      this.geoJsonService.emitSelectedFeature(
+        building.properties?.latitude || centerLat,
+        building.properties?.longitude || centerLng,
+        building.id,
+        building.properties?.quality || 'Unknown'
+      );
+    }
+  }
+
   //dynamically sets grid for geojson values
   setColumnDefs() {
     const keys = JSON.parse(sessionStorage.getItem('PROPERTYNAMES') || '{}');
     keys.push('coordinates');
 
-    const nonEditableKeys = ['ubid', 'longitude', 'latitude'];
+    const nonEditableKeys = ['ubid', 'longitude', 'latitude', 'hasFootprint'];
 
-    this.colDefs = keys.map((key: string) => ({
-      field: key,
-      editable: !nonEditableKeys.includes(key),
-      headerName: this.capitalizeFirstLetter(key),
-      valueGetter: (params: ValueGetterParams) => {
-        if (this.geoJson.features.length !== 0) {
-          if (key === 'coordinates') {
-            return params.data.geometry?.coordinates;
+    // Add the hasFootprint column at the beginning (after selection)
+    this.colDefs = [
+      {
+        field: 'hasFootprint',
+        headerName: 'Footprint',
+        editable: false,
+        width: 120,
+        cellStyle: { 'text-align': 'center' },
+        cellRenderer: (params: any) => {
+          const hasFootprint = this.hasFootprintData(params.data);
+          return hasFootprint ?
+            '<div style="display: flex; justify-content: center; align-items: center; height: 100%; cursor: pointer;"><span style="color: green; font-weight: bold; font-size: 16px;">✓</span></div>' :
+            '<div style="display: flex; justify-content: center; align-items: center; height: 100%; cursor: pointer;"><span style="color: red; font-weight: bold; font-size: 16px;">✗</span></div>';
+        },
+        onCellClicked: (params: any) => {
+          if (this.hasFootprintData(params.data)) {
+            this.zoomToBuilding(params.data);
           }
-          return params.data.properties[key];
+        },
+        valueGetter: (params: ValueGetterParams) => {
+          return this.hasFootprintData(params.data) ? 'Yes' : 'No';
         }
       },
-      valueSetter: (params: ValueSetterParams) => {
-        if (this.geoJson.features.length !== 0) {
-          if (key === 'coordinates') {
-            params.data.geometry = params.data.geometry || {};
-            params.data.geometry.coordinates = params.newValue;
-          } else {
-            params.data.properties[key] = params.newValue;
+      ...keys.map((key: string) => ({
+        field: key,
+        editable: !nonEditableKeys.includes(key),
+        headerName: this.capitalizeFirstLetter(key),
+        valueGetter: (params: ValueGetterParams) => {
+          if (this.geoJson.features.length !== 0) {
+            if (key === 'coordinates') {
+              return params.data.geometry?.coordinates;
+            }
+            return params.data.properties[key];
           }
+        },
+        valueSetter: (params: ValueSetterParams) => {
+          if (this.geoJson.features.length !== 0) {
+            if (key === 'coordinates') {
+              params.data.geometry = params.data.geometry || {};
+              params.data.geometry.coordinates = params.newValue;
+            } else {
+              params.data.properties[key] = params.newValue;
+            }
+          }
+          return true;
         }
-        return true;
-      }
-    }));
+      }))
+    ];
     sessionStorage.setItem('COL', JSON.stringify(this.colDefs));
   }
 
@@ -280,6 +367,47 @@ export class CblTableComponent implements OnInit, OnDestroy {
 
       this.updateTable();
     }
+  }
+
+  addNewRow() {
+    const newId = Date.now().toString();
+
+    // Create a new building feature with default values
+    // This will need to be updated based on the columns that
+    // are available from any data sources.
+    const newBuilding: any = {
+      type: 'Feature',
+      id: newId,
+      geometry: {
+        type: 'Polygon',
+        coordinates: [[]]
+      },
+      properties: {
+        street_address: '123 Main Street',
+        city: 'Denver',
+        state: 'CO',
+        quality: 'Poor',
+        ubid: '',
+        latitude: 39.7392,
+        longitude: -104.9903,
+        BUILD_ID: null,
+        HEIGHT: null,
+        OCC_CLS: 'Unclassified',
+        PRIM_OCC: 'Unclassified',
+        PROP_ADDR: '123 Main Street'
+      }
+    };
+
+    // Add the new row to the beginning of the grid
+    this.gridApi.applyTransaction({ add: [newBuilding], addIndex: 0 });
+
+    // Update the GeoJSON service with the new building
+    this.geoJsonService.insertNewBuildingInGeoJson(newBuilding);
+
+    // Scroll to the new row and select it
+    setTimeout(() => {
+      this.scrollToTop();
+    }, 100);
   }
 
   updateModifiedRow(modBuilding: any) {

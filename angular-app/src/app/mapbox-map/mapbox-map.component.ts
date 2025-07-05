@@ -593,7 +593,7 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
         featuresLength: this.globalGeoJsonObject?.features?.length || 0
       };
 
-      console.log('yurrrr', this.geoJsonPropertyNames);
+      console.log('here:', this.geoJsonPropertyNames);
       const jsonDataString = JSON.stringify(jsonData);
       this.apiHandler.sendReverseGeoCodeData(jsonDataString).subscribe(
         (response) => {
