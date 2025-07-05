@@ -27,11 +27,19 @@ export class MapWorkflowComponent implements AfterViewInit {
 
   // Microsoft footprints data
   private msFootprintsData: any = null;
-  hasFootprints = false;
+  hasMsFootprints = false;
+
+  // OpenStreetMap footprints data
+  private osmFootprintsData: any = null;
+  hasOsmFootprints = false;
 
   // Microsoft footprints layer ID
   private readonly MS_FOOTPRINTS_SOURCE_ID = 'ms-footprints';
   private readonly MS_FOOTPRINTS_LAYER_ID = 'ms-footprints-layer';
+
+  // OpenStreetMap footprints layer ID
+  private readonly OSM_FOOTPRINTS_SOURCE_ID = 'osm-footprints';
+  private readonly OSM_FOOTPRINTS_LAYER_ID = 'osm-footprints-layer';
 
   constructor(
     private http: HttpClient,
@@ -74,10 +82,10 @@ export class MapWorkflowComponent implements AfterViewInit {
 
         this.map.addControl(this.draw);
 
-        // bind various draw methods
-        this.map.on('draw.create', this.onDrawChange.bind(this));
-        this.map.on('draw.update', this.onDrawChange.bind(this));
-        this.map.on('draw.delete', this.onDrawChange.bind(this));
+        // bind various draw methods with different handlers
+        this.map.on('draw.create', this.onDrawCreate.bind(this));
+        this.map.on('draw.update', this.onDrawUpdate.bind(this));
+        this.map.on('draw.delete', this.onDrawDelete.bind(this));
       });
 
     } catch (error) {
@@ -85,20 +93,36 @@ export class MapWorkflowComponent implements AfterViewInit {
     }
   }
 
-  private onDrawChange(): void {
+  private onDrawCreate(): void {
     const data = this.draw.getAll();
     this.hasPolygon = data.features.length > 0;
 
-    // Clear existing footprints when polygon changes
+    // Clear existing footprints when a new polygon is created
     this.removeMSFootprintsFromMap();
+    this.removeOSMFootprintsFromMap();
 
     this.cdr.detectChanges();
-    this.exportGeoJSON();
   }
 
-  exportGeoJSON(): void {
+  private onDrawUpdate(): void {
     const data = this.draw.getAll();
-    console.log('Exported GeoJSON:', data);
+    this.hasPolygon = data.features.length > 0;
+
+    // Don't clear footprints when polygon is being moved/updated
+    // This allows users to adjust the polygon without losing loaded footprints
+
+    this.cdr.detectChanges();
+  }
+
+  private onDrawDelete(): void {
+    const data = this.draw.getAll();
+    this.hasPolygon = data.features.length > 0;
+
+    // Clear existing footprints when polygon is deleted
+    this.removeMSFootprintsFromMap();
+    this.removeOSMFootprintsFromMap();
+
+    this.cdr.detectChanges();
   }
 
   loadMSFootprints(): void {
@@ -128,7 +152,7 @@ export class MapWorkflowComponent implements AfterViewInit {
         if (response.message === 'success' && response.geojson) {
           // Store the Microsoft footprints data
           this.msFootprintsData = response.geojson;
-          this.hasFootprints = true;
+          this.hasMsFootprints = true;
 
           this.addMSFootprintsToMap(response.geojson);
           this.showStatusMessage(`Successfully loaded ${response.footprints_count} Microsoft footprints`, false);
@@ -140,6 +164,59 @@ export class MapWorkflowComponent implements AfterViewInit {
       error: (error) => {
         console.error('Error loading Microsoft footprints:', error);
         let errorMessage = 'Error loading Microsoft footprints';
+
+        if (error.status === 0) {
+          errorMessage = 'Cannot connect to server. Please ensure the Flask app is running.';
+        } else if (error.error?.error) {
+          errorMessage = error.error.error;
+        } else if (error.error?.message) {
+          errorMessage = error.error.message;
+        }
+
+        this.showStatusMessage(errorMessage, true);
+      }
+    });
+  }
+
+  loadOSMFootprints(): void {
+    const data = this.draw.getAll();
+
+    if (!data.features || data.features.length === 0) {
+      this.showStatusMessage('Please draw a polygon first', true);
+      return;
+    }
+
+    // Get the first polygon
+    const polygon = data.features[0];
+
+    if (polygon.geometry.type !== 'Polygon') {
+      this.showStatusMessage('Please draw a polygon (not a point or line)', true);
+      return;
+    }
+
+    this.showStatusMessage('Loading OpenStreetMap footprints...', false);
+
+    const payload = {
+      polygon: polygon.geometry
+    };
+
+    this.http.post<any>('http://localhost:5001/api/download_osm_footprints', payload).subscribe({
+      next: (response) => {
+        if (response.message === 'success' && response.geojson) {
+          // Store the OSM footprints data
+          this.osmFootprintsData = response.geojson;
+          this.hasOsmFootprints = true;
+
+          this.addOSMFootprintsToMap(response.geojson);
+          this.showStatusMessage(`Successfully loaded ${response.footprints_count} OpenStreetMap footprints`, false);
+          this.cdr.detectChanges();
+        } else {
+          this.showStatusMessage(response.message || 'No OSM footprints found in the selected area', false);
+        }
+      },
+      error: (error) => {
+        console.error('Error loading OSM footprints:', error);
+        let errorMessage = 'Error loading OSM footprints';
 
         if (error.status === 0) {
           errorMessage = 'Cannot connect to server. Please ensure the Flask app is running.';
@@ -217,6 +294,72 @@ export class MapWorkflowComponent implements AfterViewInit {
     }
   }
 
+  private addOSMFootprintsToMap(geojson: any): void {
+    try {
+      // Remove existing OSM footprints layer and source if they exist
+      this.removeOSMFootprintsFromMap();
+
+      // Add the GeoJSON data as a source
+      this.map.addSource(this.OSM_FOOTPRINTS_SOURCE_ID, {
+        type: 'geojson',
+        data: geojson
+      });
+
+      // Add a layer to display the OSM footprints with a different color (blue)
+      this.map.addLayer({
+        id: this.OSM_FOOTPRINTS_LAYER_ID,
+        type: 'fill',
+        source: this.OSM_FOOTPRINTS_SOURCE_ID,
+        paint: {
+          'fill-color': '#0066cc',
+          'fill-opacity': 0.3,
+          'fill-outline-color': '#0066cc'
+        }
+      });
+
+      // Add click handler for OSM footprints
+      this.map.on('click', this.OSM_FOOTPRINTS_LAYER_ID, (e) => {
+        if (e.features && e.features.length > 0) {
+          const feature = e.features[0];
+          const properties = feature.properties;
+
+          // Create popup content
+          const popupContent = `
+            <div>
+              <h3>OpenStreetMap Building</h3>
+              <p><strong>UBID:</strong> ${properties?.['ubid'] || 'N/A'}</p>
+              <p><strong>Building Type:</strong> ${properties?.['building'] || 'N/A'}</p>
+              <p><strong>Height:</strong> ${properties?.['height'] ? properties['height'] + ' m' : 'N/A'}</p>
+              <p><strong>Levels:</strong> ${properties?.['building:levels'] || 'N/A'}</p>
+              <p><strong>Area:</strong> ${properties?.['osm_footprint_area_ft2'] ? Math.round(properties['osm_footprint_area_ft2']).toLocaleString() + ' sq ft' : 'N/A'}</p>
+              <p><strong>OSM Link:</strong> <a href="${properties?.['osm_url'] || '#'}" target="_blank">View on OSM</a></p>
+            </div>
+          `;
+
+          new mapboxgl.Popup()
+            .setLngLat(e.lngLat)
+            .setHTML(popupContent)
+            .addTo(this.map);
+        }
+      });
+
+      // Change cursor to pointer when hovering over OSM footprints
+      this.map.on('mouseenter', this.OSM_FOOTPRINTS_LAYER_ID, () => {
+        this.map.getCanvas().style.cursor = 'pointer';
+      });
+
+      this.map.on('mouseleave', this.OSM_FOOTPRINTS_LAYER_ID, () => {
+        this.map.getCanvas().style.cursor = '';
+      });
+
+      console.log('OSM footprints added to map successfully');
+
+    } catch (error) {
+      console.error('Error adding OSM footprints to map:', error);
+      this.showStatusMessage('Error displaying OSM footprints on map', true);
+    }
+  }
+
   private removeMSFootprintsFromMap(): void {
     try {
       // Remove layer if it exists
@@ -233,24 +376,96 @@ export class MapWorkflowComponent implements AfterViewInit {
     }
   }
 
+  private removeOSMFootprintsFromMap(): void {
+    try {
+      // Remove layer if it exists
+      if (this.map.getLayer(this.OSM_FOOTPRINTS_LAYER_ID)) {
+        this.map.removeLayer(this.OSM_FOOTPRINTS_LAYER_ID);
+      }
+
+      // Remove source if it exists
+      if (this.map.getSource(this.OSM_FOOTPRINTS_SOURCE_ID)) {
+        this.map.removeSource(this.OSM_FOOTPRINTS_SOURCE_ID);
+      }
+    } catch (error) {
+      console.error('Error removing OSM footprints from map:', error);
+    }
+  }
+
   clearMSFootprints(): void {
     this.removeMSFootprintsFromMap();
     this.msFootprintsData = null;
-    this.hasFootprints = false;
+    this.hasMsFootprints = false;
     this.cdr.detectChanges();
     this.showStatusMessage('Microsoft footprints cleared from map', false);
   }
 
-  proceedToCBLTable(): void {
-    if (this.msFootprintsData) {
-      // Store the Microsoft footprints data in the GeoJsonService
-      this.geoJsonService.setGeoJson(this.msFootprintsData);
+  clearAllFootprints(): void {
+    this.removeMSFootprintsFromMap();
+    this.removeOSMFootprintsFromMap();
+    this.msFootprintsData = null;
+    this.osmFootprintsData = null;
+    this.hasMsFootprints = false;
+    this.hasOsmFootprints = false;
+    this.cdr.detectChanges();
+    this.showStatusMessage('All footprints cleared from map', false);
+  }
 
-      // Navigate to the cbl-table page
-      this.router.navigate(['/cbl-table']);
-    } else {
-      this.showStatusMessage('Please load Microsoft footprints first', true);
+  clearOSMFootprints(): void {
+    this.removeOSMFootprintsFromMap();
+    this.osmFootprintsData = null;
+    this.hasOsmFootprints = false;
+    this.cdr.detectChanges();
+    this.showStatusMessage('OSM footprints cleared from map', false);
+  }
+
+  clearPolygon(): void {
+    // Clear the drawn polygon but keep footprints
+    if (this.draw) {
+      this.draw.deleteAll();
+      this.hasPolygon = false;
+      this.cdr.detectChanges();
+      this.showStatusMessage('Polygon cleared from map', false);
     }
+  }
+
+  proceedToCBLTable(): void {
+    if (this.msFootprintsData || this.osmFootprintsData) {
+      // Merge both datasets if available
+      let combinedData = null;
+
+      if (this.msFootprintsData && this.osmFootprintsData) {
+        // Combine both datasets
+        combinedData = {
+          type: 'FeatureCollection',
+          features: [
+            ...this.msFootprintsData.features,
+            ...this.osmFootprintsData.features
+          ]
+        };
+        this.showStatusMessage('Proceeding with combined Microsoft and OSM footprints data', false);
+      } else if (this.msFootprintsData) {
+        combinedData = this.msFootprintsData;
+        this.showStatusMessage('Proceeding with Microsoft footprints data', false);
+      } else if (this.osmFootprintsData) {
+        combinedData = this.osmFootprintsData;
+        this.showStatusMessage('Proceeding with OSM footprints data', false);
+      }
+
+      if (combinedData) {
+        // Store the combined data in the GeoJsonService
+        this.geoJsonService.setGeoJson(combinedData);
+
+        // Navigate to the cbl-table page
+        this.router.navigate(['/cbl-table']);
+      }
+    } else {
+      this.showStatusMessage('Please load footprints first (Microsoft or OpenStreetMap)', true);
+    }
+  }
+
+  get hasAnyFootprints(): boolean {
+    return this.hasMsFootprints || this.hasOsmFootprints;
   }
 
   private showStatusMessage(message: string, isError: boolean): void {

@@ -12,6 +12,7 @@ from typing import Any
 
 import geopandas as gpd
 import mercantile
+import osmnx as ox
 import pandas as pd
 import requests
 from cbl_workflow.utils.common import Location
@@ -615,6 +616,13 @@ def download_ms_footprints():
             app.logger.error(f"Error calculating areas: {e}")
             return jsonify({"error": f"Error calculating areas: {e}"}), 500
 
+        # Save the lat, lon from the centroid of the UBID in the format that the front end expects
+        ms_gdf["longitude"] = ms_gdf["ubid_centroid"].apply(lambda point: point.x if isinstance(point, Point) else None)
+        ms_gdf["latitude"] = ms_gdf["ubid_centroid"].apply(lambda point: point.y if isinstance(point, Point) else None)
+
+        # save the file for debugging as csv
+        ms_gdf.to_csv("ms_footprints_debug.csv", index=False)
+
         # Create GeoJSON data for response
         try:
             # Drop geometry columns that can't be serialized to GeoJSON
@@ -634,6 +642,166 @@ def download_ms_footprints():
 
     except Exception as e:
         app.logger.error(f"Unexpected error in download_ms_footprints: {e}")
+        app.logger.error(f"Exception type: {type(e).__name__}")
+        app.logger.error(f"Exception traceback: {traceback.format_exc()}")
+        return jsonify({"error": f"Unexpected error: {e}"}), 500
+
+
+@app.route("/api/download_osm_footprints", methods=["POST"])
+def download_osm_footprints():
+    """
+    Download OpenStreetMap building footprints for a given polygon using OSMnx.
+    """
+    app.logger.info("=== Starting download_osm_footprints function ===")
+
+    try:
+        # Get the polygon from the request
+        data = request.get_json()
+        if not data or "polygon" not in data:
+            return jsonify({"error": "Missing polygon data"}), 400
+
+        polygon_data = data["polygon"]
+        app.logger.info(f"Received polygon: {polygon_data}")
+
+        # Convert polygon coordinates to Shapely Polygon
+        try:
+            coordinates = polygon_data["coordinates"][0]  # Get first ring of polygon
+            shapely_polygon = Polygon(coordinates)
+            app.logger.info(f"Created Shapely polygon with {len(coordinates)} coordinates")
+        except Exception as e:
+            app.logger.error(f"Error creating Shapely polygon: {e}")
+            return jsonify({"error": f"Invalid polygon format: {e}"}), 400
+
+        # Use OSMnx to get building footprints within the polygon
+        try:
+            app.logger.info("Fetching OSM building footprints...")
+            buildings = ox.features_from_polygon(shapely_polygon, tags={"building": True})
+
+            if buildings.empty:
+                app.logger.info("No OSM building footprints found in the polygon")
+                return jsonify({"message": "No OSM building footprints found in the selected area", "footprints_count": 0}), 200
+
+            app.logger.info(f"Found {len(buildings)} OSM building footprints")
+
+        except Exception as e:
+            app.logger.error(f"Error fetching OSM footprints: {e}")
+            return jsonify({"error": f"Error fetching OSM footprints: {e}"}), 500
+
+        # Process the OSM data similar to your example
+        try:
+            # Remove point geometries
+            osm_gdf = buildings[buildings.geometry.type != "Point"].copy()
+            app.logger.info(f"After removing points: {len(osm_gdf)} footprints")
+
+            # Remove any columns that are completely empty
+            osm_gdf = osm_gdf.dropna(axis=1, how="all")
+
+            # Drop some columns that aren't needed
+            drop_cols = ["nodes", "area_right", "centroid", "bounds_minx", "bounds_miny", "bounds_maxx", "bounds_maxy", "ways"]
+            drop_cols = [col for col in drop_cols if col in osm_gdf.columns]
+            if drop_cols:
+                osm_gdf = osm_gdf.drop(columns=drop_cols)
+
+            # Add UBIDs
+            osm_gdf["ubid"] = osm_gdf.apply(lambda x: encode_ubid(x["geometry"]), axis=1)
+            osm_gdf["ubid_centroid"] = osm_gdf.apply(lambda x: centroid(x["ubid"]), axis=1)
+
+            # Decompose the ubid_centroid into lat/long
+            osm_gdf["lon"] = osm_gdf["ubid_centroid"].apply(lambda point: point.x)
+            osm_gdf["lat"] = osm_gdf["ubid_centroid"].apply(lambda point: point.y)
+            # Drop ubid_centroid
+            osm_gdf = osm_gdf.drop(columns=["ubid_centroid"])
+
+            # Calculate footprint area
+            osm_gdf["osm_footprint_area_m2"] = osm_gdf.to_crs(epsg=3857).area
+            osm_gdf["osm_footprint_area_ft2"] = osm_gdf["osm_footprint_area_m2"] * 10.764
+
+            # Add OSM URL
+            def create_url_field(row):
+                return f"https://www.openstreetmap.org/{row.name[0]}/{row.name[1]}"
+
+            osm_gdf["osm_url"] = osm_gdf.apply(create_url_field, axis=1)
+
+            # Clean up building types
+            if "building" in osm_gdf.columns:
+                # Remove buildings that are just roofs
+                osm_gdf = osm_gdf[osm_gdf["building"] != "roof"]
+
+                # If there is an amenity, then make the building the amenity
+                if "amenity" in osm_gdf.columns:
+                    osm_gdf.loc[osm_gdf["amenity"].notna(), "building"] = osm_gdf["amenity"]
+
+                # Map "yes" buildings to "Unknown"
+                osm_gdf.loc[osm_gdf["building"] == "yes", "building"] = "Unknown"
+
+                # Map residential to apartments
+                osm_gdf.loc[osm_gdf["building"] == "residential", "building"] = "apartments"
+
+            # Handle height and levels
+            if "height" not in osm_gdf.columns:
+                osm_gdf["height"] = 0
+            else:
+                osm_gdf["height"] = osm_gdf["height"].fillna(0)
+
+            if "building:levels" in osm_gdf.columns:
+                osm_gdf["building:levels"] = osm_gdf["building:levels"].fillna(0)
+                osm_gdf["building:levels"] = osm_gdf["building:levels"].astype(int)
+
+            # make sure to define street address, city, state, postal_code, and country in the
+            # format that the front end expects
+            # first print the data to the log to see what it looks like
+            app.logger.info("Processing address fields...")
+            app.logger.debug(f"OSM DataFrame columns: {osm_gdf.columns.tolist()}")
+
+            # save as csv for debugging
+            osm_gdf.to_csv("osm_footprints_debug.csv", index=False)
+
+            # if address fields are not present, create them with default values
+            if "addr:city" not in osm_gdf.columns:
+                osm_gdf["city"] = ""
+            else:
+                osm_gdf["city"] = osm_gdf["addr:city"].fillna("")
+            if "addr:housenumber" not in osm_gdf.columns:
+                osm_gdf["addr:housenumber"] = ""
+            else:
+                osm_gdf["addr:housenumber"] = osm_gdf["addr:housenumber"].fillna("")
+            if "addr:street" not in osm_gdf.columns:
+                osm_gdf["street"] = ""
+            else:
+                osm_gdf["street"] = osm_gdf["addr:street"].fillna("")
+            if "addr:state" not in osm_gdf.columns:
+                osm_gdf["state"] = ""
+            else:
+                osm_gdf["state"] = osm_gdf["addr:state"].fillna("")
+            if "addr:postcode" not in osm_gdf.columns:
+                osm_gdf["postal_code"] = ""
+            else:
+                osm_gdf["postal_code"] = osm_gdf["addr:postcode"].fillna("")
+            osm_gdf["street_address"] = osm_gdf["addr:housenumber"] + " " + osm_gdf["street"]
+
+            # get the lat long in the format that the front end expects
+            osm_gdf["latitude"] = osm_gdf["lat"]
+            osm_gdf["longitude"] = osm_gdf["lon"]
+
+            app.logger.info(f"Processed OSM footprints: {len(osm_gdf)} final footprints")
+
+        except Exception as e:
+            app.logger.error(f"Error processing OSM footprints: {e}")
+            return jsonify({"error": f"Error processing OSM footprints: {e}"}), 500
+
+        # Convert to GeoJSON
+        try:
+            geojson_data = geodataframe_to_json(osm_gdf)
+            app.logger.info("Successfully converted OSM footprints to GeoJSON")
+
+            return jsonify({"message": "success", "footprints_count": len(osm_gdf), "geojson": json.loads(geojson_data)}), 200
+
+        except Exception as e:
+            app.logger.error(f"Error creating GeoJSON data: {e}")
+            return jsonify({"error": f"Error creating GeoJSON data: {e}"}), 500
+
+    except Exception as e:
+        app.logger.error(f"Unexpected error in download_osm_footprints: {e}")
         app.logger.error(f"Exception type: {type(e).__name__}")
         app.logger.error(f"Exception traceback: {traceback.format_exc()}")
         return jsonify({"error": f"Unexpected error: {e}"}), 500

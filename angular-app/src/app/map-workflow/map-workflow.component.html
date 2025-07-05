@@ -7,10 +7,21 @@
 
   <!-- Control buttons -->
   <div class="controls-container">
-    <button class="export-btn" (click)="exportGeoJSON()">Export GeoJSON (to console)</button>
-    <button class="load-btn" [disabled]="!hasPolygon" (click)="loadMSFootprints()">Load MS Footprints</button>
-    <button class="clear-btn" (click)="clearMSFootprints()">Clear Footprints</button>
-    <button class="proceed-btn" [disabled]="!hasFootprints" (click)="proceedToCBLTable()">Proceed to CBL Table</button>
+    <!-- Data loading buttons -->
+    <div class="data-buttons">
+      <button class="load-btn ms-btn" [disabled]="!hasPolygon" (click)="loadMSFootprints()">Load MS Footprints</button>
+      <button class="load-btn osm-btn" [disabled]="!hasPolygon" (click)="loadOSMFootprints()">Load OSM Footprints</button>
+    </div>
+
+    <!-- Clear buttons -->
+    <div class="clear-buttons">
+      <button class="clear-btn polygon-clear" (click)="clearPolygon()">Clear Polygon</button>
+      <button class="clear-btn ms-clear" (click)="clearMSFootprints()">Clear MS</button>
+      <button class="clear-btn osm-clear" (click)="clearOSMFootprints()">Clear OSM</button>
+      <button class="clear-btn all-clear" (click)="clearAllFootprints()">Clear All</button>
+    </div>
+
+    <button class="proceed-btn" [disabled]="!hasAnyFootprints" (click)="proceedToCBLTable()">Proceed to CBL Table</button>
   </div>
 
   <!-- Status message -->
