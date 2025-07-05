@@ -106,9 +106,6 @@ The package will be automatically installed when running poetry update in the CB
 ## Releasing
 
 - These instructions are not yet complete
-
----
-
 - Release CBL workflow
 - Update this repo's `pyproject.toml` to point to the cbl-workflow version on PyPi
 - Update CHANGELOG by running auto generation on GitHub.
