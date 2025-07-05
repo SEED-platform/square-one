@@ -6,6 +6,11 @@
 .pytest_cache
 *.code-workspace
 
+# Environment files
+.env
+.env.local
+.env.production
+
 current-workflow.txt
 package-lock.json
 

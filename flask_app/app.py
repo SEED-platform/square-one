@@ -1,7 +1,10 @@
 import gzip
 import json
 import json.scanner
+import logging
 import os
+import sys
+import traceback
 import warnings
 from collections import OrderedDict
 from typing import Any
@@ -34,7 +37,65 @@ app = Flask(__name__)
 CORS(app)
 load_dotenv()
 
+# Configure detailed logging
+logging.basicConfig(level=logging.DEBUG, format="[%(asctime)s] %(levelname)s in %(module)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+
+# Configure Flask app logging
+app.logger.setLevel(logging.DEBUG)
+app.config["DEBUG"] = True
+
+if not app.logger.handlers:
+    stream_handler = logging.StreamHandler(sys.stdout)
+    stream_handler.setLevel(logging.DEBUG)
+    formatter = logging.Formatter("[%(asctime)s] %(levelname)s: %(message)s")
+    stream_handler.setFormatter(formatter)
+    app.logger.addHandler(stream_handler)
+
 api_key = ""
+
+
+@app.errorhandler(Exception)
+def handle_exception(e):
+    """Global error handler to catch and log all exceptions"""
+    app.logger.error("=" * 50)
+    app.logger.error(f"UNHANDLED EXCEPTION: {e!s}")
+    app.logger.error(f"Exception type: {type(e).__name__}")
+    app.logger.error(f"Traceback: {traceback.format_exc()}")
+    app.logger.error("=" * 50)
+
+    # Also print to console for visibility
+    print("=" * 50)
+    print(f"UNHANDLED EXCEPTION: {e!s}")
+    print(f"Exception type: {type(e).__name__}")
+    print(f"Traceback: {traceback.format_exc()}")
+    print("=" * 50)
+
+    # Return JSON error response
+    return jsonify({"error": True, "message": f"Internal server error: {e!s}", "type": type(e).__name__}), 500
+
+
+@app.errorhandler(400)
+def handle_bad_request(e):
+    """Handle 400 Bad Request errors"""
+    app.logger.error(f"Bad Request (400): {e!s}")
+    print(f"Bad Request (400): {e!s}")
+    return jsonify({"error": True, "message": "Bad Request", "details": str(e)}), 400
+
+
+@app.errorhandler(404)
+def handle_not_found(e):
+    """Handle 404 Not Found errors"""
+    app.logger.error(f"Not Found (404): {e!s}")
+    print(f"Not Found (404): {e!s}")
+    return jsonify({"error": True, "message": "Endpoint not found", "details": str(e)}), 404
+
+
+@app.errorhandler(500)
+def handle_internal_error(e):
+    """Handle 500 Internal Server errors"""
+    app.logger.error(f"Internal Server Error (500): {e!s}")
+    print(f"Internal Server Error (500): {e!s}")
+    return jsonify({"error": True, "message": "Internal server error", "details": str(e)}), 500
 
 
 @app.route("/api/submit_file", methods=["POST"])
@@ -213,76 +274,169 @@ def reverse_geocode():
     """
     Given lat/lon in request, look up the address using Mapbox and return the resulting data.
     """
-    app.logger.info("function: reverse_geocode")
+    app.logger.info("=== Starting reverse_geocode function ===")
+    app.logger.info(f"Request data: {request.json}")
 
-    # todo: make sure this is the best way to handle this error. Nothing is being displayed to the user.
-    if "MAPQUEST_API_KEY" not in os.environ:
-        return jsonify({"message": "MAPQUEST_API_KEY not present in env file"}), 400
-
-    json_string = request.json.get("value")
-    json_data = json.loads(json_string)
-
-    coords = json_data["coordinates"]
-
-    properties = {}
-    for key in json_data["propertyNames"]:
-        properties[key] = " "
-    newId = str(json_data["featuresLength"])
-
-    polygon = Polygon(coords)
-    centroid = polygon.centroid
-
-    # calculate lat, long (center of polygon)
-    lat = centroid.y
-    lon = centroid.x
-
-    # encode ubid from coordinates
-    ubid = ""
     try:
-        ubid = encode_ubid(polygon)
-    except AssertionError:
-        return jsonify({"message": "Invalid longitude coordinates"}), 400
+        # Check for API key
+        if "MAPBOX_ACCESS_TOKEN" not in os.environ:
+            app.logger.error("MAPBOX_ACCESS_TOKEN not present in env file")
+            return jsonify({"message": "MAPBOX_ACCESS_TOKEN not present in env file"}), 400
 
-    url = f"https://api.mapbox.com/geocoding/v5/mapbox.places/{lon},{lat}.json"
-    params = {"access_token": os.environ["MAPQUEST_API_KEY"], "limit": 1}
+        # Parse request data
+        json_string = request.json.get("value")
+        app.logger.info(f"json_string: {json_string}")
 
-    # TODO: remove verify
-    response = requests.get(url, params=params, verify=True)
-    if response.status_code in {401, 403}:
-        return jsonify({"message": "Error: Could not reverse geocode using the mapbox API."}), 400
+        if not json_string:
+            app.logger.error("No 'value' provided in request")
+            return jsonify({"message": "No 'value' provided in request"}), 400
 
-    result = response.json()
-    try:
-        properties["ubid"] = ubid
-        properties["latitude"] = str(lat)
-        properties["longitude"] = str(lon)
-        features = result["features"]
-        context = features[0]["context"]
-        for item in context:
-            if "place" in item["id"]:
-                properties["city"] = item["text"]
+        try:
+            json_data = json.loads(json_string)
+            app.logger.info(f"Parsed json_data: {json_data}")
+        except json.JSONDecodeError as e:
+            app.logger.error(f"Invalid JSON in request: {e}")
+            return jsonify({"message": f"Invalid JSON in request: {e}"}), 400
 
-            if "region" in item["id"]:
-                state_name = item["text"]
-                properties["state"] = normalize_state(state_name)
+        # Extract coordinates
+        coords = json_data.get("coordinates")
+        if not coords:
+            app.logger.error("No coordinates found in request data")
+            return jsonify({"message": "No coordinates found in request data"}), 400
 
-            if "postcode" in item["id"]:
-                properties["postal_code"] = item["text"]
+        app.logger.info(f"Coordinates: {coords}")
 
-            if "country" in item["id"]:
-                properties["country"] = item["text"]
+        # Initialize properties
+        properties = {}
+        property_names = json_data.get("propertyNames", [])
+        for key in property_names:
+            properties[key] = " "
+        newId = str(json_data.get("featuresLength", 0))
 
-        properties["street_address"] = normalize_address(features[0]["place_name"])
-    except Exception:
-        app.logger.warning("missing data from reverse geocoding")
+        app.logger.info(f"Property names: {property_names}")
+        app.logger.info(f"New ID: {newId}")
 
-    if not properties or len(properties) == 0:
-        return jsonify({"message": "Error: Reverse geocoding returned poor data."}), 400
+        # Create polygon and calculate centroid
+        try:
+            polygon = Polygon(coords)
+            centroid = polygon.centroid
+            app.logger.info(f"Polygon created successfully, centroid: {centroid}")
+        except Exception as e:
+            app.logger.error(f"Error creating polygon: {e}")
+            return jsonify({"message": f"Error creating polygon: {e}"}), 400
 
-    properties["quality"] = "reverseGeocode"
-    returned_feature = {"id": newId, "type": "Feature", "properties": properties, "geometry": {"type": "Polygon", "coordinates": [coords]}}
+        # Calculate lat, long (center of polygon)
+        lat = centroid.y
+        lon = centroid.x
+        app.logger.info(f"Calculated lat: {lat}, lon: {lon}")
 
-    return jsonify({"message": "success", "user_data": json.dumps(returned_feature)}), 200
+        # Encode UBID from coordinates
+        ubid = ""
+        try:
+            ubid = encode_ubid(polygon)
+            app.logger.debug(f"Generated UBID: {ubid}")
+        except AssertionError as e:
+            app.logger.error(f"Invalid longitude coordinates for UBID: {e}")
+            return jsonify({"message": "Invalid longitude coordinates"}), 400
+        except Exception as e:
+            app.logger.error(f"Error encoding UBID: {e}")
+            return jsonify({"message": f"Error encoding UBID: {e}"}), 400
+
+        # Make Mapbox API call
+        url = f"https://api.mapbox.com/geocoding/v5/mapbox.places/{lon},{lat}.json"
+        params = {"access_token": os.environ["MAPBOX_ACCESS_TOKEN"], "limit": 1}
+
+        app.logger.debug(f"Making API call to: {url}")
+
+        try:
+            response = requests.get(url, params=params, verify=True)
+            app.logger.debug(f"API response status: {response.status_code}")
+            app.logger.debug(f"API response content: {response.text}")
+        except Exception as e:
+            app.logger.error(f"Error making API request: {e}")
+            return jsonify({"message": f"Error making API request: {e}"}), 500
+
+        if response.status_code in {401, 403}:
+            app.logger.error(f"API authentication error: {response.status_code}")
+            return jsonify({"message": "Error: Could not reverse geocode using the mapbox API."}), 400
+
+        # Parse API response
+        try:
+            result = response.json()
+            app.logger.debug(f"API result: {result}")
+        except json.JSONDecodeError as e:
+            app.logger.error(f"Invalid JSON response from API: {e}")
+            return jsonify({"message": f"Invalid JSON response from API: {e}"}), 500
+
+        # Process result
+        try:
+            properties["ubid"] = ubid
+            properties["latitude"] = str(lat)
+            properties["longitude"] = str(lon)
+
+            features = result.get("features", [])
+            if not features:
+                app.logger.warning("No features returned from API")
+                properties["street_address"] = "Unknown"
+                properties["city"] = "Unknown"
+                properties["state"] = "Unknown"
+                properties["postal_code"] = "Unknown"
+                properties["country"] = "Unknown"
+            else:
+                feature = features[0]
+                app.logger.debug(f"Processing feature: {feature}")
+
+                # Extract address components from context
+                context = feature.get("context", [])
+                for item in context:
+                    item_id = item.get("id", "")
+                    if "place" in item_id:
+                        properties["city"] = item.get("text", "Unknown")
+
+                    if "region" in item_id:
+                        state_name = item.get("text", "Unknown")
+                        properties["state"] = normalize_state(state_name)
+
+                    if "postcode" in item_id:
+                        properties["postal_code"] = item.get("text", "Unknown")
+
+                    if "country" in item_id:
+                        properties["country"] = item.get("text", "Unknown")
+
+                # Extract street address
+                place_name = feature.get("place_name", "Unknown")
+                properties["street_address"] = normalize_address(place_name)
+
+                app.logger.info(f"Extracted properties: {properties}")
+
+        except Exception as e:
+            app.logger.error(f"Error processing API result: {e}")
+            app.logger.error(f"Exception traceback: {traceback.format_exc()}")
+            return jsonify({"message": f"Error processing API result: {e}"}), 500
+
+        # Validate properties
+        if not properties or len(properties) == 0:
+            app.logger.error("No properties extracted from reverse geocoding")
+            return jsonify({"message": "Error: Reverse geocoding returned poor data."}), 400
+
+        # Create returned feature
+        properties["quality"] = "reverseGeocode"
+        returned_feature = {
+            "id": newId,
+            "type": "Feature",
+            "properties": properties,
+            "geometry": {"type": "Polygon", "coordinates": [coords]},
+        }
+
+        app.logger.info(f"Returning feature: {returned_feature}")
+
+        return jsonify({"message": "success", "user_data": json.dumps(returned_feature)}), 200
+
+    except Exception as e:
+        app.logger.error(f"Unexpected error in reverse_geocode: {e}")
+        app.logger.error(f"Exception type: {type(e).__name__}")
+        app.logger.error(f"Exception traceback: {traceback.format_exc()}")
+        return jsonify({"message": f"Unexpected error: {e}"}), 500
 
 
 @app.route("/api/edit_footprint", methods=["POST"])
@@ -338,4 +492,27 @@ def return_one():
 
 
 if __name__ == "__main__":
-    app.run(port=5001)
+    # Configure logging for development
+    import sys
+
+    # Create a console handler
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(logging.DEBUG)
+
+    # Create a formatter
+    formatter = logging.Formatter("[%(asctime)s] %(levelname)s in %(module)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+    console_handler.setFormatter(formatter)
+
+    # Add the handler to the Flask app logger
+    app.logger.addHandler(console_handler)
+    app.logger.setLevel(logging.DEBUG)
+
+    # Also add to the root logger
+    root_logger = logging.getLogger()
+    root_logger.addHandler(console_handler)
+    root_logger.setLevel(logging.DEBUG)
+
+    print("Flask app starting with detailed logging enabled...")
+    print("All error messages will be displayed in this console.")
+
+    app.run(port=5001, use_reloader=False)

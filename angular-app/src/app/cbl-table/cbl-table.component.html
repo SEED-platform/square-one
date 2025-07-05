@@ -81,6 +81,12 @@
         Add New Row
       </button>
       <button
+        class="inline-flex justify-center gap-x-1.5 rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
+        (click)="reverseGeocodeSelected()"
+      >
+        Reverse Geocode
+      </button>
+      <button
         class="inline-flex justify-center gap-x-1.5 rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-700"
         (click)="handleDelete()"
       >
@@ -101,6 +107,60 @@
         (rowClicked)="onRowClicked($event)"
         style="height: 90%; width: 45vw"
       />
+    </div>
+  </div>
+</div>
+
+<!-- Reverse Geocode Dialog -->
+<div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" *ngIf="showReverseGeocodeDialog">
+  <div class="mx-4 w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+    <h3 class="mb-4 text-lg font-semibold text-gray-900">Choose Reverse Geocoding Method</h3>
+    <p class="mb-6 text-sm text-gray-600">How would you like to reverse geocode the selected building?</p>
+
+    <div class="mb-6 space-y-3">
+      <button
+        class="flex w-full items-center justify-center rounded-md bg-blue-600 px-4 py-3 text-white transition-colors hover:bg-blue-700"
+        [disabled]="!selectedRowHasFootprint"
+        [class.opacity-50]="!selectedRowHasFootprint"
+        [class.cursor-not-allowed]="!selectedRowHasFootprint"
+        (click)="reverseGeocodeByFootprint()"
+      >
+        <svg class="mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 01.553-.894L9 2l6 3 6-3v15l-6 3-6-3z"
+          ></path>
+        </svg>
+        By Footprint Polygon
+        <span class="ml-2 text-xs" *ngIf="!selectedRowHasFootprint">(No footprint available)</span>
+      </button>
+
+      <button
+        class="flex w-full items-center justify-center rounded-md bg-green-600 px-4 py-3 text-white transition-colors hover:bg-green-700"
+        (click)="reverseGeocodeByAddress()"
+      >
+        <svg class="mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+          ></path>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
+        </svg>
+        By Address
+      </button>
+    </div>
+
+    <div class="flex justify-end">
+      <button
+        class="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200"
+        (click)="closeReverseGeocodeDialog()"
+      >
+        Cancel
+      </button>
     </div>
   </div>
 </div>

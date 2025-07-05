@@ -52,6 +52,11 @@ export class CblTableComponent implements OnInit, OnDestroy {
   private selectedRowIdStorage?: string;
   private initialLoad = true; // Flag to track initial load
 
+  // Reverse geocoding dialog properties
+  showReverseGeocodeDialog = false;
+  selectedRowForReverseGeocode: any = null;
+  selectedRowHasFootprint = false;
+
   constructor(
     private apiHandler: FlaskRequests,
     private router: Router,
@@ -406,6 +411,165 @@ export class CblTableComponent implements OnInit, OnDestroy {
     }, 100);
   }
 
+  reverseGeocodeSelected() {
+    if (this.rowData.length === 0) {
+      alert('No data available');
+      return;
+    }
+
+    const selectedData = this.gridApi.getSelectedRows();
+    if (selectedData.length === 0) {
+      alert('Please select a row first');
+      return;
+    }
+
+    if (selectedData.length > 1) {
+      alert('Please select only one row for reverse geocoding');
+      return;
+    }
+
+    this.selectedRowForReverseGeocode = selectedData[0];
+    this.selectedRowHasFootprint = this.hasFootprintData(this.selectedRowForReverseGeocode);
+    this.showReverseGeocodeDialog = true;
+  }
+
+  closeReverseGeocodeDialog() {
+    this.showReverseGeocodeDialog = false;
+    this.selectedRowForReverseGeocode = null;
+    this.selectedRowHasFootprint = false;
+  }
+
+  reverseGeocodeByFootprint() {
+    if (!this.selectedRowForReverseGeocode || !this.selectedRowHasFootprint) {
+      alert('Selected building has no footprint data');
+      return;
+    }
+
+    const building = this.selectedRowForReverseGeocode;
+    const coordinates = building.geometry?.coordinates;
+
+    if (!coordinates || !coordinates[0] || coordinates[0].length === 0) {
+      alert('Invalid footprint data');
+      return;
+    }
+
+    // Prepare data for Flask API call
+    const jsonData = {
+      coordinates: coordinates[0], // Get the first polygon ring
+      propertyNames: JSON.parse(sessionStorage.getItem('PROPERTYNAMES') || '[]'),
+      featuresLength: this.rowData.length
+    };
+
+    const jsonDataString = JSON.stringify(jsonData);
+    console.log('Reverse geocoding by footprint:', jsonData);
+
+    this.apiHandler.sendReverseGeoCodeData(jsonDataString).subscribe(
+      (response) => {
+        console.log('Reverse geocoding successful:', response);
+        const updatedBuilding = JSON.parse(response.user_data);
+
+        // Update the selected building with new address data
+        this.updateBuildingWithReverseGeocodeData(building, updatedBuilding);
+
+        this.closeReverseGeocodeDialog();
+        alert('Building successfully reverse geocoded using footprint!');
+      },
+      (errorResponse) => {
+        console.error('Reverse geocoding failed:', errorResponse);
+        alert('Reverse geocoding failed: ' + (errorResponse.error?.message || 'Unknown error'));
+        this.closeReverseGeocodeDialog();
+      }
+    );
+  }
+
+  reverseGeocodeByAddress() {
+    if (!this.selectedRowForReverseGeocode) {
+      alert('No building selected');
+      return;
+    }
+
+    const building = this.selectedRowForReverseGeocode;
+    const streetAddress = building.properties?.street_address;
+
+    if (!streetAddress || streetAddress.trim() === '') {
+      alert('No address available for reverse geocoding');
+      return;
+    }
+
+    // For address-based reverse geocoding, we would typically use a geocoding service
+    // to get coordinates from the address, then reverse geocode those coordinates
+    // For now, we'll use the existing lat/lng if available
+    const latitude = building.properties?.latitude;
+    const longitude = building.properties?.longitude;
+
+    if (!latitude || !longitude || latitude === 0 || longitude === 0) {
+      alert('No valid coordinates available for this address');
+      return;
+    }
+
+    // Create a simple polygon around the lat/lng point for reverse geocoding
+    const offset = 0.0001; // Small offset to create a minimal polygon
+    const coordinates = [
+      [longitude - offset, latitude - offset],
+      [longitude + offset, latitude - offset],
+      [longitude + offset, latitude + offset],
+      [longitude - offset, latitude + offset],
+      [longitude - offset, latitude - offset]
+    ];
+
+    const jsonData = {
+      coordinates: coordinates,
+      propertyNames: JSON.parse(sessionStorage.getItem('PROPERTYNAMES') || '[]'),
+      featuresLength: this.rowData.length
+    };
+
+    const jsonDataString = JSON.stringify(jsonData);
+    console.log('Reverse geocoding by address:', jsonData);
+
+    this.apiHandler.sendReverseGeoCodeData(jsonDataString).subscribe(
+      (response) => {
+        console.log('Reverse geocoding successful:', response);
+        const updatedBuilding = JSON.parse(response.user_data);
+
+        // Update the selected building with new address data
+        this.updateBuildingWithReverseGeocodeData(building, updatedBuilding);
+
+        this.closeReverseGeocodeDialog();
+        alert('Building successfully reverse geocoded using address!');
+      },
+      (errorResponse) => {
+        console.error('Reverse geocoding failed:', errorResponse);
+        alert('Reverse geocoding failed: ' + (errorResponse.error?.message || 'Unknown error'));
+        this.closeReverseGeocodeDialog();
+      }
+    );
+  }
+
+  updateBuildingWithReverseGeocodeData(originalBuilding: any, updatedData: any) {
+    // Update the original building's properties with the reverse geocoded data
+    if (updatedData.properties) {
+      // Update specific fields while preserving others
+      const fieldsToUpdate = ['street_address', 'city', 'state', 'postal_code', 'country'];
+
+      fieldsToUpdate.forEach(field => {
+        if (updatedData.properties[field]) {
+          originalBuilding.properties[field] = updatedData.properties[field];
+        }
+      });
+
+      // Update quality to indicate it was reverse geocoded
+      originalBuilding.properties.quality = 'Reverse Geocoded';
+    }
+
+    // Refresh the grid to show updated data
+    this.gridApi.applyTransaction({
+      update: [originalBuilding]
+    });
+
+    // Update the GeoJSON service
+    this.geoJsonService.setGeoJson(this.geoJson);
+  }
+
   updateModifiedRow(modBuilding: any) {
     if (this.rowData.length !== 0) {
       const rowNode = this.rowData.find((row) => row.id === modBuilding.id.toString());
@@ -417,8 +581,8 @@ export class CblTableComponent implements OnInit, OnDestroy {
         // Handle footprint deletion - if coordinates are empty, clear the footprint
         if (!modBuilding.coordinates || modBuilding.coordinates.length === 0) {
           // Clear the footprint data
-          data.geometry.coordinates = [[]];
-          data.properties.ubid = '';
+          data.geometry.coordinates = [[]]; // Empty polygon coordinates
+          data.properties.ubid = ''; // Clear UBID
         } else {
           // Update with new coordinates
           data.geometry.coordinates = [modBuilding.coordinates];
