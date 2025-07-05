@@ -223,10 +223,6 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
       userProperties: true,
       styles: [
         // default themes provided by MB Draw
-        // default themes provided by MB Draw
-        // default themes provided by MB Draw
-        // default themes provided by MB Draw
-
         {
           id: 'gl-draw-polygon-fill-inactive',
           type: 'fill',
@@ -494,7 +490,7 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
 
     this.apiHandler.sendEditedPolygonData(jsonDataString).subscribe(
       (response) => {
-        console.log(response.message); // Handle successful response
+        console.log(response.message);
         this.newGeoJson = JSON.parse(response.user_data);
 
         const newBuildingLongitude = this.newGeoJson.lon;
@@ -506,7 +502,7 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
         this.geoJsonService.modifyBuildingInTable(newBuildingCoordinates, newBuildingLatitude, newBuildingLongitude, newBuildingUbid, newBuildingId);
       },
       (errorResponse) => {
-        console.error(errorResponse.error.message); // Handle error response
+        console.error(errorResponse.error.message);
       }
     );
   }
@@ -588,7 +584,7 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
       const jsonDataString = JSON.stringify(jsonData);
       this.apiHandler.sendReverseGeoCodeData(jsonDataString).subscribe(
         (response) => {
-          console.log(response.message); // Handle successful response
+          console.log(response.message);
           this.newGeoJson = JSON.parse(response.user_data);
           this.newGeoJson.id = uuidv4();
           const newBuildinglongitude = Number(this.newGeoJson.properties.longitude);
@@ -602,7 +598,7 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
           draw.add(this.newGeoJson);
         },
         (errorResponse) => {
-          console.error(errorResponse.error.message); // Handle error response
+          console.error(errorResponse.error.message);
         }
       );
     } else {
@@ -618,7 +614,7 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
       const jsonDataString = JSON.stringify(jsonData);
       this.apiHandler.sendReverseGeoCodeData(jsonDataString).subscribe(
         (response) => {
-          console.log(response.message); // Handle successful response
+          console.log(response.message);
           this.newGeoJson = JSON.parse(response.user_data);
           const existingBuildingLongitude = this.newGeoJson.properties.longitude;
           const existingBuildingLatitude = this.newGeoJson.properties.latitude;
@@ -664,7 +660,7 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
           console.log('clicked feature', clickedFeature);
         },
         (errorResponse) => {
-          console.error(errorResponse.error.message); // Handle error response
+          console.error(errorResponse.error.message);
         }
       );
     }

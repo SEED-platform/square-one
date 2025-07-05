@@ -3,12 +3,11 @@ import { ChangeDetectorRef, Component, ElementRef, ViewChild } from '@angular/co
 import { FlaskRequests } from '../../services/server.service';
 import { Router } from '@angular/router';
 import LZString from 'lz-string';
-import { log } from 'console';
 
 interface FileItem {
   objectURL: string;
   name: string;
-  size: string; // Size as string to handle display
+  size: string;
   isImage: boolean;
   data: File;
 }
@@ -22,16 +21,14 @@ interface FileItem {
 export class FileUploadComponent {
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
 
-  files: FileItem[] = [];
-  actualFiles: File[] = [];
+  selectedFile: FileItem | null = null;
   allowedFileTypes: string[] = ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/csv', 'application/json', 'application/geo+json'];
   isDraggedOver = false;
   initialJsonData: any;
   userFile: any;
   fatalErrorArray: string[] = [
     'Uploaded a file in the wrong format. Please upload different format',
-    'Failed to read file.',
-    'Uploaded files with conflicting column names. Please upload files with identical column names.'
+    'Failed to read file.'
   ];
   isLoading = false;
 
@@ -43,9 +40,9 @@ export class FileUploadComponent {
 
   onDrop(event: DragEvent) {
     event.preventDefault();
-    if (event.dataTransfer?.files) {
-      const fileArray = Array.from(event.dataTransfer.files);
-      fileArray.forEach((file) => this.addFile(file));
+    if (event.dataTransfer?.files && event.dataTransfer.files.length > 0) {
+      const file = event.dataTransfer.files[0];
+      this.handleFile(file);
     }
     this.isDraggedOver = false;
   }
@@ -73,9 +70,11 @@ export class FileUploadComponent {
 
   onFileChange(event: Event) {
     const input = event.target as HTMLInputElement;
-    if (input.files) {
-      const fileArray = Array.from(input.files);
-      fileArray.forEach((file) => this.addFile(file));
+    if (input.files && input.files.length > 0) {
+      const file = input.files[0];
+      if (file) {
+        this.handleFile(file);
+      }
     }
   }
 
@@ -83,21 +82,30 @@ export class FileUploadComponent {
     this.fileInput.nativeElement.click();
   }
 
-  addFile(file: File) {
+  handleFile(file: File) {
     if (this.isValidFile(file)) {
       const isImage = file.type.startsWith('image/');
       const objectURL = URL.createObjectURL(file);
-      this.files.push({
+
+      // Clean up previous file if it exists
+      if (this.selectedFile) {
+        URL.revokeObjectURL(this.selectedFile.objectURL);
+      }
+
+      this.selectedFile = {
         objectURL,
         name: file.name,
         size: this.formatFileSize(file.size),
         isImage,
         data: file
-      });
+      };
+      console.log('Selected file:', this.selectedFile);
     } else {
       alert(file.name + ' is not a valid file');
     }
   }
+
+
 
   isValidFile(file: File): boolean {
     const isValidType = this.allowedFileTypes.includes(file.type);
@@ -113,25 +121,30 @@ export class FileUploadComponent {
     return size > 1024 ? (size > 1048576 ? `${Math.round(size / 1048576)} MB` : `${Math.round(size / 1024)} KB`) : `${size} B`;
   }
 
-  onDelete(file: FileItem) {
-    this.files = this.files.filter((f) => f.objectURL !== file.objectURL);
-    URL.revokeObjectURL(file.objectURL);
-    if (this.files.length === 0) {
-      // To show 'No files selected' message again
-      this.files = [];
+  onDelete() {
+    if (this.selectedFile) {
+      URL.revokeObjectURL(this.selectedFile.objectURL);
+      this.selectedFile = null;
       this.clearFileInput();
+      console.log('File deleted');
     }
-    console.log(this.files);
   }
 
   onSubmit() {
-    alert(`Submitted Files:\n${JSON.stringify(this.files.map((file) => file.name))}`);
-    console.log(this.files);
+    if (this.selectedFile) {
+      alert(`Submitted File: ${this.selectedFile.name}`);
+      console.log('Submitted file:', this.selectedFile);
+    } else {
+      alert('No file selected');
+    }
   }
 
   onCancel() {
-    this.files.forEach((file) => URL.revokeObjectURL(file.objectURL));
-    this.files = [];
+    if (this.selectedFile) {
+      URL.revokeObjectURL(this.selectedFile.objectURL);
+      this.selectedFile = null;
+      this.clearFileInput();
+    }
   }
 
   clearFileInput() {
@@ -141,16 +154,19 @@ export class FileUploadComponent {
   }
 
   uploadInitialFileToServer() {
+    if (!this.selectedFile) {
+      alert('No file selected');
+      return;
+    }
+
     const fileData = new FormData();
     this.isLoading = true;
 
-    this.files.forEach((file) => {
-      fileData.append('userFiles[]', file.data, file.name); // Append actual File object
-    });
+    fileData.append('userFiles[]', this.selectedFile.data, this.selectedFile.name);
 
     this.apiHandler.sendInitialData(fileData).subscribe(
       (response) => {
-        console.log(response.message); // Handle successful response
+        console.log(response.message);
         this.initialJsonData = response.user_data;
         sessionStorage.setItem('FIRSTTABLEDATA', LZString.compress(this.initialJsonData));
         if (JSON.parse(this.initialJsonData).length !== 0) {
@@ -164,7 +180,7 @@ export class FileUploadComponent {
         this.ref.detectChanges();
       },
       (errorResponse) => {
-        console.log(errorResponse.error.message); // Handle error response
+        console.log(errorResponse.error.message);
 
         if (!this.fatalErrorArray.includes(errorResponse.error.message) && errorResponse.error.message !== undefined) {
           this.initialJsonData = errorResponse.error.user_data;

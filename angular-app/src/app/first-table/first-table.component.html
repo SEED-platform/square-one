@@ -29,14 +29,44 @@
   </div>
   <div class="row">
     <div class="col-12">
+      <!-- Debug Information -->
+      <div
+        style="
+          background-color: lightgray;
+          padding: 20px;
+          margin-bottom: 20px;
+          border: 2px solid black;
+          font-family: monospace;
+          font-size: 14px;
+        "
+      >
+        <h3 style="color: red; margin-top: 0">🐛 DEBUG INFO:</h3>
+        <div style="color: blue">
+          <p><strong>isDataLoaded:</strong> {{ isDataLoaded }}</p>
+          <p><strong>userList length:</strong> {{ userList.length }}</p>
+          <p><strong>Current filename:</strong> {{ getCurrentFileName() }}</p>
+          <p><strong>Data structure:</strong> {{ getDataStructureInfo() }}</p>
+          <p><strong>gridData length:</strong> {{ gridData.length }}</p>
+          <p><strong>colDefs length:</strong> {{ colDefs.length }}</p>
+          <p><strong>First row preview:</strong> {{ gridData[0] | json }}</p>
+        </div>
+      </div>
+
       <ag-grid-angular
         class="ag-theme-quartz"
+        *ngIf="isDataLoaded && gridData.length > 0"
         [columnDefs]="colDefs"
         [defaultColDef]="defaultColDef"
-        [rowData]="userList"
+        [rowData]="gridData"
         (gridReady)="onGridReady($event)"
         style="height: 70vh; width: 90vw"
       />
+      <div class="p-4 text-center" *ngIf="!isDataLoaded">
+        <h2 style="color: orange">Loading data...</h2>
+      </div>
+      <div class="p-4 text-center" *ngIf="isDataLoaded && gridData.length === 0">
+        <h2 style="color: red">No data available</h2>
+      </div>
     </div>
   </div>
   <div class="mt-4 inline-flex w-[90vw] justify-end">
