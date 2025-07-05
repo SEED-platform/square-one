@@ -79,7 +79,6 @@ export class FirstTableComponent implements OnInit {
   dataValid = false;
   geoJsonString = '';
   isLoading = false;
-  apiKey = '';
 
   defaultColDef = {
     flex: 1,
@@ -208,21 +207,6 @@ export class FirstTableComponent implements OnInit {
         this.router.navigate(['/cbl-table']);
         this.isLoading = false;
         this.cdr.detectChanges();
-      },
-      (errorResponse) => {
-        console.error(errorResponse.error.message);
-        alert(errorResponse.error.message);
-        this.isLoading = false;
-        this.cdr.detectChanges();
-      }
-    );
-  }
-
-  submitApiKey() {
-    this.apiHandler.sendMapQuestKey(this.apiKey).subscribe(
-      (response) => {
-        console.log('Response:', response);
-        alert(response.message);
       },
       (errorResponse) => {
         console.error(errorResponse.error.message);

@@ -5,27 +5,6 @@
     <div class="flex h-full flex-row items-center">
       <h5 class="mb-4 ml-4 mt-2 text-4xl font-bold text-white">Data Validation Table</h5>
     </div>
-
-    <div class="flex flex-row items-center">
-      <form class="flex flex-row items-center" (ngSubmit)="submitApiKey()">
-        <label class="mb-2 block text-sm font-medium text-gray-900 dark:text-white" for="api_key"></label>
-        <input
-          class="text-md mr-[10px] block h-10 w-[17rem] rounded-lg border border-gray-300 bg-gray-50 p-2.5 text-sm text-gray-900 focus:border-blue-500 focus:ring-blue-500"
-          id="api_key"
-          [(ngModel)]="apiKey"
-          type="text"
-          name="api_Key"
-          placeholder="Enter your MapQuest API key"
-          required
-        />
-        <button
-          class="relative mr-4 flex h-8 items-center justify-center rounded-md bg-gray-100 px-6 text-sm font-medium text-gray-700 hover:bg-gray-200"
-          type="submit"
-        >
-          Submit
-        </button>
-      </form>
-    </div>
   </div>
   <div class="row">
     <div class="col-12">
