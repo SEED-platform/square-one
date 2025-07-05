@@ -13,6 +13,7 @@
 
 current-workflow.txt
 package-lock.json
+osm_footprints_debug.csv
 
 data/
 node_modules/

@@ -7,31 +7,34 @@ import sys
 import traceback
 import warnings
 from collections import OrderedDict
-from pathlib import Path
 from typing import Any
 
 import geopandas as gpd
 import mercantile
-import osmnx as ox
-import pandas as pd
-import requests
 from cbl_workflow.utils.common import Location
 from cbl_workflow.utils.geocode_addresses import geocode_addresses
 from cbl_workflow.utils.normalize_address import normalize_address
-from cbl_workflow.utils.ubid import bounding_box, centroid, encode_ubid
+from cbl_workflow.utils.ubid import encode_ubid
 from cbl_workflow.utils.update_dataset_links import update_dataset_links
 from cbl_workflow.utils.update_quadkeys import update_quadkeys
 from dotenv import load_dotenv
 from flask import Flask, jsonify, request
 from flask_cors import CORS
-from shapely.geometry import Point, Polygon
+from shapely.geometry import Point
 
 import flask_app.config as config
-from flask_app.utils.convert_file_to_dicts import convert_file_to_dicts, geodataframe_to_json
-from flask_app.utils.generate_locations_list import generate_locations_list
-from flask_app.utils.location_error import LocationError
-from flask_app.utils.merge_dicts import merge_dicts
-from flask_app.utils.normalize_state import normalize_state
+from flask_app.exceptions import LocationError
+from flask_app.services.common_service import (
+    create_geojson_response,
+    handle_service_exceptions,
+    log_error_with_context,
+    parse_polygon_from_request,
+    validate_request_data,
+)
+from flask_app.services.data_transformation_service import DataTransformationService
+from flask_app.services.file_processing_service import FileProcessingService
+from flask_app.services.footprint_service import FootprintService
+from flask_app.services.geocoding_service import GeocodingService
 
 warnings.filterwarnings("ignore", category=RuntimeWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -39,6 +42,12 @@ warnings.filterwarnings("ignore", category=UserWarning)
 app = Flask(__name__)
 CORS(app)
 load_dotenv()
+
+# Initialize services
+footprint_service = FootprintService()
+geocoding_service = GeocodingService()
+file_processing_service = FileProcessingService()
+data_transformation_service = DataTransformationService()
 
 # Configure detailed logging
 logging.basicConfig(level=logging.DEBUG, format="[%(asctime)s] %(levelname)s in %(module)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
@@ -118,12 +127,12 @@ def submit_file():
         if file.filename in input_dict:
             return jsonify({"message": "Uploaded two files with the same filename. Please upload non-duplicate files."}), 400
 
-        file_data = convert_file_to_dicts(file)
+        file_data, error_message = file_processing_service.process_uploaded_file(file)
+        if error_message:
+            return jsonify({"message": error_message}), 400
+
         if not file_data or len(file_data) == 0:
             return jsonify({"message": "Uploaded a file in the wrong format. Please upload different format"}), 400
-
-        if isinstance(file_data, LocationError):
-            return jsonify({"message": f"{file_data.message}"}), 400
 
         input_dict[file.filename] = file_data
 
@@ -165,7 +174,7 @@ def generate_cbl():
     except ValueError:
         return jsonify({"message": "Something went wrong while reading the edited json"}), 400
 
-    locations = generate_locations_list(file_data)
+    locations = data_transformation_service.generate_locations_list(file_data)
 
     MAPQUEST_API_KEY = os.getenv("MAPQUEST_API_KEY")
 
@@ -258,7 +267,7 @@ def generate_cbl():
         elif data_dict["quality"] in poorQualityCodes:
             data_dict["quality"] = "Poor"
 
-        merged_dict = merge_dicts(file_dict, data_dict)
+        merged_dict = data_transformation_service.merge_dicts(file_dict, data_dict)
         merged_data.append(merged_dict)
 
     columns = ["street_address", "city", "state"]
@@ -268,12 +277,13 @@ def generate_cbl():
 
     # Convert covered building list as GeoJSON
     gdf = gpd.GeoDataFrame(data=merged_data, columns=columns)
-    final_geojson = geodataframe_to_json(gdf)
+    final_geojson = file_processing_service.geodataframe_to_json(gdf)
 
     return jsonify({"message": "success", "user_data": final_geojson}), 200
 
 
 @app.route("/api/reverse_geocode", methods=["POST"])
+@handle_service_exceptions("reverse_geocode")
 def reverse_geocode():
     """
     Given lat/lon in request, look up the address using Mapbox and return the resulting data.
@@ -282,18 +292,14 @@ def reverse_geocode():
     app.logger.info(f"Request data: {request.json}")
 
     try:
-        # Check for API key
-        if "MAPBOX_ACCESS_TOKEN" not in os.environ:
-            app.logger.error("MAPBOX_ACCESS_TOKEN not present in env file")
-            return jsonify({"message": "MAPBOX_ACCESS_TOKEN not present in env file"}), 400
+        # Validate request data
+        data, error = validate_request_data(["value"])
+        if error:
+            return error
 
-        # Parse request data
-        json_string = request.json.get("value")
+        # Parse the value
+        json_string = data.get("value")
         app.logger.info(f"json_string: {json_string}")
-
-        if not json_string:
-            app.logger.error("No 'value' provided in request")
-            return jsonify({"message": "No 'value' provided in request"}), 400
 
         try:
             json_data = json.loads(json_string)
@@ -310,166 +316,77 @@ def reverse_geocode():
 
         app.logger.info(f"Coordinates: {coords}")
 
-        # Initialize properties
-        properties = {}
+        # Parse polygon from coordinates
+        polygon, error = parse_polygon_from_request({"coordinates": [coords]})
+        if error:
+            return error
+
+        # Get property names and features length
         property_names = json_data.get("propertyNames", [])
-        for key in property_names:
-            properties[key] = " "
-        newId = str(json_data.get("featuresLength", 0))
+        features_length = json_data.get("featuresLength", 0)
 
         app.logger.info(f"Property names: {property_names}")
-        app.logger.info(f"New ID: {newId}")
+        app.logger.info(f"Features length: {features_length}")
 
-        # Create polygon and calculate centroid
-        try:
-            polygon = Polygon(coords)
-            centroid = polygon.centroid
-            app.logger.info(f"Polygon created successfully, centroid: {centroid}")
-        except Exception as e:
-            app.logger.error(f"Error creating polygon: {e}")
-            return jsonify({"message": f"Error creating polygon: {e}"}), 400
-
-        # Calculate lat, long (center of polygon)
-        lat = centroid.y
-        lon = centroid.x
-        app.logger.info(f"Calculated lat: {lat}, lon: {lon}")
-
-        # Encode UBID from coordinates
-        ubid = ""
-        try:
-            ubid = encode_ubid(polygon)
-            app.logger.debug(f"Generated UBID: {ubid}")
-        except AssertionError as e:
-            app.logger.error(f"Invalid longitude coordinates for UBID: {e}")
-            return jsonify({"message": "Invalid longitude coordinates"}), 400
-        except Exception as e:
-            app.logger.error(f"Error encoding UBID: {e}")
-            return jsonify({"message": f"Error encoding UBID: {e}"}), 400
-
-        # Make Mapbox API call
-        url = f"https://api.mapbox.com/geocoding/v5/mapbox.places/{lon},{lat}.json"
-        params = {"access_token": os.environ["MAPBOX_ACCESS_TOKEN"], "limit": 1}
-
-        app.logger.debug(f"Making API call to: {url}")
-
-        try:
-            response = requests.get(url, params=params, verify=True)
-            app.logger.debug(f"API response status: {response.status_code}")
-            app.logger.debug(f"API response content: {response.text}")
-        except Exception as e:
-            app.logger.error(f"Error making API request: {e}")
-            return jsonify({"message": f"Error making API request: {e}"}), 500
-
-        if response.status_code in {401, 403}:
-            app.logger.error(f"API authentication error: {response.status_code}")
-            return jsonify({"message": "Error: Could not reverse geocode using the mapbox API."}), 400
-
-        # Parse API response
-        try:
-            result = response.json()
-            app.logger.debug(f"API result: {result}")
-        except json.JSONDecodeError as e:
-            app.logger.error(f"Invalid JSON response from API: {e}")
-            return jsonify({"message": f"Invalid JSON response from API: {e}"}), 500
-
-        # Process result
-        try:
-            properties["ubid"] = ubid
-            properties["latitude"] = str(lat)
-            properties["longitude"] = str(lon)
-
-            features = result.get("features", [])
-            if not features:
-                app.logger.warning("No features returned from API")
-                properties["street_address"] = "Unknown"
-                properties["city"] = "Unknown"
-                properties["state"] = "Unknown"
-                properties["postal_code"] = "Unknown"
-                properties["country"] = "Unknown"
-            else:
-                feature = features[0]
-                app.logger.debug(f"Processing feature: {feature}")
-
-                # Extract address components from context
-                context = feature.get("context", [])
-                for item in context:
-                    item_id = item.get("id", "")
-                    if "place" in item_id:
-                        properties["city"] = item.get("text", "Unknown")
-
-                    if "region" in item_id:
-                        state_name = item.get("text", "Unknown")
-                        properties["state"] = normalize_state(state_name)
-
-                    if "postcode" in item_id:
-                        properties["postal_code"] = item.get("text", "Unknown")
-
-                    if "country" in item_id:
-                        properties["country"] = item.get("text", "Unknown")
-
-                # Extract street address
-                place_name = feature.get("place_name", "Unknown")
-                properties["street_address"] = normalize_address(place_name)
-
-                app.logger.info(f"Extracted properties: {properties}")
-
-        except Exception as e:
-            app.logger.error(f"Error processing API result: {e}")
-            app.logger.error(f"Exception traceback: {traceback.format_exc()}")
-            return jsonify({"message": f"Error processing API result: {e}"}), 500
-
-        # Validate properties
-        if not properties or len(properties) == 0:
-            app.logger.error("No properties extracted from reverse geocoding")
-            return jsonify({"message": "Error: Reverse geocoding returned poor data."}), 400
+        # Use geocoding service to reverse geocode
+        properties, error_msg = geocoding_service.reverse_geocode_polygon(polygon, property_names)
+        if error_msg:
+            return jsonify({"message": error_msg}), 400
 
         # Create returned feature
         properties["quality"] = "reverseGeocode"
+        new_id = str(features_length)
         returned_feature = {
-            "id": newId,
+            "id": new_id,
             "type": "Feature",
             "properties": properties,
             "geometry": {"type": "Polygon", "coordinates": [coords]},
         }
 
         app.logger.info(f"Returning feature: {returned_feature}")
-
         return jsonify({"message": "success", "user_data": json.dumps(returned_feature)}), 200
 
     except Exception as e:
-        app.logger.error(f"Unexpected error in reverse_geocode: {e}")
-        app.logger.error(f"Exception type: {type(e).__name__}")
-        app.logger.error(f"Exception traceback: {traceback.format_exc()}")
+        log_error_with_context("Unexpected error in reverse_geocode", e)
         return jsonify({"message": f"Unexpected error: {e}"}), 500
 
 
 @app.route("/api/edit_footprint", methods=["POST"])
+@handle_service_exceptions("edit_footprint")
 def edit_footprint():
     """
     Receive a new footprint in the request, add UBID, return new lat, lon, and UBID.
     """
     app.logger.info("function: edit_footprint")
 
-    json_string = request.json.get("value")
+    # Validate request data
+    data, error = validate_request_data(["value"])
+    if error:
+        return error
+
+    # Parse the value
+    json_string = data.get("value")
     json_data = json.loads(json_string)
     coords = json_data["coordinates"]
 
-    polygon = Polygon(coords)
-    centroid = polygon.centroid
+    # Parse polygon from coordinates
+    polygon, error = parse_polygon_from_request({"coordinates": [coords]})
+    if error:
+        return error
 
-    # calculate lat, long (center of polygon)
+    # Calculate centroid
+    centroid = polygon.centroid
     lat = centroid.y
     lon = centroid.x
 
-    # encode ubid from coordinates
-    ubid = ""
+    # Encode UBID from coordinates
     try:
         ubid = encode_ubid(polygon)
     except AssertionError:
         return jsonify({"message": "Invalid longitude coordinates"}), 400
 
-    newPolygonData = {"lat": lat, "lon": lon, "ubid": ubid}
-    return jsonify({"message": "success", "user_data": json.dumps(newPolygonData)}), 200
+    new_polygon_data = {"lat": lat, "lon": lon, "ubid": ubid}
+    return jsonify({"message": "success", "user_data": json.dumps(new_polygon_data)}), 200
 
 
 @app.route("/api/update_api_key", methods=["POST"])
@@ -492,6 +409,7 @@ def update_api_key():
 
 
 @app.route("/api/download_ms_footprints", methods=["POST"])
+@handle_service_exceptions("download_ms_footprints")
 def download_ms_footprints():
     """
     Download Microsoft footprint buildings within a selected polygon.
@@ -500,154 +418,48 @@ def download_ms_footprints():
     app.logger.info("=== Starting download_ms_footprints function ===")
 
     try:
-        # Get the polygon from the request
-        request_data = request.get_json()
-        app.logger.info(f"Request data: {request_data}")
+        # Validate request data
+        data, error = validate_request_data(["polygon"])
+        if error:
+            return error
 
-        if not request_data or "polygon" not in request_data:
-            app.logger.error("No polygon data provided in request")
-            return jsonify({"error": "No polygon data provided"}), 400
-
-        polygon_data = request_data["polygon"]
-
+        polygon_data = data["polygon"]
         app.logger.info(f"Polygon data: {polygon_data}")
 
-        # Convert polygon to GeoDataFrame
-        if isinstance(polygon_data, dict) and "coordinates" in polygon_data:
-            # Single polygon
-            polygon_geom = Polygon(polygon_data["coordinates"][0])
-        elif isinstance(polygon_data, list) and len(polygon_data) > 0:
-            # Multiple coordinates
-            polygon_geom = Polygon(polygon_data[0])
-        else:
-            app.logger.error("Invalid polygon format")
-            return jsonify({"error": "Invalid polygon format"}), 400
+        # Parse polygon from request
+        polygon, error = parse_polygon_from_request(polygon_data)
+        if error:
+            return error
 
-        # Create GeoDataFrame for the area of interest
-        aoi_gdf = gpd.GeoDataFrame([{"geometry": polygon_geom}], crs="EPSG:4326")
-        app.logger.info(f"Area of interest created: {aoi_gdf.bounds}")
+        # Get quadkeys for the polygon
+        quadkeys = footprint_service.get_quadkeys_for_polygon(polygon)
 
-        # Get bounds of the area of interest
-        bounds = aoi_gdf.bounds.iloc[0]
-        minx, miny, maxx, maxy = bounds["minx"], bounds["miny"], bounds["maxx"], bounds["maxy"]
-        app.logger.info(f"Area of interest bounds: {minx}, {miny}, {maxx}, {maxy}")
+        # Update datasets
+        footprint_service.update_datasets(quadkeys)
 
-        # Get quadkeys for the area
-        quadkeys = set()
-        for tile in list(mercantile.tiles(minx, miny, maxx, maxy, zooms=9)):
-            quadkeys.add(int(mercantile.quadkey(tile)))
-        quadkeys = list(quadkeys)
-
-        app.logger.info(f"The input area spans {len(quadkeys)} tiles: {quadkeys}")
-
-        # Update dataset links and quadkeys
-        data_dir = Path(config.data_dir)
-        quadkeys_dir = data_dir / "quadkeys"
-
-        try:
-            update_dataset_links(save_directory=quadkeys_dir)
-            update_quadkeys(list(quadkeys), quadkeys_dir)
-            app.logger.info("Dataset links and quadkeys updated successfully")
-        except Exception as e:
-            app.logger.error(f"Error updating dataset links/quadkeys: {e}")
-            return jsonify({"error": f"Error updating dataset: {e}"}), 500
-
-        # Load and process Microsoft footprints
-        idx = 0
-        ms_gdf = gpd.GeoDataFrame()
-        loaded_quadkeys = {}
-
-        for quadkey in quadkeys:
-            if quadkey not in loaded_quadkeys:
-                app.logger.info(f"Loading quadkey id: {quadkey}")
-                quadkey_file = quadkeys_dir / f"{quadkey}.geojsonl.gz"
-
-                if not quadkey_file.exists():
-                    app.logger.warning(f"Quadkey file not found: {quadkey_file}")
-                    continue
-
-                try:
-                    with gzip.open(quadkey_file, "rb") as f:
-                        gdf = gpd.read_file(f)
-                        app.logger.info(f"  Quadkey: {quadkey} has {len(gdf)} footprints")
-
-                        # Filter geometries within the area of interest
-                        gdf = gdf[gdf.geometry.within(aoi_gdf.geometry.iloc[0])]
-                        app.logger.info(f"  Quadkey: {quadkey} has {len(gdf)} footprints within the area of interest")
-
-                        # Save the quadkey to be combined later
-                        loaded_quadkeys[quadkey] = gdf
-
-                except Exception as e:
-                    app.logger.error(f"Error loading quadkey {quadkey}: {e}")
-                    continue
-
-        # Merge the GeoDataFrames
-        for loaded_gdf in loaded_quadkeys.values():
-            loaded_gdf["id"] = range(idx, idx + len(loaded_gdf))
-            idx += len(loaded_gdf)
-            ms_gdf = pd.concat([ms_gdf, loaded_gdf], ignore_index=True)
+        # Load Microsoft footprints
+        ms_gdf = footprint_service.load_ms_footprints(polygon, quadkeys)
 
         if len(ms_gdf) == 0:
             app.logger.warning("No Microsoft footprints found in the area")
-            return jsonify({"message": "No Microsoft footprints found in the selected area"}), 200
+            return jsonify({"message": "No Microsoft footprints found in the selected area", "footprints_count": 0}), 200
 
-        app.logger.info(f"Total Microsoft footprints found: {len(ms_gdf)}")
+        # Process the footprints
+        processed_gdf = footprint_service.process_ms_footprints(ms_gdf)
 
-        # Process the data
-        # Handle -1 heights
-        ms_gdf["height"] = ms_gdf["height"].apply(lambda x: x if x != -1 else None)
+        # Save debug CSV
+        processed_gdf.to_csv("ms_footprints_debug.csv", index=False)
 
-        # Add UBID encoding
-        try:
-            ms_gdf["ubid"] = ms_gdf.apply(lambda x: encode_ubid(x["geometry"]), axis=1)
-            ms_gdf["ubid_bounding_box"] = ms_gdf.apply(lambda x: bounding_box(x["ubid"]), axis=1)
-            ms_gdf["ubid_centroid"] = ms_gdf.apply(lambda x: centroid(x["ubid"]), axis=1)
-        except Exception as e:
-            app.logger.error(f"Error encoding UBIDs: {e}")
-            return jsonify({"error": f"Error encoding UBIDs: {e}"}), 500
-
-        # Calculate areas
-        try:
-            ms_gdf_crs = ms_gdf.to_crs(epsg=3857)
-            ms_gdf["ms_footprint_area_m2"] = ms_gdf_crs.area
-            ms_gdf["ms_footprint_area_ft2"] = ms_gdf["ms_footprint_area_m2"] * 10.764
-        except Exception as e:
-            app.logger.error(f"Error calculating areas: {e}")
-            return jsonify({"error": f"Error calculating areas: {e}"}), 500
-
-        # Save the lat, lon from the centroid of the UBID in the format that the front end expects
-        ms_gdf["longitude"] = ms_gdf["ubid_centroid"].apply(lambda point: point.x if isinstance(point, Point) else None)
-        ms_gdf["latitude"] = ms_gdf["ubid_centroid"].apply(lambda point: point.y if isinstance(point, Point) else None)
-
-        # save the file for debugging as csv
-        ms_gdf.to_csv("ms_footprints_debug.csv", index=False)
-
-        # Create GeoJSON data for response
-        try:
-            # Drop geometry columns that can't be serialized to GeoJSON
-            drop_geom_columns = ["ubid_bounding_box", "ubid_centroid"]
-            output_gdf = ms_gdf.drop(columns=[col for col in drop_geom_columns if col in ms_gdf.columns])
-
-            # Convert to GeoJSON format
-            geojson_data = output_gdf.to_json()
-
-            app.logger.info("Successfully created GeoJSON data")
-
-            return jsonify({"message": "success", "footprints_count": len(ms_gdf), "geojson": json.loads(geojson_data)}), 200
-
-        except Exception as e:
-            app.logger.error(f"Error creating GeoJSON data: {e}")
-            return jsonify({"error": f"Error creating GeoJSON data: {e}"}), 500
+        # Create GeoJSON response
+        return create_geojson_response(processed_gdf, "footprints_count")
 
     except Exception as e:
-        app.logger.error(f"Unexpected error in download_ms_footprints: {e}")
-        app.logger.error(f"Exception type: {type(e).__name__}")
-        app.logger.error(f"Exception traceback: {traceback.format_exc()}")
+        log_error_with_context("Unexpected error in download_ms_footprints", e)
         return jsonify({"error": f"Unexpected error: {e}"}), 500
 
 
 @app.route("/api/download_osm_footprints", methods=["POST"])
+@handle_service_exceptions("download_osm_footprints")
 def download_osm_footprints():
     """
     Download OpenStreetMap building footprints for a given polygon using OSMnx.
@@ -655,155 +467,37 @@ def download_osm_footprints():
     app.logger.info("=== Starting download_osm_footprints function ===")
 
     try:
-        # Get the polygon from the request
-        data = request.get_json()
-        if not data or "polygon" not in data:
-            return jsonify({"error": "Missing polygon data"}), 400
+        # Validate request data
+        data, error = validate_request_data(["polygon"])
+        if error:
+            return error
 
         polygon_data = data["polygon"]
         app.logger.info(f"Received polygon: {polygon_data}")
 
-        # Convert polygon coordinates to Shapely Polygon
-        try:
-            coordinates = polygon_data["coordinates"][0]  # Get first ring of polygon
-            shapely_polygon = Polygon(coordinates)
-            app.logger.info(f"Created Shapely polygon with {len(coordinates)} coordinates")
-        except Exception as e:
-            app.logger.error(f"Error creating Shapely polygon: {e}")
-            return jsonify({"error": f"Invalid polygon format: {e}"}), 400
+        # Parse polygon from request
+        polygon, error = parse_polygon_from_request(polygon_data)
+        if error:
+            return error
 
-        # Use OSMnx to get building footprints within the polygon
-        try:
-            app.logger.info("Fetching OSM building footprints...")
-            buildings = ox.features_from_polygon(shapely_polygon, tags={"building": True})
+        # Load OSM footprints
+        osm_gdf = footprint_service.load_osm_footprints(polygon)
 
-            if buildings.empty:
-                app.logger.info("No OSM building footprints found in the polygon")
-                return jsonify({"message": "No OSM building footprints found in the selected area", "footprints_count": 0}), 200
+        if len(osm_gdf) == 0:
+            app.logger.info("No OSM building footprints found in the polygon")
+            return jsonify({"message": "No OSM building footprints found in the selected area", "footprints_count": 0}), 200
 
-            app.logger.info(f"Found {len(buildings)} OSM building footprints")
+        # Process the footprints
+        processed_gdf = footprint_service.process_osm_footprints(osm_gdf)
 
-        except Exception as e:
-            app.logger.error(f"Error fetching OSM footprints: {e}")
-            return jsonify({"error": f"Error fetching OSM footprints: {e}"}), 500
+        # Save debug CSV
+        processed_gdf.to_csv("osm_footprints_debug.csv", index=False)
 
-        # Process the OSM data similar to your example
-        try:
-            # Remove point geometries
-            osm_gdf = buildings[buildings.geometry.type != "Point"].copy()
-            app.logger.info(f"After removing points: {len(osm_gdf)} footprints")
-
-            # Remove any columns that are completely empty
-            osm_gdf = osm_gdf.dropna(axis=1, how="all")
-
-            # Drop some columns that aren't needed
-            drop_cols = ["nodes", "area_right", "centroid", "bounds_minx", "bounds_miny", "bounds_maxx", "bounds_maxy", "ways"]
-            drop_cols = [col for col in drop_cols if col in osm_gdf.columns]
-            if drop_cols:
-                osm_gdf = osm_gdf.drop(columns=drop_cols)
-
-            # Add UBIDs
-            osm_gdf["ubid"] = osm_gdf.apply(lambda x: encode_ubid(x["geometry"]), axis=1)
-            osm_gdf["ubid_centroid"] = osm_gdf.apply(lambda x: centroid(x["ubid"]), axis=1)
-
-            # Decompose the ubid_centroid into lat/long
-            osm_gdf["lon"] = osm_gdf["ubid_centroid"].apply(lambda point: point.x)
-            osm_gdf["lat"] = osm_gdf["ubid_centroid"].apply(lambda point: point.y)
-            # Drop ubid_centroid
-            osm_gdf = osm_gdf.drop(columns=["ubid_centroid"])
-
-            # Calculate footprint area
-            osm_gdf["osm_footprint_area_m2"] = osm_gdf.to_crs(epsg=3857).area
-            osm_gdf["osm_footprint_area_ft2"] = osm_gdf["osm_footprint_area_m2"] * 10.764
-
-            # Add OSM URL
-            def create_url_field(row):
-                return f"https://www.openstreetmap.org/{row.name[0]}/{row.name[1]}"
-
-            osm_gdf["osm_url"] = osm_gdf.apply(create_url_field, axis=1)
-
-            # Clean up building types
-            if "building" in osm_gdf.columns:
-                # Remove buildings that are just roofs
-                osm_gdf = osm_gdf[osm_gdf["building"] != "roof"]
-
-                # If there is an amenity, then make the building the amenity
-                if "amenity" in osm_gdf.columns:
-                    osm_gdf.loc[osm_gdf["amenity"].notna(), "building"] = osm_gdf["amenity"]
-
-                # Map "yes" buildings to "Unknown"
-                osm_gdf.loc[osm_gdf["building"] == "yes", "building"] = "Unknown"
-
-                # Map residential to apartments
-                osm_gdf.loc[osm_gdf["building"] == "residential", "building"] = "apartments"
-
-            # Handle height and levels
-            if "height" not in osm_gdf.columns:
-                osm_gdf["height"] = 0
-            else:
-                osm_gdf["height"] = osm_gdf["height"].fillna(0)
-
-            if "building:levels" in osm_gdf.columns:
-                osm_gdf["building:levels"] = osm_gdf["building:levels"].fillna(0)
-                osm_gdf["building:levels"] = osm_gdf["building:levels"].astype(int)
-
-            # make sure to define street address, city, state, postal_code, and country in the
-            # format that the front end expects
-            # first print the data to the log to see what it looks like
-            app.logger.info("Processing address fields...")
-            app.logger.debug(f"OSM DataFrame columns: {osm_gdf.columns.tolist()}")
-
-            # save as csv for debugging
-            osm_gdf.to_csv("osm_footprints_debug.csv", index=False)
-
-            # if address fields are not present, create them with default values
-            if "addr:city" not in osm_gdf.columns:
-                osm_gdf["city"] = ""
-            else:
-                osm_gdf["city"] = osm_gdf["addr:city"].fillna("")
-            if "addr:housenumber" not in osm_gdf.columns:
-                osm_gdf["addr:housenumber"] = ""
-            else:
-                osm_gdf["addr:housenumber"] = osm_gdf["addr:housenumber"].fillna("")
-            if "addr:street" not in osm_gdf.columns:
-                osm_gdf["street"] = ""
-            else:
-                osm_gdf["street"] = osm_gdf["addr:street"].fillna("")
-            if "addr:state" not in osm_gdf.columns:
-                osm_gdf["state"] = ""
-            else:
-                osm_gdf["state"] = osm_gdf["addr:state"].fillna("")
-            if "addr:postcode" not in osm_gdf.columns:
-                osm_gdf["postal_code"] = ""
-            else:
-                osm_gdf["postal_code"] = osm_gdf["addr:postcode"].fillna("")
-            osm_gdf["street_address"] = osm_gdf["addr:housenumber"] + " " + osm_gdf["street"]
-
-            # get the lat long in the format that the front end expects
-            osm_gdf["latitude"] = osm_gdf["lat"]
-            osm_gdf["longitude"] = osm_gdf["lon"]
-
-            app.logger.info(f"Processed OSM footprints: {len(osm_gdf)} final footprints")
-
-        except Exception as e:
-            app.logger.error(f"Error processing OSM footprints: {e}")
-            return jsonify({"error": f"Error processing OSM footprints: {e}"}), 500
-
-        # Convert to GeoJSON
-        try:
-            geojson_data = geodataframe_to_json(osm_gdf)
-            app.logger.info("Successfully converted OSM footprints to GeoJSON")
-
-            return jsonify({"message": "success", "footprints_count": len(osm_gdf), "geojson": json.loads(geojson_data)}), 200
-
-        except Exception as e:
-            app.logger.error(f"Error creating GeoJSON data: {e}")
-            return jsonify({"error": f"Error creating GeoJSON data: {e}"}), 500
+        # Create GeoJSON response
+        return create_geojson_response(processed_gdf, "footprints_count")
 
     except Exception as e:
-        app.logger.error(f"Unexpected error in download_osm_footprints: {e}")
-        app.logger.error(f"Exception type: {type(e).__name__}")
-        app.logger.error(f"Exception traceback: {traceback.format_exc()}")
+        log_error_with_context("Unexpected error in download_osm_footprints", e)
         return jsonify({"error": f"Unexpected error: {e}"}), 500
 
 
