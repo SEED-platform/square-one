@@ -25,6 +25,7 @@ tqdm = "^4.67.1"
 cbl-workflow = { path = "../cbl-workflow", develop = true }
 # cbl-workflow = { git = "https://github.com/seed-platform/cbl-workflow.git", rev = "develop" }
 
+
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^3.8.0"
 pytest = "8.3.5"
@@ -32,6 +33,8 @@ nbformat = "^5.10.4"
 folium = "^0.19.5"
 osmnx = "^2.0.2"
 notebook = "^7.4.0"
+types-geopandas = "^1.0.1.20250601"
+mypy = "^1.16.1"
 
 
 [tool.poetry.group.devgit.dependencies]

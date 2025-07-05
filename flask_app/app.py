@@ -147,6 +147,8 @@ def check_data():
     """
     app.logger.info("function: check_data")
 
+    if not request.json or "value" not in request.json:
+        return jsonify({"message": "Missing 'value' in request body"}), 400
     json_string = request.json.get("value")
     file_data = json.loads(json_string)
     json_data = json.dumps(file_data)
