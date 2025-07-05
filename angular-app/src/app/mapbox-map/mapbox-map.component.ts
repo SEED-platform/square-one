@@ -105,6 +105,26 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
     });
   }
 
+  flyToCoordinatesWithZoom(longitude: number, latitude: number) {
+    if (this.map) {
+      this.map.flyTo({
+        center: [longitude, latitude],
+        zoom: 18,
+        essential: true
+      });
+    }
+  }
+
+  updateZoomLevelForDeletion() {
+    if (this.map) {
+      // Keep current center but adjust zoom if needed
+      const currentZoom = this.map.getZoom();
+      if (currentZoom > 16) {
+        this.map.setZoom(16);
+      }
+    }
+  }
+
   ngOnDestroy() {
     this.geoJsonSubscription?.unsubscribe();
     this.featureClickSubscription?.unsubscribe();
@@ -555,22 +575,40 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
     const clickedFeature = this.globalGeoJsonObject.features.find((feature: any) => feature.id === deletePolygonId);
     console.log(clickedFeature);
     if (clickedFeature) {
-      const newBuildingCoordinates = clickedFeature.geometry.coordinates[0];
       const newBuildingId = clickedFeature.id;
       this.emptyBuildingId = newBuildingId;
-      console.log('in map', clickedFeature);
+      console.log('Deleting footprint for building:', clickedFeature);
 
-      const newBuildingLongitude = 0;
-      const newBuildingLatitude = 0;
-      const newBuildingUbid: any = 0;
+      // Clear the footprint data - set coordinates to empty array
+      const emptyCoordinates: number[] = [];
+      const newBuildingLongitude = clickedFeature.properties?.longitude || 0;
+      const newBuildingLatitude = clickedFeature.properties?.latitude || 0;
+      const newBuildingUbid = ''; // Clear UBID when footprint is deleted
+
+      // Update the building's geometry to remove footprint
+      clickedFeature.geometry.coordinates = [[]]; // Empty polygon coordinates
+      clickedFeature.properties.ubid = ''; // Clear UBID
+      clickedFeature.properties.quality = clickedFeature.properties.quality === 'reverseGeocode' ? 'reverseGeocode' : 'Poor';
 
       this.geoJsonService.setMapCoordinates(newBuildingLatitude, newBuildingLongitude);
 
       this.selectedPolygonId = '';
       this.geoJsonService.setIsDataSentFromTable(true);
-      this.geoJsonService.modifyBuildingInTable(newBuildingCoordinates, newBuildingLatitude, newBuildingLongitude, newBuildingUbid, newBuildingId);
 
+      // Remove the visual polygon from the map first
       this.draw?.delete(deletePolygonId);
+
+      // Update the GeoJSON in the service to reflect the changes
+      this.geoJsonService.setGeoJson(this.globalGeoJsonObject);
+
+      // Notify the table that the building has been modified (footprint removed)
+      this.geoJsonService.modifyBuildingInTable(emptyCoordinates, newBuildingLatitude, newBuildingLongitude, newBuildingUbid, newBuildingId);
+
+      // Update the GeoJSON in the service to reflect the changes
+      this.geoJsonService.setGeoJson(this.globalGeoJsonObject);
+
+      // Notify the table that the building has been modified (footprint removed)
+      this.geoJsonService.modifyBuildingInTable(emptyCoordinates, newBuildingLatitude, newBuildingLongitude, newBuildingUbid, newBuildingId);
     }
     this.draw?.changeMode('simple_select');
   }
@@ -733,45 +771,11 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
           this.draw.setFeatureProperty(polygonId, 'portColor', '#3bb2d0'); // Default color
           this.draw?.setFeatureProperty(polygonId, 'portOpacity', 0.0);
           const feature = this.draw.get(polygonId);
-          if (feature !== undefined) this.draw.add(feature); // Update the feature style
+          if (feature) {
+            // Additional logic can be added here if needed
+          }
         }
       }
     }
-  }
-
-  flyToCoordinates(longitude: number, latitude: number) {
-    if (this.map) {
-      this.map.flyTo({
-        center: new mapboxgl.LngLat(longitude, latitude),
-        zoom: this.map.getZoom(),
-        essential: true
-      });
-    }
-  }
-
-  flyToCoordinatesWithZoom(longitude: number, latitude: number) {
-    if (this.map) {
-      this.map.flyTo({
-        center: new mapboxgl.LngLat(longitude, latitude),
-        zoom: 17.25,
-        essential: true
-      });
-    }
-  }
-
-  updateZoomLevelForDeletion(): void {
-    this.zoomLevel = 17.25;
-  }
-
-  setMapCenterAndZoom(longitude: number, latitude: number) {
-    if (this.map) {
-      // Set map center and zoom level directly
-      this.map.setCenter([longitude, latitude]);
-      this.map.setZoom(this.zoomLevel);
-    }
-  }
-
-  exportAsExcel() {
-    console.log('yurrr');
   }
 }

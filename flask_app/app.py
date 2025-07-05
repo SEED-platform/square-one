@@ -216,8 +216,8 @@ def reverse_geocode():
     app.logger.info("function: reverse_geocode")
 
     # todo: make sure this is the best way to handle this error. Nothing is being displayed to the user.
-    if "MAPBOX_ACCESS_TOKEN" not in os.environ:
-        return jsonify({"message": "MAPBOX_ACCESS_TOKEN not present in env file"}), 400
+    if "MAPQUEST_API_KEY" not in os.environ:
+        return jsonify({"message": "MAPQUEST_API_KEY not present in env file"}), 400
 
     json_string = request.json.get("value")
     json_data = json.loads(json_string)
@@ -244,7 +244,7 @@ def reverse_geocode():
         return jsonify({"message": "Invalid longitude coordinates"}), 400
 
     url = f"https://api.mapbox.com/geocoding/v5/mapbox.places/{lon},{lat}.json"
-    params = {"access_token": os.environ["MAPBOX_ACCESS_TOKEN"], "limit": 1}
+    params = {"access_token": os.environ["MAPQUEST_API_KEY"], "limit": 1}
 
     # TODO: remove verify
     response = requests.get(url, params=params, verify=True)

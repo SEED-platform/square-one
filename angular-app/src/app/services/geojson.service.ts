@@ -63,8 +63,19 @@ export class GeoJsonService implements OnDestroy {
   }
 
   updateGeoJsonFromMap(mapRemovedObject: any): void {
-    if (!mapRemovedObject || mapRemovedObject.properties.ubid === undefined) {
+    if (!mapRemovedObject) {
       console.error('Invalid object to remove');
+      return;
+    }
+
+    // Check if properties exist
+    if (!mapRemovedObject.properties) {
+      console.error('Object has no properties');
+      return;
+    }
+
+    if (mapRemovedObject.properties.ubid === undefined) {
+      console.error('Invalid object to remove - no ubid');
       return;
     }
 
@@ -74,6 +85,11 @@ export class GeoJsonService implements OnDestroy {
 
     // Get the current GeoJSON from the subject
     const currentGeoJson = this.geoJsonSubject.getValue();
+
+    if (!currentGeoJson || !currentGeoJson.features) {
+      console.error('No GeoJSON data available');
+      return;
+    }
 
     // Clone the features array to avoid modifying the original array directly
     const features = [...currentGeoJson.features];
@@ -117,11 +133,27 @@ export class GeoJsonService implements OnDestroy {
 
     const currentGeoJson = this.geoJsonSubject.getValue();
 
+    if (!currentGeoJson || !currentGeoJson.features) {
+      console.error('No GeoJSON data available');
+      return;
+    }
+
     // Clone the features array to avoid modifying the original array directly
     const features = [...currentGeoJson.features];
 
     // Find the index of the feature to remove
     const index = features.findIndex((feature: any) => feature.id === id.toString());
+
+    if (index === -1) {
+      console.error(`Feature with ID ${id} not found`);
+      return;
+    }
+
+    // Check if the feature exists before modifying
+    if (!features[index]) {
+      console.error(`Feature at index ${index} is undefined`);
+      return;
+    }
 
     features[index].properties.ubid = ubid;
     features[index].geometry.coordinates = [coordinates];
@@ -158,6 +190,22 @@ export class GeoJsonService implements OnDestroy {
 
   insertNewBuildingInGeoJson(buildingObject: GeoJsonFeature): void {
     const currentGeoJson = this.geoJsonSubject.getValue();
+
+    if (!currentGeoJson) {
+      console.error('No GeoJSON data available');
+      return;
+    }
+
+    if (!currentGeoJson.features) {
+      console.error('Features array is not available');
+      currentGeoJson.features = [];
+    }
+
+    if (!buildingObject) {
+      console.error('Invalid building object to insert');
+      return;
+    }
+
     currentGeoJson.features.unshift(buildingObject);
     this.setGeoJson(currentGeoJson);
     console.log('NEW GEO IN SOURCE', currentGeoJson);

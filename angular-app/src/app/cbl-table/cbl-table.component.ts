@@ -172,7 +172,7 @@ export class CblTableComponent implements OnInit, OnDestroy {
     if (building.geometry.type === 'Polygon') {
       return coordinates.length > 0 &&
              Array.isArray(coordinates[0]) &&
-             coordinates[0].length > 0;
+             coordinates[0].length > 2; // Need at least 3 points for a valid polygon
     }
 
     // For other geometry types, check if coordinates exist
@@ -186,11 +186,10 @@ export class CblTableComponent implements OnInit, OnDestroy {
       return;
     }
 
-    // Get the building's coordinates
     const coordinates = building.geometry.coordinates;
 
     if (building.geometry.type === 'Polygon' && coordinates.length > 0 && coordinates[0].length > 0) {
-      // For polygon, calculate the center and emit the coordinates
+      // For polygon, calculate the center
       const polygon = coordinates[0];
       let minLng = polygon[0][0], maxLng = polygon[0][0];
       let minLat = polygon[0][1], maxLat = polygon[0][1];
@@ -203,14 +202,12 @@ export class CblTableComponent implements OnInit, OnDestroy {
         maxLat = Math.max(maxLat, coord[1]);
       }
 
-      // Calculate center
       const centerLng = (minLng + maxLng) / 2;
       const centerLat = (minLat + maxLat) / 2;
 
-      // Emit to map service to zoom to this location
       this.geoJsonService.setMapCoordinates(centerLat, centerLng);
 
-      // Also select the feature
+      // And select the feature
       this.geoJsonService.emitSelectedFeature(
         building.properties?.latitude || centerLat,
         building.properties?.longitude || centerLng,
@@ -220,7 +217,7 @@ export class CblTableComponent implements OnInit, OnDestroy {
     }
   }
 
-  //dynamically sets grid for geojson values
+  // Dynamically sets grid for geojson values
   setColumnDefs() {
     const keys = JSON.parse(sessionStorage.getItem('PROPERTYNAMES') || '{}');
     keys.push('coordinates');
@@ -291,7 +288,6 @@ export class CblTableComponent implements OnInit, OnDestroy {
 
   scrollToFeatureById(id: string) {
     // Find the feature in rowData'
-
     const feature = this.rowData.find((f: any) => f.id === id);
 
     if (!feature) {
@@ -418,7 +414,16 @@ export class CblTableComponent implements OnInit, OnDestroy {
         // Update the row data
         const data = rowNode;
 
-        data.geometry.coordinates = modBuilding.coordinates;
+        // Handle footprint deletion - if coordinates are empty, clear the footprint
+        if (!modBuilding.coordinates || modBuilding.coordinates.length === 0) {
+          // Clear the footprint data
+          data.geometry.coordinates = [[]];
+          data.properties.ubid = '';
+        } else {
+          // Update with new coordinates
+          data.geometry.coordinates = [modBuilding.coordinates];
+        }
+
         data.properties.latitude = modBuilding.latitude;
         data.properties.longitude = modBuilding.longitude;
         data.properties.ubid = modBuilding.ubid;
@@ -426,6 +431,12 @@ export class CblTableComponent implements OnInit, OnDestroy {
         // Apply the update transaction
         const res = this.gridApi.applyTransaction({
           update: [data] // Use `update` key to modify existing rows
+        });
+
+        // Force refresh of the "Has Footprint" column to update the checkbox
+        this.gridApi.refreshCells({
+          columns: ['hasFootprint'],
+          force: true
         });
       }
     }
@@ -437,7 +448,6 @@ export class CblTableComponent implements OnInit, OnDestroy {
     this.gridApi.stopEditing();
 
     // Get the data as CSV
-
     const json = this.jsonConverter();
 
     // Retrieve the CSV data from the grid API
