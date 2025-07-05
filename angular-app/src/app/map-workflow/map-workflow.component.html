@@ -8,7 +8,9 @@
   <!-- Control buttons -->
   <div class="controls-container">
     <button class="export-btn" (click)="exportGeoJSON()">Export GeoJSON (to console)</button>
-    <button class="download-btn geojson-btn" [disabled]="!hasPolygon" (click)="downloadMSFootprints()">Download MS Footprints</button>
+    <button class="load-btn" [disabled]="!hasPolygon" (click)="loadMSFootprints()">Load MS Footprints</button>
+    <button class="clear-btn" (click)="clearMSFootprints()">Clear Footprints</button>
+    <button class="proceed-btn" [disabled]="!hasFootprints" (click)="proceedToCBLTable()">Proceed to CBL Table</button>
   </div>
 
   <!-- Status message -->

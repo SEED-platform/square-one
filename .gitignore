@@ -14,6 +14,7 @@
 current-workflow.txt
 package-lock.json
 
+data/
 node_modules/
 flask_app/myenv/
 flask_app/.pytest_cache

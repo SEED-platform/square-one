@@ -4,7 +4,6 @@ import json.scanner
 import logging
 import os
 import sys
-import tempfile
 import traceback
 import warnings
 from collections import OrderedDict
@@ -22,7 +21,7 @@ from cbl_workflow.utils.ubid import bounding_box, centroid, encode_ubid
 from cbl_workflow.utils.update_dataset_links import update_dataset_links
 from cbl_workflow.utils.update_quadkeys import update_quadkeys
 from dotenv import load_dotenv
-from flask import Flask, jsonify, request, send_file
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 from shapely.geometry import Point, Polygon
 
@@ -186,6 +185,7 @@ def generate_cbl():
     poorQualityCodes = ["Ambiguous", "P1CAA", "B1CAA", "B1ACA", "A5XAX", "L1CAA", "B1AAA", "L1BCA", "L1CBA"]
 
     # Find all quadkeys that the coordinates fall within
+    # TODO: this is redundant with the quadkey generation in the download_ms_footprints function, resolve
     quadkeys = set()
     for datum in data:
         if datum["quality"] not in poorQualityCodes:  # todo: check that "longitude" field is present
@@ -615,21 +615,22 @@ def download_ms_footprints():
             app.logger.error(f"Error calculating areas: {e}")
             return jsonify({"error": f"Error calculating areas: {e}"}), 500
 
-        # Create temporary files for output
+        # Create GeoJSON data for response
         try:
-            # Create GeoJSON file
             # Drop geometry columns that can't be serialized to GeoJSON
             drop_geom_columns = ["ubid_bounding_box", "ubid_centroid"]
             output_gdf = ms_gdf.drop(columns=[col for col in drop_geom_columns if col in ms_gdf.columns])
 
-            with tempfile.NamedTemporaryFile(suffix=".geojson", delete=False) as tmp_file:
-                output_gdf.to_file(tmp_file.name, driver="GeoJSON")
+            # Convert to GeoJSON format
+            geojson_data = output_gdf.to_json()
 
-                return send_file(tmp_file.name, as_attachment=True, download_name="ms_footprints.geojson", mimetype="application/geo+json")
+            app.logger.info("Successfully created GeoJSON data")
+
+            return jsonify({"message": "success", "footprints_count": len(ms_gdf), "geojson": json.loads(geojson_data)}), 200
 
         except Exception as e:
-            app.logger.error(f"Error creating output file: {e}")
-            return jsonify({"error": f"Error creating output file: {e}"}), 500
+            app.logger.error(f"Error creating GeoJSON data: {e}")
+            return jsonify({"error": f"Error creating GeoJSON data: {e}"}), 500
 
     except Exception as e:
         app.logger.error(f"Unexpected error in download_ms_footprints: {e}")

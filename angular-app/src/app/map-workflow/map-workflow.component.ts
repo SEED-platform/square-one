@@ -1,11 +1,13 @@
 import { Component, AfterViewInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { Router } from '@angular/router';
 import * as mapboxgl from 'mapbox-gl';
 import MapboxGeocoder from '@mapbox/mapbox-gl-geocoder';
 import MapboxDraw from '@mapbox/mapbox-gl-draw';
 import { environment } from '../../environments/environment';
 import { NavigationComponent } from '../shared/navigation/navigation.component';
 import { HttpClient } from '@angular/common/http';
+import { GeoJsonService } from '../services/geojson.service';
 
 @Component({
   selector: 'app-map-workflow',
@@ -23,7 +25,20 @@ export class MapWorkflowComponent implements AfterViewInit {
   statusMessage = '';
   isError = false;
 
-  constructor(private http: HttpClient, private cdr: ChangeDetectorRef) {}
+  // Microsoft footprints data
+  private msFootprintsData: any = null;
+  hasFootprints = false;
+
+  // Microsoft footprints layer ID
+  private readonly MS_FOOTPRINTS_SOURCE_ID = 'ms-footprints';
+  private readonly MS_FOOTPRINTS_LAYER_ID = 'ms-footprints-layer';
+
+  constructor(
+    private http: HttpClient,
+    private cdr: ChangeDetectorRef,
+    private router: Router,
+    private geoJsonService: GeoJsonService
+  ) {}
 
   ngAfterViewInit(): void {
     try {
@@ -73,6 +88,10 @@ export class MapWorkflowComponent implements AfterViewInit {
   private onDrawChange(): void {
     const data = this.draw.getAll();
     this.hasPolygon = data.features.length > 0;
+
+    // Clear existing footprints when polygon changes
+    this.removeMSFootprintsFromMap();
+
     this.cdr.detectChanges();
     this.exportGeoJSON();
   }
@@ -82,7 +101,7 @@ export class MapWorkflowComponent implements AfterViewInit {
     console.log('Exported GeoJSON:', data);
   }
 
-  downloadMSFootprints(): void {
+  loadMSFootprints(): void {
     const data = this.draw.getAll();
 
     if (!data.features || data.features.length === 0) {
@@ -98,59 +117,140 @@ export class MapWorkflowComponent implements AfterViewInit {
       return;
     }
 
-    this.showStatusMessage('Downloading Microsoft footprints...', false);
+    this.showStatusMessage('Loading Microsoft footprints...', false);
 
     const payload = {
       polygon: polygon.geometry
     };
 
-    this.http.post('http://localhost:5001/api/download_ms_footprints', payload, {
-      responseType: 'blob',
-      observe: 'response'
-    }).subscribe({
+    this.http.post<any>('http://localhost:5001/api/download_ms_footprints', payload).subscribe({
       next: (response) => {
-        // Create a blob URL and trigger download
-        const blob = response.body;
-        if (blob) {
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = 'ms_footprints.geojson';
+        if (response.message === 'success' && response.geojson) {
+          // Store the Microsoft footprints data
+          this.msFootprintsData = response.geojson;
+          this.hasFootprints = true;
 
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          window.URL.revokeObjectURL(url);
-
-          this.showStatusMessage('Successfully downloaded ms_footprints.geojson', false);
+          this.addMSFootprintsToMap(response.geojson);
+          this.showStatusMessage(`Successfully loaded ${response.footprints_count} Microsoft footprints`, false);
+          this.cdr.detectChanges();
         } else {
-          this.showStatusMessage('Error: No file received', true);
+          this.showStatusMessage(response.message || 'No footprints found in the selected area', false);
         }
       },
       error: (error) => {
-        console.error('Download error:', error);
-        let errorMessage = 'Error downloading Microsoft footprints';
+        console.error('Error loading Microsoft footprints:', error);
+        let errorMessage = 'Error loading Microsoft footprints';
 
         if (error.status === 0) {
           errorMessage = 'Cannot connect to server. Please ensure the Flask app is running.';
-        } else if (error.error instanceof Blob) {
-          // Try to read error message from blob
-          error.error.text().then((text: string) => {
-            try {
-              const errorData = JSON.parse(text);
-              this.showStatusMessage(errorData.error || errorMessage, true);
-            } catch {
-              this.showStatusMessage(errorMessage, true);
-            }
-          });
-          return;
         } else if (error.error?.error) {
           errorMessage = error.error.error;
+        } else if (error.error?.message) {
+          errorMessage = error.error.message;
         }
 
         this.showStatusMessage(errorMessage, true);
       }
     });
+  }
+
+  private addMSFootprintsToMap(geojson: any): void {
+    try {
+      // Remove existing footprints layer and source if they exist
+      this.removeMSFootprintsFromMap();
+
+      // Add the GeoJSON data as a source
+      this.map.addSource(this.MS_FOOTPRINTS_SOURCE_ID, {
+        type: 'geojson',
+        data: geojson
+      });
+
+      // Add a layer to display the footprints
+      this.map.addLayer({
+        id: this.MS_FOOTPRINTS_LAYER_ID,
+        type: 'fill',
+        source: this.MS_FOOTPRINTS_SOURCE_ID,
+        paint: {
+          'fill-color': '#ff0000',
+          'fill-opacity': 0.3,
+          'fill-outline-color': '#ff0000'
+        }
+      });
+
+      // Add click handler for footprints
+      this.map.on('click', this.MS_FOOTPRINTS_LAYER_ID, (e) => {
+        if (e.features && e.features.length > 0) {
+          const feature = e.features[0];
+          const properties = feature.properties;
+
+          // Create popup content
+          const popupContent = `
+            <div>
+              <h3>Microsoft Building Footprint</h3>
+              <p><strong>UBID:</strong> ${properties?.['ubid'] || 'N/A'}</p>
+              <p><strong>Height:</strong> ${properties?.['height'] ? properties['height'] + ' m' : 'N/A'}</p>
+              <p><strong>Area:</strong> ${properties?.['ms_footprint_area_ft2'] ? Math.round(properties['ms_footprint_area_ft2']).toLocaleString() + ' sq ft' : 'N/A'}</p>
+            </div>
+          `;
+
+          new mapboxgl.Popup()
+            .setLngLat(e.lngLat)
+            .setHTML(popupContent)
+            .addTo(this.map);
+        }
+      });
+
+      // Change cursor to pointer when hovering over footprints
+      this.map.on('mouseenter', this.MS_FOOTPRINTS_LAYER_ID, () => {
+        this.map.getCanvas().style.cursor = 'pointer';
+      });
+
+      this.map.on('mouseleave', this.MS_FOOTPRINTS_LAYER_ID, () => {
+        this.map.getCanvas().style.cursor = '';
+      });
+
+      console.log('Microsoft footprints added to map successfully');
+
+    } catch (error) {
+      console.error('Error adding Microsoft footprints to map:', error);
+      this.showStatusMessage('Error displaying footprints on map', true);
+    }
+  }
+
+  private removeMSFootprintsFromMap(): void {
+    try {
+      // Remove layer if it exists
+      if (this.map.getLayer(this.MS_FOOTPRINTS_LAYER_ID)) {
+        this.map.removeLayer(this.MS_FOOTPRINTS_LAYER_ID);
+      }
+
+      // Remove source if it exists
+      if (this.map.getSource(this.MS_FOOTPRINTS_SOURCE_ID)) {
+        this.map.removeSource(this.MS_FOOTPRINTS_SOURCE_ID);
+      }
+    } catch (error) {
+      console.error('Error removing Microsoft footprints from map:', error);
+    }
+  }
+
+  clearMSFootprints(): void {
+    this.removeMSFootprintsFromMap();
+    this.msFootprintsData = null;
+    this.hasFootprints = false;
+    this.cdr.detectChanges();
+    this.showStatusMessage('Microsoft footprints cleared from map', false);
+  }
+
+  proceedToCBLTable(): void {
+    if (this.msFootprintsData) {
+      // Store the Microsoft footprints data in the GeoJsonService
+      this.geoJsonService.setGeoJson(this.msFootprintsData);
+
+      // Navigate to the cbl-table page
+      this.router.navigate(['/cbl-table']);
+    } else {
+      this.showStatusMessage('Please load Microsoft footprints first', true);
+    }
   }
 
   private showStatusMessage(message: string, isError: boolean): void {

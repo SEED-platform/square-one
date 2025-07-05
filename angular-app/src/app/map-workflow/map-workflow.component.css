@@ -14,7 +14,8 @@
 }
 
 .export-btn,
-.download-btn {
+.load-btn,
+.clear-btn {
   padding: 10px 15px;
   color: white;
   border: none;
@@ -33,25 +34,25 @@
   background-color: #005bb5;
 }
 
-.download-btn {
-  background-color: #28a745;
+.load-btn {
+  background-color: #17a2b8;
 }
 
-.download-btn:hover:not(:disabled) {
-  background-color: #218838;
+.load-btn:hover:not(:disabled) {
+  background-color: #138496;
 }
 
-.download-btn:disabled {
+.load-btn:disabled {
   background-color: #6c757d;
   cursor: not-allowed;
 }
 
-.geojson-btn {
-  background-color: #17a2b8;
+.clear-btn {
+  background-color: #dc3545;
 }
 
-.geojson-btn:hover:not(:disabled) {
-  background-color: #138496;
+.clear-btn:hover {
+  background-color: #c82333;
 }
 
 .status-message {

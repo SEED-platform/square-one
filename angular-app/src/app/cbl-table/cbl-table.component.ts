@@ -64,6 +64,31 @@ export class CblTableComponent implements OnInit, OnDestroy {
     private geoJsonService: GeoJsonService
   ) {}
 
+  get hasValidGeoJsonData(): boolean {
+    return !!(this.geoJson && this.geoJson.features && this.geoJson.features.length > 0);
+  }
+
+  get dataSourceInfo(): string {
+    if (!this.hasValidGeoJsonData) {
+      return '';
+    }
+
+    const totalFeatures = this.geoJson.features.length;
+    const featuresWithFootprints = this.geoJson.features.filter((feature: any) =>
+      this.hasFootprintData(feature)
+    ).length;
+
+    return `${totalFeatures} building${totalFeatures === 1 ? '' : 's'} loaded (${featuresWithFootprints} with footprint data)`;
+  }
+
+  navigateToMapWorkflow() {
+    this.router.navigate(['/map-workflow']);
+  }
+
+  navigateToHome() {
+    this.router.navigate(['/home']);
+  }
+
   ngOnInit() {
     this.geoJsonSubscription = this.geoJsonService.getGeoJson().subscribe((data) => {
       this.geoJson = data;
