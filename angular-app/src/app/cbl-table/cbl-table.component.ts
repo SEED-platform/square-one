@@ -46,7 +46,7 @@ export class CblTableComponent implements OnInit, OnDestroy {
   private gridApi: any;
   private geoJsonSubscription?: Subscription;
   private clickEventSubscription?: Subscription;
-  private newBuilingSubscription?: Subscription;
+  private newBuildingSubscription?: Subscription;
   private modifyBuildingSubscription?: Subscription;
   private isEditing = false;
   private selectedRowIdStorage?: string;
@@ -181,7 +181,7 @@ export class CblTableComponent implements OnInit, OnDestroy {
     });
 
     //inserts new building in table and geojson
-    this.newBuilingSubscription = this.geoJsonService.newBuilding$.subscribe((newBuilding) => {
+    this.newBuildingSubscription = this.geoJsonService.newBuilding$.subscribe((newBuilding) => {
       if (newBuilding) {
         console.log(newBuilding);
         newBuilding.properties['latitude'] = Number(newBuilding.properties['latitude']);
