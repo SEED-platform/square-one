@@ -266,7 +266,7 @@ export class MapWorkflowComponent implements AfterViewInit {
               <h3>Microsoft Building Footprint</h3>
               <p><strong>UBID:</strong> ${properties?.['ubid'] || 'N/A'}</p>
               <p><strong>Height:</strong> ${properties?.['height'] ? properties['height'] + ' m' : 'N/A'}</p>
-              <p><strong>Area:</strong> ${properties?.['ms_footprint_area_ft2'] ? Math.round(properties['ms_footprint_area_ft2']).toLocaleString() + ' sq ft' : 'N/A'}</p>
+              <p><strong>Footprint Area:</strong> ${this.getFootprintAreaDisplay(properties)}</p>
             </div>
           `;
 
@@ -331,7 +331,7 @@ export class MapWorkflowComponent implements AfterViewInit {
               <p><strong>Building Type:</strong> ${properties?.['building'] || 'N/A'}</p>
               <p><strong>Height:</strong> ${properties?.['height'] ? properties['height'] + ' m' : 'N/A'}</p>
               <p><strong>Levels:</strong> ${properties?.['building:levels'] || 'N/A'}</p>
-              <p><strong>Area:</strong> ${properties?.['osm_footprint_area_ft2'] ? Math.round(properties['osm_footprint_area_ft2']).toLocaleString() + ' sq ft' : 'N/A'}</p>
+              <p><strong>Footprint Area:</strong> ${this.getFootprintAreaDisplay(properties)}</p>
               <p><strong>OSM Link:</strong> <a href="${properties?.['osm_url'] || '#'}" target="_blank">View on OSM</a></p>
             </div>
           `;
@@ -476,5 +476,19 @@ export class MapWorkflowComponent implements AfterViewInit {
     setTimeout(() => {
       this.statusMessage = '';
     }, 5000);
+  }
+
+  /**
+   * Get display string for footprint area, trying different possible property names
+   */
+  private getFootprintAreaDisplay(properties: any): string {
+    // Try different possible property names for footprint area
+    const areaValue = properties?.['footprint_area_ft2']
+
+    if (areaValue && typeof areaValue === 'number' && areaValue > 0) {
+      return Math.round(areaValue).toLocaleString() + ' sq ft';
+    }
+
+    return 'N/A';
   }
 }

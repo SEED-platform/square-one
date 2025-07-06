@@ -58,6 +58,35 @@ export class CblTableComponent implements OnInit, OnDestroy {
   selectedRowForReverseGeocode: any = null;
   selectedRowHasFootprint = false;
 
+  // Essential columns that should always be present in the table
+  private readonly essentialColumns = ['footprint_area_ft2'];
+
+  // Default properties for new buildings - easier to maintain
+  // To add new default fields:
+  // 1. Add the property name and default value to this object
+  // 2. The getEnhancedDefaultProperties() method will automatically include it in new buildings
+  // 3. Common patterns: areas = 0, heights/ids = null, text fields = ''
+  private defaultBuildingProperties: { [key: string]: any } = {
+    street_address: '123 Main Street',
+    city: 'Denver',
+    state: 'CO',
+    postal_code: '80202',
+    country: 'US',
+    quality: 'Poor',
+    ubid: '',
+    latitude: 39.7392,
+    longitude: -104.9903,
+    footprint_area_m2: 0,
+    footprint_area_ft2: 0,
+    height: null,
+    // Additional common properties
+    BUILD_ID: null,
+    HEIGHT: null,
+    OCC_CLS: 'Unclassified',
+    PRIM_OCC: 'Unclassified',
+    PROP_ADDR: '123 Main Street'
+  };
+
   constructor(
     private apiHandler: FlaskRequests,
     private router: Router,
@@ -121,6 +150,14 @@ export class CblTableComponent implements OnInit, OnDestroy {
           }
 
           const geoJsonPropertyNames = Object.keys(ValidBuilding.properties);
+
+          // Ensure essential columns are always included
+          this.essentialColumns.forEach(col => {
+            if (!geoJsonPropertyNames.includes(col)) {
+              geoJsonPropertyNames.push(col);
+            }
+          });
+
           sessionStorage.setItem('PROPERTYNAMES', JSON.stringify(geoJsonPropertyNames));
         }
         this.updateTable(); // Update table only on initial load
@@ -271,10 +308,18 @@ export class CblTableComponent implements OnInit, OnDestroy {
 
   // Dynamically sets grid for geojson values
   setColumnDefs() {
-    const keys = JSON.parse(sessionStorage.getItem('PROPERTYNAMES') || '{}');
+    const keys = JSON.parse(sessionStorage.getItem('PROPERTYNAMES') || '[]');
+
+    // Ensure essential columns are always included in the keys array
+    this.essentialColumns.forEach(col => {
+      if (!keys.includes(col)) {
+        keys.push(col);
+      }
+    });
+
     keys.push('coordinates');
 
-    const nonEditableKeys = ['ubid', 'longitude', 'latitude', 'hasFootprint'];
+    const nonEditableKeys = ['ubid', 'longitude', 'latitude', 'hasFootprint', 'footprint_area_ft2'];
 
     // Add the hasFootprint column at the beginning (after selection)
     this.colDefs = [
@@ -312,12 +357,18 @@ export class CblTableComponent implements OnInit, OnDestroy {
         field: key,
         editable: !nonEditableKeys.includes(key),
         headerName: this.capitalizeFirstLetter(key),
+        cellStyle: key === 'footprint_area_ft2' ? { 'text-align': 'right' } : undefined,
         valueGetter: (params: ValueGetterParams) => {
           if (this.geoJson.features.length !== 0) {
             if (key === 'coordinates') {
               return params.data.geometry?.coordinates;
             }
-            return params.data.properties[key];
+            const value = params.data.properties[key];
+            // Round footprint_area_ft2 to nearest whole number for display
+            if (key === 'footprint_area_ft2' && typeof value === 'number') {
+              return Math.round(value);
+            }
+            return value;
           }
         },
         valueSetter: (params: ValueSetterParams) => {
@@ -463,9 +514,7 @@ export class CblTableComponent implements OnInit, OnDestroy {
   addNewRow() {
     const newId = Date.now().toString();
 
-    // Create a new building feature with default values
-    // This will need to be updated based on the columns that
-    // are available from any data sources.
+    // Create a new building feature with enhanced default values
     const newBuilding: any = {
       type: 'Feature',
       id: newId,
@@ -473,20 +522,7 @@ export class CblTableComponent implements OnInit, OnDestroy {
         type: 'Polygon',
         coordinates: [[]]
       },
-      properties: {
-        street_address: '123 Main Street',
-        city: 'Denver',
-        state: 'CO',
-        quality: 'Poor',
-        ubid: '',
-        latitude: 39.7392,
-        longitude: -104.9903,
-        BUILD_ID: null,
-        HEIGHT: null,
-        OCC_CLS: 'Unclassified',
-        PRIM_OCC: 'Unclassified',
-        PROP_ADDR: '123 Main Street'
-      }
+      properties: this.getEnhancedDefaultProperties()
     };
 
     // Add the new row to the beginning of the grid
@@ -813,7 +849,6 @@ export class CblTableComponent implements OnInit, OnDestroy {
 
     for (const building of data) {
       // Create a new object with properties in the desired order
-
       let buildingObject;
 
       if (building?.geometry) {
@@ -823,6 +858,7 @@ export class CblTableComponent implements OnInit, OnDestroy {
           state: building.properties.state,
           quality: building.properties.quality,
           ubid: building.properties.ubid,
+          footprint_area_ft2: building.properties.footprint_area_ft2,
           ...building.properties, // Spread the remaining properties after the desired ones
           coordinates: building.geometry?.coordinates || null // Add the coordinates
         };
@@ -833,6 +869,7 @@ export class CblTableComponent implements OnInit, OnDestroy {
           state: building.properties.state,
           quality: building.properties.quality,
           ubid: building.properties.ubid,
+          footprint_area_ft2: building.properties.footprint_area_ft2,
           ...building.properties, // Spread the remaining properties after the desired ones
           coordinates: null // Add the coordinates
         };
@@ -844,5 +881,35 @@ export class CblTableComponent implements OnInit, OnDestroy {
 
     // Optionally, return the jsonArray if needed
     return jsonArray;
+  }
+
+  /**
+   * Get default properties for new buildings, enhanced with any additional
+   * properties found in existing data to ensure consistency
+   */
+  private getEnhancedDefaultProperties(): any {
+    const existingPropertyNames = JSON.parse(sessionStorage.getItem('PROPERTYNAMES') || '[]');
+    const enhancedDefaults = { ...this.defaultBuildingProperties };
+
+    // Add any missing properties from existing data with sensible defaults
+    existingPropertyNames.forEach((propName: string) => {
+      if (!(propName in enhancedDefaults)) {
+        // Provide sensible defaults based on property name patterns
+        if (propName.toLowerCase().includes('area')) {
+          enhancedDefaults[propName] = 0;
+        } else if (propName.toLowerCase().includes('height') || propName.toLowerCase().includes('elevation')) {
+          enhancedDefaults[propName] = null;
+        } else if (propName.toLowerCase().includes('id')) {
+          enhancedDefaults[propName] = null;
+        } else if (propName.toLowerCase().includes('url') || propName.toLowerCase().includes('link')) {
+          enhancedDefaults[propName] = '';
+        } else {
+          // Default to empty string for most other fields
+          enhancedDefaults[propName] = '';
+        }
+      }
+    });
+
+    return enhancedDefaults;
   }
 }

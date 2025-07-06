@@ -159,8 +159,8 @@ class FootprintService:
             ms_gdf = ms_gdf.drop(columns=["ubid_centroid"])
 
             # Calculate footprint area
-            ms_gdf["ms_footprint_area_m2"] = ms_gdf.to_crs(epsg=3857).area
-            ms_gdf["ms_footprint_area_ft2"] = ms_gdf["ms_footprint_area_m2"] * 10.764
+            ms_gdf["footprint_area_m2"] = ms_gdf.to_crs(epsg=3857).area
+            ms_gdf["footprint_area_ft2"] = ms_gdf["footprint_area_m2"] * 10.764
 
             # Add address fields in the format expected by the frontend
             ms_gdf["street_address"] = ""
@@ -227,7 +227,7 @@ class FootprintService:
             if not isinstance(osm_gdf, gpd.GeoDataFrame):
                 osm_gdf = gpd.GeoDataFrame(osm_gdf)
 
-            # Filter out point geometries
+            # Filter out point geometries (we only want polygons)
             osm_gdf = osm_gdf[osm_gdf.geometry.geom_type != "Point"].copy()
 
             # Reset index to add unique IDs
@@ -248,15 +248,15 @@ class FootprintService:
             osm_gdf["ubid_centroid"] = osm_gdf.apply(lambda x: centroid(x["ubid"]), axis=1)
 
             # Decompose the ubid_centroid into lat/long
-            osm_gdf["lon"] = osm_gdf["ubid_centroid"].apply(lambda point: point.x)
-            osm_gdf["lat"] = osm_gdf["ubid_centroid"].apply(lambda point: point.y)
+            osm_gdf["longitude"] = osm_gdf["ubid_centroid"].apply(lambda point: point.x)
+            osm_gdf["latitude"] = osm_gdf["ubid_centroid"].apply(lambda point: point.y)
             osm_gdf = osm_gdf.drop(columns=["ubid_centroid"])
 
             # Calculate footprint area (set CRS if not already set)
             if osm_gdf.crs is None:
                 osm_gdf = osm_gdf.set_crs(epsg=4326)
-            osm_gdf["osm_footprint_area_m2"] = osm_gdf.to_crs(epsg=3857).area
-            osm_gdf["osm_footprint_area_ft2"] = osm_gdf["osm_footprint_area_m2"] * 10.764
+            osm_gdf["footprint_area_m2"] = osm_gdf.to_crs(epsg=3857).area
+            osm_gdf["footprint_area_ft2"] = osm_gdf["footprint_area_m2"] * 10.764
 
             # Add OSM URL - handle different possible column names after reset_index
             def create_url_field(row):
@@ -366,17 +366,6 @@ class FootprintService:
                 street_addresses.append("")
 
         osm_gdf["street_address"] = street_addresses
-
-        # Set latitude and longitude (if available)
-        if "lat" in osm_gdf.columns:
-            osm_gdf["latitude"] = osm_gdf["lat"]
-        else:
-            osm_gdf["latitude"] = ""
-
-        if "lon" in osm_gdf.columns:
-            osm_gdf["longitude"] = osm_gdf["lon"]
-        else:
-            osm_gdf["longitude"] = ""
 
         # Add country field
         osm_gdf["country"] = ""
