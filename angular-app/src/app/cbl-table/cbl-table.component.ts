@@ -59,7 +59,7 @@ export class CblTableComponent implements OnInit, OnDestroy {
   selectedRowHasFootprint = false;
 
   // Essential columns that should always be present in the table
-  private readonly essentialColumns = ['footprint_area_ft2'];
+  private readonly essentialColumns = ['footprint_area_ft2', 'height',];
 
   // Default properties for new buildings - easier to maintain
   // To add new default fields:
@@ -357,7 +357,8 @@ export class CblTableComponent implements OnInit, OnDestroy {
         field: key,
         editable: !nonEditableKeys.includes(key),
         headerName: this.capitalizeFirstLetter(key),
-        cellStyle: key === 'footprint_area_ft2' ? { 'text-align': 'right' } : undefined,
+        cellStyle: key === 'footprint_area_ft2' ? { 'text-align': 'right' } :
+                   key === 'height' ? { 'text-align': 'right' } : undefined,
         valueGetter: (params: ValueGetterParams) => {
           if (this.geoJson.features.length !== 0) {
             if (key === 'coordinates') {
@@ -367,6 +368,10 @@ export class CblTableComponent implements OnInit, OnDestroy {
             // Round footprint_area_ft2 to nearest whole number for display
             if (key === 'footprint_area_ft2' && typeof value === 'number') {
               return Math.round(value);
+            }
+            // Convert height from meters to feet and round to nearest whole number
+            if (key === 'height' && typeof value === 'number' && value !== null) {
+              return Math.round(value * 3.28084); // Convert meters to feet
             }
             return value;
           }
