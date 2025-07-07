@@ -167,9 +167,21 @@ export class SessionService {
   // ============================================================================
 
   /**
-   * Clear all session data
+   * Clear all session data except map location
    */
   clearAll(): void {
+    Object.values(this.STORAGE_KEYS).forEach(key => {
+      // Never clear the map location
+      if (key !== this.STORAGE_KEYS.MAP_LOCATION) {
+        this.removeItem(key);
+      }
+    });
+  }
+
+  /**
+   * Clear absolutely everything including map location (use with caution)
+   */
+  clearAllIncludingMapLocation(): void {
     Object.values(this.STORAGE_KEYS).forEach(key => {
       this.removeItem(key);
     });
@@ -185,7 +197,7 @@ export class SessionService {
   }
 
   /**
-   * Clear only data (keep navigation state)
+   * Clear only data (keep navigation state and map location)
    */
   clearData(): void {
     this.removeItem(this.STORAGE_KEYS.GEOJSON_DATA);
@@ -194,6 +206,7 @@ export class SessionService {
     this.removeItem(this.STORAGE_KEYS.PROPERTY_NAMES);
     this.removeItem(this.STORAGE_KEYS.COLUMN_DEFINITIONS);
     this.removeItem(this.STORAGE_KEYS.SELECTED_ROW);
+    // Note: MAP_LOCATION is intentionally preserved
   }
 
   /**
