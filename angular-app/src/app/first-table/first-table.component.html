@@ -31,12 +31,19 @@
     <div class="col-12">
       <ag-grid-angular
         class="ag-theme-quartz"
+        *ngIf="isDataLoaded && gridData.length > 0"
         [columnDefs]="colDefs"
         [defaultColDef]="defaultColDef"
-        [rowData]="userList"
+        [rowData]="gridData"
         (gridReady)="onGridReady($event)"
         style="height: 70vh; width: 90vw"
       />
+      <div class="p-4 text-center" *ngIf="!isDataLoaded">
+        <h2 style="color: orange">Loading data...</h2>
+      </div>
+      <div class="p-4 text-center" *ngIf="isDataLoaded && gridData.length === 0">
+        <h2 style="color: red">No data available</h2>
+      </div>
     </div>
   </div>
   <div class="mt-4 inline-flex w-[90vw] justify-end">
