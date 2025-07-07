@@ -180,13 +180,14 @@ describe('SessionService', () => {
       service.setPropertyNames(['prop1', 'prop2']);
     });
 
-    it('should clear all session data', () => {
+    it('should clear all session data except map location', () => {
       expect(service.hasSavedLocation()).toBeTrue();
       expect(service.getCurrentPage()).toBe('test-page');
 
       service.clearAll();
 
-      expect(service.hasSavedLocation()).toBeFalse();
+      // Map location should be preserved
+      expect(service.hasSavedLocation()).toBeTrue();
       expect(service.getCurrentPage()).toBe('');
       expect(service.getGeoJsonData()).toEqual({});
       expect(service.getPropertyNames()).toEqual([]);
