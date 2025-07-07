@@ -210,8 +210,8 @@ export class CblTableComponent implements OnInit, OnDestroy {
 
             // Try to find a building with better quality, but ensure we don't go out of bounds
             let i = 0;
-            while (i < buildingArray.length - 1 && 
-                   ValidBuilding.properties && ValidBuilding.properties.quality && 
+            while (i < buildingArray.length - 1 &&
+                   ValidBuilding.properties && ValidBuilding.properties.quality &&
                    (ValidBuilding.properties.quality === 'Poor' || ValidBuilding.properties.quality === 'Very Poor')) {
               i++;
               ValidBuilding = buildingArray[i];
