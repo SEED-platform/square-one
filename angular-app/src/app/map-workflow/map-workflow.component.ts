@@ -8,6 +8,7 @@ import { environment } from '../../environments/environment';
 import { NavigationComponent } from '../shared/navigation/navigation.component';
 import { HttpClient } from '@angular/common/http';
 import { GeoJsonService } from '../services/geojson.service';
+import { SessionService, MapLocation } from '../services/session.service';
 
 @Component({
   selector: 'app-map-workflow',
@@ -19,6 +20,7 @@ import { GeoJsonService } from '../services/geojson.service';
 export class MapWorkflowComponent implements AfterViewInit {
   private map!: mapboxgl.Map;
   private draw!: MapboxDraw;
+  private geocoder!: MapboxGeocoder;
 
   // Component state
   hasPolygon = false;
@@ -45,32 +47,59 @@ export class MapWorkflowComponent implements AfterViewInit {
     private http: HttpClient,
     private cdr: ChangeDetectorRef,
     private router: Router,
-    private geoJsonService: GeoJsonService
+    private geoJsonService: GeoJsonService,
+    private sessionService: SessionService
   ) {}
 
   ngAfterViewInit(): void {
     try {
+      // Get the saved location or use default location
+      const savedLocation = this.sessionService.getMapLocation();
+
       this.map = new mapboxgl.Map({
         accessToken: environment.mapboxToken,
         container: 'map',
         style: 'mapbox://styles/mapbox/streets-v11',
-        center: [-77.0369, 38.9072],
-        zoom: 15
+        center: [savedLocation.longitude, savedLocation.latitude],
+        zoom: savedLocation.zoom || 15
       });
 
       this.map.addControl(new mapboxgl.NavigationControl());
 
       this.map.on('load', () => {
-        const geocoder = new MapboxGeocoder({
+        this.geocoder = new MapboxGeocoder({
           accessToken: environment.mapboxToken,
           mapboxgl: mapboxgl,
           marker: true,
           placeholder: 'Search for a location',
-          proximity: { longitude: -77.0369, latitude: 38.9072 },
+          proximity: { longitude: savedLocation.longitude, latitude: savedLocation.latitude },
           countries: 'us',
         });
 
-        this.map.addControl(geocoder);
+        // Listen for geocoder result to save the location
+        this.geocoder.on('result', (event: any) => {
+          const result = event.result;
+          if (result && result.center) {
+            const newLocation: MapLocation = {
+              longitude: result.center[0],
+              latitude: result.center[1],
+              zoom: this.map.getZoom()
+            };
+
+            // Save the new location to session storage
+            this.sessionService.saveMapLocation(newLocation);
+
+            // Update proximity for future searches
+            this.geocoder.setProximity({
+              longitude: newLocation.longitude,
+              latitude: newLocation.latitude
+            });
+
+            console.log('Location saved from search:', newLocation, 'Place:', result.place_name);
+          }
+        });
+
+        this.map.addControl(this.geocoder);
 
         this.draw = new MapboxDraw({
           displayControlsDefault: false,
@@ -86,8 +115,31 @@ export class MapWorkflowComponent implements AfterViewInit {
         this.map.on('draw.create', this.onDrawCreate.bind(this));
         this.map.on('draw.update', this.onDrawUpdate.bind(this));
         this.map.on('draw.delete', this.onDrawDelete.bind(this));
-      });
 
+        // Save location when user moves the map significantly
+        this.map.on('moveend', () => {
+          const center = this.map.getCenter();
+          const zoom = this.map.getZoom();
+
+          // Only save if the move is significant (to avoid saving every small pan)
+          const currentLocation = this.sessionService.getMapLocation();
+          const distance = this.sessionService.calculateDistance(
+            currentLocation.latitude, currentLocation.longitude,
+            center.lat, center.lng
+          );
+
+          // Save if moved more than 1km or zoom changed significantly
+          if (distance > 1 || Math.abs(zoom - (currentLocation.zoom || 15)) > 2) {
+            const newLocation: MapLocation = {
+              longitude: center.lng,
+              latitude: center.lat,
+              zoom: zoom
+            };
+            this.sessionService.saveMapLocation(newLocation);
+            console.log('Location automatically saved from map movement:', newLocation);
+          }
+        });
+      });
     } catch (error) {
       console.error('Error initializing map:', error);
     }
