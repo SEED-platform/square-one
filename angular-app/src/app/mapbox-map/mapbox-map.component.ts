@@ -1,6 +1,7 @@
 import { Component, ChangeDetectorRef, OnInit, OnDestroy, ViewEncapsulation } from '@angular/core';
 import { GeoJsonService } from '../services/geojson.service';
 import { FlaskRequests } from '../services/server.service';
+import { SessionService } from '../services/session.service';
 import * as mapboxgl from 'mapbox-gl';
 import MapboxDraw from '@mapbox/mapbox-gl-draw';
 import { CommonModule, JsonPipe } from '@angular/common';
@@ -48,14 +49,15 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
   constructor(
     private cdr: ChangeDetectorRef,
     private geoJsonService: GeoJsonService,
-    private apiHandler: FlaskRequests
+    private apiHandler: FlaskRequests,
+    private sessionService: SessionService
   ) {}
 
   ngOnInit() {
     this.geoJsonSubscription = this.geoJsonService.getGeoJson().subscribe((geoJsonObject) => {
       this.initializeMapWithGeoJson(geoJsonObject);
       this.globalGeoJsonObject = geoJsonObject;
-      this.geoJsonPropertyNames = JSON.parse(sessionStorage.getItem('PROPERTYNAMES') || '[]');
+      this.geoJsonPropertyNames = this.sessionService.getPropertyNames();
     });
 
     this.featureClickSubscription = this.geoJsonService.selectedFeature$.subscribe((feature) => {

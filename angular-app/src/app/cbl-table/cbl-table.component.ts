@@ -11,6 +11,7 @@ import { MapboxMapComponent } from '../mapbox-map/mapbox-map.component';
 import { NavigationComponent } from '../shared/navigation/navigation.component';
 import { GeoJsonService } from '../services/geojson.service';
 import { FlaskRequests } from '../services/server.service';
+import { SessionService } from '../services/session.service';
 
 @Component({
   selector: 'app-cbl-table',
@@ -91,7 +92,8 @@ export class CblTableComponent implements OnInit, OnDestroy {
     private apiHandler: FlaskRequests,
     private router: Router,
     private cdr: ChangeDetectorRef,
-    private geoJsonService: GeoJsonService
+    private geoJsonService: GeoJsonService,
+    private sessionService: SessionService
   ) {}
 
   get hasValidGeoJsonData(): boolean {
@@ -139,7 +141,7 @@ export class CblTableComponent implements OnInit, OnDestroy {
       this.geoJson = data;
       if (this.initialLoad) {
         //keeps it from rendering every change..better performance
-        if (!sessionStorage.getItem('PROPERTYNAMES')) {
+        if (this.sessionService.getPropertyNames().length === 0) {
           const buildingArray = this.geoJson.features;
           let ValidBuilding = buildingArray[0];
 
@@ -158,7 +160,7 @@ export class CblTableComponent implements OnInit, OnDestroy {
             }
           });
 
-          sessionStorage.setItem('PROPERTYNAMES', JSON.stringify(geoJsonPropertyNames));
+          this.sessionService.setPropertyNames(geoJsonPropertyNames);
         }
         this.updateTable(); // Update table only on initial load
         this.initialLoad = false; // Set the flag to false after the initial load
@@ -175,7 +177,7 @@ export class CblTableComponent implements OnInit, OnDestroy {
           this.selectedRowIdStorage = clickEvent.id;
           this.scrollToFeatureById(this.selectedRowIdStorage, clickEvent.isShiftClick);
           console.log('THIS IS SELECTED ROW ID', this, this.selectedRowIdStorage); //keep selected row incase the table re renders and you want to go back to it
-          sessionStorage.setItem('SELECTEDROW', JSON.stringify(this.selectedRowIdStorage));
+          this.sessionService.setSelectedRow(this.selectedRowIdStorage ? [this.selectedRowIdStorage] : []);
         }
       }
     });
@@ -308,7 +310,7 @@ export class CblTableComponent implements OnInit, OnDestroy {
 
   // Dynamically sets grid for geojson values
   setColumnDefs() {
-    const keys = JSON.parse(sessionStorage.getItem('PROPERTYNAMES') || '[]');
+    const keys = this.sessionService.getPropertyNames();
 
     // Ensure essential columns are always included in the keys array
     this.essentialColumns.forEach(col => {
@@ -389,7 +391,7 @@ export class CblTableComponent implements OnInit, OnDestroy {
         }
       }))
     ];
-    sessionStorage.setItem('COL', JSON.stringify(this.colDefs));
+    this.sessionService.setColumnDefinitions(this.colDefs);
   }
 
   scrollToTop() {
@@ -463,7 +465,7 @@ export class CblTableComponent implements OnInit, OnDestroy {
       }
 
       this.selectedRowIdStorage = id;
-      sessionStorage.setItem('SELECTEDROW', JSON.stringify(this.selectedRowIdStorage));
+      this.sessionService.setSelectedRow(this.selectedRowIdStorage ? [this.selectedRowIdStorage] : []);
       const latitude = data.properties?.latitude;
       const longitude = data.properties?.longitude;
       const quality = data.properties?.quality;
@@ -586,7 +588,7 @@ export class CblTableComponent implements OnInit, OnDestroy {
     // Prepare data for Flask API call
     const jsonData = {
       coordinates: coordinates[0], // Get the first polygon ring
-      propertyNames: JSON.parse(sessionStorage.getItem('PROPERTYNAMES') || '[]'),
+      propertyNames: this.sessionService.getPropertyNames(),
       featuresLength: this.rowData.length
     };
 
@@ -649,7 +651,7 @@ export class CblTableComponent implements OnInit, OnDestroy {
 
     const jsonData = {
       coordinates: coordinates,
-      propertyNames: JSON.parse(sessionStorage.getItem('PROPERTYNAMES') || '[]'),
+      propertyNames: this.sessionService.getPropertyNames(),
       featuresLength: this.rowData.length
     };
 
@@ -893,7 +895,7 @@ export class CblTableComponent implements OnInit, OnDestroy {
    * properties found in existing data to ensure consistency
    */
   private getEnhancedDefaultProperties(): any {
-    const existingPropertyNames = JSON.parse(sessionStorage.getItem('PROPERTYNAMES') || '[]');
+    const existingPropertyNames = this.sessionService.getPropertyNames();
     const enhancedDefaults = { ...this.defaultBuildingProperties };
 
     // Add any missing properties from existing data with sensible defaults

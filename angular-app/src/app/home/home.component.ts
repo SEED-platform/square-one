@@ -10,6 +10,7 @@ import { NavigationComponent } from '../shared/navigation/navigation.component';
 import { FileExportService } from '../services/file-export.service';
 import { GeoJsonService } from '../services/geojson.service';
 import { FlaskRequests } from '../services/server.service';
+import { SessionService } from '../services/session.service';
 import LZString from 'lz-string';
 
 @Component({
@@ -30,17 +31,18 @@ export class HomeComponent implements OnInit, OnDestroy {
     private apiHandler: FlaskRequests,
     private fileExportHandler: FileExportService,
     private router: Router,
-    private geoJsonService: GeoJsonService
+    private geoJsonService: GeoJsonService,
+    private sessionService: SessionService
   ) {}
 
   ngOnInit() {
-    sessionStorage.setItem('HOMEACCESS', JSON.stringify(true));
-    sessionStorage.setItem('CURRENTPAGE', '');
+    this.sessionService.setHomeAccess(true);
+    this.sessionService.setCurrentPage('');
     this.geoJsonSubscription = this.geoJsonService.getGeoJson().subscribe((data) => {
       this.jsonData = data;
       if (this.jsonData && this.jsonData.features && this.jsonData.features.length > 0 && this.jsonData.features[0].properties) {
         const geoJsonPropertyNames = Object.keys(this.jsonData.features[0].properties);
-        sessionStorage.setItem('GEOJSONPROPERTYNAMES', JSON.stringify(geoJsonPropertyNames));
+        this.sessionService.setGeoJsonPropertyNames(geoJsonPropertyNames);
       }
     });
   }
