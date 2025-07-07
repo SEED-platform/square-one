@@ -19,6 +19,7 @@ interface GeoJsonFeature {
 export class GeoJsonService implements OnDestroy {
   private isSentFromTable = false; // Flag to track selection source
   private geoJsonSubject: BehaviorSubject<any> = new BehaviorSubject<any>({});
+  private shouldAutoSave = true; // Flag to control auto-save behavior
 
   private clickEventSubject = new BehaviorSubject<{ latitude: number; longitude: number; id: string; isShiftClick?: boolean } | null>(null);
   public clickEvent$: Observable<{ latitude: number; longitude: number; id: string; isShiftClick?: boolean } | null> = this.clickEventSubject.asObservable();
@@ -52,14 +53,35 @@ export class GeoJsonService implements OnDestroy {
   }
 
   handleUnload(event: BeforeUnloadEvent) {
-    const geoJson = this.geoJsonSubject.getValue();
-    this.sessionService.setGeoJsonData(geoJson);
-    // For modern browsers, you may want to include a returnValue to trigger a confirmation dialog
-    event.returnValue = 'Your data is being saved. Are you sure you want to leave?';
+    // Only auto-save if the flag allows it
+    if (this.shouldAutoSave) {
+      const geoJson = this.geoJsonSubject.getValue();
+      this.sessionService.setGeoJsonData(geoJson);
+      // For modern browsers, you may want to include a returnValue to trigger a confirmation dialog
+      event.returnValue = 'Your data is being saved. Are you sure you want to leave?';
+    }
   }
 
   setGeoJson(serverGeoJson: any): void {
     this.geoJsonSubject.next(serverGeoJson);
+  }
+
+  // Method to disable auto-save (useful when clearing data)
+  disableAutoSave(): void {
+    this.shouldAutoSave = false;
+  }
+
+  // Method to enable auto-save
+  enableAutoSave(): void {
+    this.shouldAutoSave = true;
+  }
+
+  // Method to clear all data without auto-save interference
+  clearAllData(): void {
+    this.shouldAutoSave = false; // Disable auto-save temporarily
+    this.sessionService.clearData(); // Clear session storage first
+    this.reloadFromSessionStorage(); // Then reload from the cleared session storage (will load empty data)
+    // Keep auto-save disabled - it will be re-enabled when new data is loaded
   }
 
   getGeoJson(): Observable<any> {
@@ -241,5 +263,11 @@ export class GeoJsonService implements OnDestroy {
 
   private getGeoJsonFromSessionStorage(): any {
     return this.sessionService.getGeoJsonData();
+  }
+
+  // Force reload from session storage - useful when session data is cleared
+  reloadFromSessionStorage(): void {
+    const sessionData = this.getGeoJsonFromSessionStorage();
+    this.geoJsonSubject.next(sessionData);
   }
 }

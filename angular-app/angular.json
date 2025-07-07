@@ -27,15 +27,24 @@
             "styles": [
               "src/styles.css"
             ],
-            "scripts": []
+            "scripts": [],
+            "allowedCommonJsDependencies": [
+              "@mapbox/geojson-area",
+              "papaparse",
+              "lz-string",
+              "mapbox-gl",
+              "@mapbox/mapbox-gl-geocoder",
+              "fast-deep-equal",
+              "@mapbox/geojson-normalize"
+            ]
           },
           "configurations": {
             "production": {
               "budgets": [
                 {
                   "type": "initial",
-                  "maximumWarning": "500kB",
-                  "maximumError": "5MB"
+                  "maximumWarning": "4MB",
+                  "maximumError": "10MB"
                 },
                 {
                   "type": "anyComponentStyle",

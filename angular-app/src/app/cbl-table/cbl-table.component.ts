@@ -28,6 +28,10 @@ export class CblTableComponent implements OnInit, OnDestroy {
   public duplicateMap: Record<string, number> = {};
   public rowData: any[] = [];
 
+  // Cached values to prevent ExpressionChangedAfterItHasBeenCheckedError
+  public cachedDataSourceInfo: string = '';
+  public cachedSelectedRowsInfo: string = 'No buildings selected';
+
   // for menu
   isOpen = false;
 
@@ -100,9 +104,10 @@ export class CblTableComponent implements OnInit, OnDestroy {
     return !!(this.geoJson && this.geoJson.features && this.geoJson.features.length > 0);
   }
 
-  get dataSourceInfo(): string {
+  updateDataSourceInfo(): void {
     if (!this.hasValidGeoJsonData) {
-      return '';
+      this.cachedDataSourceInfo = '';
+      return;
     }
 
     const totalFeatures = this.geoJson.features.length;
@@ -110,22 +115,33 @@ export class CblTableComponent implements OnInit, OnDestroy {
       this.hasFootprintData(feature)
     ).length;
 
-    return `${totalFeatures} building${totalFeatures === 1 ? '' : 's'} loaded (${featuresWithFootprints} with footprint data)`;
+    this.cachedDataSourceInfo = `${totalFeatures} building${totalFeatures === 1 ? '' : 's'} loaded (${featuresWithFootprints} with footprint data)`;
   }
 
-  get selectedRowsInfo(): string {
+  updateSelectedRowsInfo(): void {
     if (!this.gridApi) {
-      return '';
+      this.cachedSelectedRowsInfo = '';
+      return;
     }
 
     const selectedRows = this.gridApi.getSelectedRows();
     const selectedCount = selectedRows.length;
 
     if (selectedCount === 0) {
-      return 'No buildings selected';
+      this.cachedSelectedRowsInfo = 'No buildings selected';
+    } else {
+      this.cachedSelectedRowsInfo = `${selectedCount} building${selectedCount === 1 ? '' : 's'} selected`;
     }
+  }
 
-    return `${selectedCount} building${selectedCount === 1 ? '' : 's'} selected`;
+  /**
+   * Force reload data from session storage - useful when data might be stale
+   */
+  forceReloadFromSession() {
+    console.log('Forcing reload from session storage');
+    this.geoJsonService.reloadFromSessionStorage();
+    // Reset the initial load flag to ensure proper reprocessing
+    this.initialLoad = true;
   }
 
   navigateToMapWorkflow() {
@@ -133,40 +149,112 @@ export class CblTableComponent implements OnInit, OnDestroy {
   }
 
   navigateToHome() {
+    // Clear all data when navigating home
+    this.clearTableData();
     this.router.navigate(['/home']);
+  }  private clearTableData() {
+    // Clear the table data
+    this.rowData = [];
+    this.featuresArray = [];
+    this.geoJson = null;
+
+    // Clear the grid if it exists - just deselect, rowData will be automatically updated
+    if (this.gridApi) {
+      this.gridApi.deselectAll();
+    }
+
+    // Clear session data and GeoJSON service completely using the new method that prevents auto-save
+    this.sessionService.setPropertyNames([]);
+    this.sessionService.setSelectedRow([]);
+    this.geoJsonService.clearAllData();
+
+    // Reset flags
+    this.initialLoad = true;
+    this.isDeletingRows = false;
+    this.selectedRowIdStorage = undefined;
+
+    // Reset dialog states
+    this.showReverseGeocodeDialog = false;
+    this.selectedRowForReverseGeocode = null;
+    this.selectedRowHasFootprint = false;
+
+    // Defer updating cached info to prevent ExpressionChangedAfterItHasBeenCheckedError
+    setTimeout(() => {
+      this.updateDataSourceInfo();
+      this.updateSelectedRowsInfo();
+    }, 0);
+
+    // Trigger change detection
+    this.cdr.detectChanges();
   }
 
   ngOnInit() {
+    // Force reload from session storage to ensure we have the latest data
+    if (this.initialLoad) {
+      console.log('Initial load - forcing reload from session storage');
+      this.geoJsonService.reloadFromSessionStorage();
+    }
+
     this.geoJsonSubscription = this.geoJsonService.getGeoJson().subscribe((data) => {
+      console.log('Table component received data from service:', data);
       this.geoJson = data;
-      if (this.initialLoad) {
-        //keeps it from rendering every change..better performance
-        if (this.sessionService.getPropertyNames().length === 0) {
-          const buildingArray = this.geoJson.features;
-          let ValidBuilding = buildingArray[0];
 
-          let i = 0;
-          while (ValidBuilding.properties.quality === 'Poor' || (ValidBuilding.properties.quality === 'Very Poor' && i < buildingArray.length)) {
-            i++;
-            ValidBuilding = buildingArray[i];
-          }
+      // Only process if we have valid data
+      if (data && data.features && data.features.length > 0) {
+        console.log('Processing valid data with', data.features.length, 'features');
+        if (this.initialLoad) {
+          //keeps it from rendering every change..better performance
+          if (this.sessionService.getPropertyNames().length === 0) {
+            const buildingArray = this.geoJson.features;
+            let ValidBuilding = buildingArray[0];
 
-          const geoJsonPropertyNames = Object.keys(ValidBuilding.properties);
-
-          // Ensure essential columns are always included
-          this.essentialColumns.forEach(col => {
-            if (!geoJsonPropertyNames.includes(col)) {
-              geoJsonPropertyNames.push(col);
+            let i = 0;
+            while (ValidBuilding.properties.quality === 'Poor' || (ValidBuilding.properties.quality === 'Very Poor' && i < buildingArray.length)) {
+              i++;
+              ValidBuilding = buildingArray[i];
             }
-          });
 
-          this.sessionService.setPropertyNames(geoJsonPropertyNames);
+            const geoJsonPropertyNames = Object.keys(ValidBuilding.properties);
+
+            // Ensure essential columns are always included
+            this.essentialColumns.forEach(col => {
+              if (!geoJsonPropertyNames.includes(col)) {
+                geoJsonPropertyNames.push(col);
+              }
+            });
+
+            this.sessionService.setPropertyNames(geoJsonPropertyNames);
+          }
+          this.updateTable(); // Update table only on initial load
+
+          // Defer the cached info update to prevent ExpressionChangedAfterItHasBeenCheckedError
+          setTimeout(() => {
+            this.updateDataSourceInfo(); // Update cached info
+          }, 0);
+
+          this.initialLoad = false; // Set the flag to false after the initial load
+        } else if (!this.isDeletingRows) {
+          // Only update table if we're not in the middle of deleting rows
+          this.updateTable();
+
+          // Defer the cached info update to prevent ExpressionChangedAfterItHasBeenCheckedError
+          setTimeout(() => {
+            this.updateDataSourceInfo(); // Update cached info
+          }, 0);
         }
-        this.updateTable(); // Update table only on initial load
-        this.initialLoad = false; // Set the flag to false after the initial load
-      } else if (!this.isDeletingRows) {
-        // Only update table if we're not in the middle of deleting rows
-        this.updateTable();
+      } else {
+        // Handle case where data is null/empty (cleared data)
+        this.featuresArray = [];
+        this.rowData = [];
+
+        // Defer the cached info update to prevent ExpressionChangedAfterItHasBeenCheckedError
+        setTimeout(() => {
+          this.updateDataSourceInfo(); // Update cached info
+        }, 0);
+        // The grid will automatically update when rowData changes
+        if (this.gridApi) {
+          this.gridApi.deselectAll();
+        }
       }
     });
 
@@ -476,8 +564,15 @@ export class CblTableComponent implements OnInit, OnDestroy {
   }
 
   onSelectionChanged(event: any) {
-    // Trigger change detection for the selectedRowsInfo getter
-    this.cdr.detectChanges();
+    // Don't trigger change detection if we're in the middle of deleting rows
+    if (!this.isDeletingRows) {
+      // Defer the cached selection info update to prevent ExpressionChangedAfterItHasBeenCheckedError
+      setTimeout(() => {
+        this.updateSelectedRowsInfo();
+        // Use markForCheck instead of detectChanges to be less aggressive
+        this.cdr.markForCheck();
+      }, 0);
+    }
   }
 
   onCellEditingStarted(event: any) {
@@ -497,24 +592,49 @@ export class CblTableComponent implements OnInit, OnDestroy {
       const selectedData = this.gridApi.getSelectedRows();
       const res = this.gridApi.applyTransaction({ remove: selectedData })!;
 
-      // Remove all deleted rows from the map, not just the first one
+      // Remove all deleted rows from both the map and the underlying GeoJSON data
       if (res.remove && res.remove.length > 0) {
         res.remove.forEach((removedRow: any) => {
           console.log('Removing from map:', removedRow.data);
+          // Remove from map display
           this.geoJsonService.removeEntirePolygonRefInMap(removedRow.data.id);
         });
+
+        // Update the underlying GeoJSON data by removing the deleted features
+        const currentGeoJson = this.geoJson;
+        if (currentGeoJson && currentGeoJson.features) {
+          const deletedIds = res.remove.map((removedRow: any) => removedRow.data.id);
+          const updatedFeatures = currentGeoJson.features.filter((feature: any) =>
+            !deletedIds.includes(feature.id)
+          );
+
+          const updatedGeoJson = {
+            ...currentGeoJson,
+            features: updatedFeatures
+          };
+
+          // Update all data atomically to prevent change detection issues
+          this.geoJson = updatedGeoJson;
+          this.featuresArray = this.geoJson.features;
+          this.rowData = this.featuresArray;
+
+          // Update the GeoJSON service with the cleaned data
+          this.geoJsonService.setGeoJson(updatedGeoJson);
+
+          // Also update session storage to persist the deletions
+          this.sessionService.setGeoJsonData(updatedGeoJson);
+        }
       }
 
-      // Update the data arrays to stay in sync
-      this.featuresArray = this.geoJson.features;
-      this.rowData = this.featuresArray;
-
-      // Clear the flag after a short delay to allow any triggered updates to complete
+      // Use setTimeout to ensure change detection happens after all updates are complete
       setTimeout(() => {
         this.isDeletingRows = false;
-        // Trigger change detection to update the selected count
-        this.cdr.detectChanges();
-      }, 100);
+        // Update cached info after deletion is complete
+        this.updateDataSourceInfo();
+        this.updateSelectedRowsInfo();
+        // Use markForCheck to schedule change detection for the next cycle
+        this.cdr.markForCheck();
+      }, 0);
     }
   }
 
@@ -541,6 +661,11 @@ export class CblTableComponent implements OnInit, OnDestroy {
     // Scroll to the new row and select it
     setTimeout(() => {
       this.scrollToTop();
+      // Update cached info after adding new row (deferred to next cycle)
+      setTimeout(() => {
+        this.updateDataSourceInfo();
+        this.updateSelectedRowsInfo();
+      }, 0);
     }, 100);
   }
 
