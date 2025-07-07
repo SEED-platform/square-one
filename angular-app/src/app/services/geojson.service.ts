@@ -1,6 +1,6 @@
 import { Injectable, OnDestroy, OnInit } from '@angular/core';
 import type { Observable } from 'rxjs';
-import { BehaviorSubject } from 'rxjs';
+import { BehaviorSubject, Subject } from 'rxjs';
 import { SessionService } from './session.service';
 
 interface GeoJsonFeature {
@@ -36,8 +36,8 @@ export class GeoJsonService implements OnDestroy {
   private modifyBuildingSubject = new BehaviorSubject<{ coordinates: number[]; latitude: number; longitude: number; ubid: string; id: string } | null>(null);
   public modifyBuilding$: Observable<{ coordinates: number[]; latitude: number; longitude: number; ubid: string; id: string } | null> = this.modifyBuildingSubject.asObservable();
 
-  private removeBuildingSubject = new BehaviorSubject<{ id: string } | null>(null);
-  public removeBuildingId$: Observable<{ id: string } | null> = this.removeBuildingSubject.asObservable();
+  private removeBuildingSubject = new Subject<{ id: string }>();  // Changed to Subject to prevent replay of deletion events
+  public removeBuildingId$: Observable<{ id: string }> = this.removeBuildingSubject.asObservable();
 
   constructor(private sessionService: SessionService) {
     // Initialize the geoJsonSubject with data from session storage
@@ -81,6 +81,15 @@ export class GeoJsonService implements OnDestroy {
     this.shouldAutoSave = false; // Disable auto-save temporarily
     this.sessionService.clearData(); // Clear session storage first
     this.reloadFromSessionStorage(); // Then reload from the cleared session storage (will load empty data)
+
+    // Clear all other subjects to prevent stale data from triggering subscriptions
+    this.clickEventSubject.next(null);
+    this.selectedFeatureSubject.next(null);
+    this.mapCoordinatesSubject.next(null);
+    this.newBuildingSubject.next(null);
+    this.modifyBuildingSubject.next(null);
+    // Note: removeBuildingSubject is now a regular Subject, so no need to clear it
+
     // Keep auto-save disabled - it will be re-enabled when new data is loaded
   }
 

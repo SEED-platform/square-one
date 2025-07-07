@@ -83,27 +83,33 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
     });
 
     this.removedBuildingSubscription = this.geoJsonService.removeBuildingId$.subscribe((feature) => {
-      if (feature && feature.id) {
-        console.log(typeof feature.id);
+      console.log('removeBuildingId$ subscription received:', feature);
 
-        // Check if globalGeoJsonObject and its features array exist
-        if (!this.globalGeoJsonObject || !this.globalGeoJsonObject.features) {
-          console.warn('globalGeoJsonObject or features array is not initialized');
-          return;
-        }
+      // Since we changed to Subject, we won't get null values anymore, but let's keep this as safety
+      if (!feature || !feature.id) {
+        console.log('Ignoring null/invalid removal event');
+        return;
+      }
 
-        const clickedFeature = this.globalGeoJsonObject.features.find((f: any) => f.id === feature.id);
-        if (clickedFeature) {
-          console.log('this is being deleted', clickedFeature);
-          this.draw?.changeMode('simple_select');
-          this.draw?.delete(clickedFeature.id);
-          this.geoJsonService.updateGeoJsonFromMap(clickedFeature);
-          this.emptyBuildingId = 'none selected';
-          this.clickedBuildingId = '';
-          console.log('This is the update geojson after deletion', this.globalGeoJsonObject);
-        } else {
-          console.error('Something when wrong...check table, map, and geojson datasets');
-        }
+      console.log(typeof feature.id);
+
+      // Check if globalGeoJsonObject and its features array exist
+      if (!this.globalGeoJsonObject || !this.globalGeoJsonObject.features) {
+        console.warn('globalGeoJsonObject or features array is not initialized');
+        return;
+      }
+
+      const clickedFeature = this.globalGeoJsonObject.features.find((f: any) => f.id === feature.id);
+      if (clickedFeature) {
+        console.log('this is being deleted', clickedFeature);
+        this.draw?.changeMode('simple_select');
+        this.draw?.delete(clickedFeature.id);
+        this.geoJsonService.updateGeoJsonFromMap(clickedFeature);
+        this.emptyBuildingId = 'none selected';
+        this.clickedBuildingId = '';
+        console.log('This is the update geojson after deletion', this.globalGeoJsonObject);
+      } else {
+        console.error('Something when wrong...check table, map, and geojson datasets');
       }
     });
   }
@@ -132,6 +138,7 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
     this.geoJsonSubscription?.unsubscribe();
     this.featureClickSubscription?.unsubscribe();
     this.mapCoordinatesSubscription?.unsubscribe();
+    this.removedBuildingSubscription?.unsubscribe(); // Add this missing unsubscribe
   }
 
   initializeMapWithGeoJson(geoJsonObject: any) {
