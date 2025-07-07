@@ -45,6 +45,11 @@ jobs:
           sudo apt-get install -y google-chrome-stable
           # copy over the environment.ts, otherwise tests will fail.
           cp src/environments/environment.ts.template src/environments/environment.ts
+      - name: Build Angular Application
+        working-directory: angular-app
+        run: |
+          # Verify the app builds successfully before running tests
+          npm run build
       - name: Run pre-commit
         run: |
           poetry run pre-commit run --all-files || {
@@ -57,11 +62,20 @@ jobs:
           MAPBOX_ACCESS_TOKEN: ${{ secrets.MAPBOX_ACCESS_TOKEN }}
           MAPQUEST_API_KEY: ${{ secrets.MAPQUEST_API_KEY }}
         run: poetry run pytest
-      # Don't run angular tests for now, we will need to have a valid
-      # TOKEN, and not sure on how many requests we will be getting yet.
-      # - name: Run Angular Tests
-      #   working-directory: angular-app
-      #   run: |
-      #     # install angular cli
-      #     npm install -g @angular/cli@17
-      #     ng test --watch=false --browsers=ChromeHeadless
+      - name: Run Angular Tests
+        env:
+          MAPBOX_ACCESS_TOKEN: ${{ secrets.MAPBOX_ACCESS_TOKEN }}
+          MAPQUEST_API_KEY: ${{ secrets.MAPQUEST_API_KEY }}
+        working-directory: angular-app
+        run: |
+          # install angular cli
+          npm install -g @angular/cli@17
+          # This executes all *.spec.ts files in the project
+          ng test --watch=false --browsers=ChromeHeadless --code-coverage --progress
+      - name: Upload Angular Test Coverage
+        if: matrix.python-version == '3.12' # Only upload once per build
+        uses: actions/upload-artifact@v4
+        with:
+          name: angular-coverage-${{ matrix.os }}-py${{ matrix.python-version }}
+          path: angular-app/coverage/
+          retention-days: 7
