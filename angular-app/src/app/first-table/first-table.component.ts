@@ -260,4 +260,46 @@ export class FirstTableComponent implements OnInit {
 
     return 'Not a filename object';
   }
+
+  // Helper method to determine the data structure type
+  getDataStructureInfo(): string {
+    if (!this.userList || this.userList.length === 0) {
+      return 'Empty or no data';
+    }
+
+    const firstItem = this.userList[0];
+
+    if (Array.isArray(firstItem)) {
+      return `Array containing ${firstItem.length} items (using as grid data)`;
+    } else if (typeof firstItem === 'object' && firstItem !== null) {
+      const keys = Object.keys(firstItem);
+      if (keys.length > 0) {
+        const firstKey = keys[0];
+        const firstValue = firstItem[firstKey];
+        if (Array.isArray(firstValue)) {
+          return `Object with key "${firstKey}" containing array of ${firstValue.length} items`;
+        } else {
+          return `Object with keys: ${keys.join(', ')}`;
+        }
+      }
+      return 'Empty object';
+    } else {
+      return `Primitive value: ${typeof firstItem}`;
+    }
+  }
+
+  // Helper method to get the filename being processed
+  getCurrentFileName(): string {
+    if (!this.userList || this.userList.length === 0) {
+      return 'No file';
+    }
+
+    const firstItem = this.userList[0];
+    if (firstItem && typeof firstItem === 'object' && !Array.isArray(firstItem)) {
+      const keys = Object.keys(firstItem);
+      return keys.length > 0 ? keys[0] : 'No filename found';
+    }
+
+    return 'Not a filename object';
+  }
 }
