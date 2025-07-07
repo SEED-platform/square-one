@@ -6,12 +6,22 @@
 .pytest_cache
 *.code-workspace
 
+# Environment files
+.env
+.env.local
+.env.production
+
 current-workflow.txt
 package-lock.json
+osm_footprints_debug.csv
 
+data/
 node_modules/
 flask_app/myenv/
 flask_app/.pytest_cache
+flask_app/ms_footprints_debug.csv
+flask_app/osm_footprints_debug.csv
+flask_app/cache/
 
 # Jupyter Notebook
 .ipynb_checkpoints

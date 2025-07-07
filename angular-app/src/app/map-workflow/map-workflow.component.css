@@ -3,19 +3,145 @@
   height: calc(100vh - 8rem); /* Subtract navigation height */
 }
 
-.export-btn {
+.controls-container {
   position: absolute;
   top: 10px;
   right: 10px;
   z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.load-btn,
+.clear-btn {
   padding: 10px 15px;
-  background-color: #0074d9;
   color: white;
   border: none;
   border-radius: 5px;
   cursor: pointer;
+  font-size: 14px;
+  white-space: nowrap;
+  transition: background-color 0.2s;
 }
 
-.export-btn:hover {
-  background-color: #005bb5;
+.load-btn {
+  background-color: #17a2b8;
+}
+
+.load-btn:hover:not(:disabled) {
+  background-color: #138496;
+}
+
+.load-btn:disabled {
+  background-color: #6c757d;
+  cursor: not-allowed;
+}
+
+.clear-btn {
+  background-color: #dc3545;
+}
+
+.clear-btn:hover {
+  background-color: #c82333;
+}
+
+.status-message {
+  position: fixed;
+  top: 100px;
+  right: 20px;
+  z-index: 1000;
+  padding: 10px 15px;
+  border-radius: 5px;
+  font-weight: bold;
+  max-width: 300px;
+  word-wrap: break-word;
+}
+
+.status-message.success {
+  background-color: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
+
+.status-message.error {
+  background-color: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+}
+
+.data-buttons,
+.clear-buttons {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.data-buttons .load-btn {
+  flex: 1;
+  min-width: 120px;
+}
+
+.ms-btn {
+  background-color: #dc3545; /* Red for Microsoft */
+}
+
+.ms-btn:hover:not(:disabled) {
+  background-color: #c82333;
+}
+
+.osm-btn {
+  background-color: #0066cc; /* Blue for OpenStreetMap */
+}
+
+.osm-btn:hover:not(:disabled) {
+  background-color: #0052a3;
+}
+
+.clear-buttons .clear-btn {
+  flex: 1;
+  min-width: 60px;
+  font-size: 12px;
+  padding: 8px 10px;
+}
+
+.polygon-clear {
+  background-color: #ffc107; /* Yellow for polygon */
+}
+
+.polygon-clear:hover {
+  background-color: #e0a800;
+}
+
+.ms-clear {
+  background-color: #dc3545;
+}
+
+.osm-clear {
+  background-color: #0066cc;
+}
+
+.all-clear {
+  background-color: #6c757d;
+}
+
+.proceed-btn {
+  background-color: #28a745;
+  color: white;
+  padding: 12px 20px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: bold;
+  transition: background-color 0.2s;
+}
+
+.proceed-btn:hover:not(:disabled) {
+  background-color: #218838;
+}
+
+.proceed-btn:disabled {
+  background-color: #6c757d;
+  cursor: not-allowed;
 }

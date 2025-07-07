@@ -1,6 +1,7 @@
 import { Component } from '@angular/core';
 import { Router } from '@angular/router';
 import { GeoJsonService } from '../../services/geojson.service';
+import { SessionService } from '../../services/session.service';
 
 @Component({
   selector: 'app-navigation',
@@ -10,7 +11,11 @@ import { GeoJsonService } from '../../services/geojson.service';
   styleUrl: './navigation.component.css'
 })
 export class NavigationComponent {
-  constructor(private router: Router, private geoJsonService: GeoJsonService) {}
+  constructor(
+    private router: Router,
+    private geoJsonService: GeoJsonService,
+    private sessionService: SessionService
+  ) {}
 
   navigateToHome(): void {
     const currentRoute = this.router.url;
@@ -30,12 +35,7 @@ export class NavigationComponent {
     }
 
     // Clear all session storage data
-    sessionStorage.removeItem('FIRSTTABLEDATA');
-    sessionStorage.removeItem('GEOJSONDATA');
-    sessionStorage.removeItem('GEOJSONPROPERTYNAMES');
-    sessionStorage.removeItem('COL');
-    sessionStorage.setItem('HOMEACCESS', JSON.stringify(true));
-    sessionStorage.setItem('CURRENTPAGE', '');
+    this.sessionService.clearAll();
 
     // Reset GeoJson service to empty state
     this.geoJsonService.setGeoJson({});

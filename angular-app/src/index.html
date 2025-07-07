@@ -6,6 +6,10 @@
     <base href="/" />
     <meta content="width=device-width, initial-scale=1" name="viewport" />
     <link href="favicon.ico" rel="icon" type="image/x-icon" />
+    <script>
+      // Disable Mapbox telemetry early -- this will prevent any telemetry data from being sent, hopefully
+      window.MapboxGLTelemetryDisabled = true
+    </script>
   </head>
   <body>
     <app-root></app-root>

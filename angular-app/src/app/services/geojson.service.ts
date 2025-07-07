@@ -1,6 +1,7 @@
 import { Injectable, OnDestroy, OnInit } from '@angular/core';
 import type { Observable } from 'rxjs';
 import { BehaviorSubject } from 'rxjs';
+import { SessionService } from './session.service';
 
 interface GeoJsonFeature {
   type: 'Feature';
@@ -17,10 +18,10 @@ interface GeoJsonFeature {
 })
 export class GeoJsonService implements OnDestroy {
   private isSentFromTable = false; // Flag to track selection source
-  private geoJsonSubject: BehaviorSubject<any> = new BehaviorSubject<any>(this.getGeoJsonFromSessionStorage());
+  private geoJsonSubject: BehaviorSubject<any> = new BehaviorSubject<any>({});
 
-  private clickEventSubject = new BehaviorSubject<{ latitude: number; longitude: number; id: string } | null>(null);
-  public clickEvent$: Observable<{ latitude: number; longitude: number; id: string } | null> = this.clickEventSubject.asObservable();
+  private clickEventSubject = new BehaviorSubject<{ latitude: number; longitude: number; id: string; isShiftClick?: boolean } | null>(null);
+  public clickEvent$: Observable<{ latitude: number; longitude: number; id: string; isShiftClick?: boolean } | null> = this.clickEventSubject.asObservable();
 
   private selectedFeatureSubject = new BehaviorSubject<{ latitude: number; longitude: number; id: string; quality: string } | null>(null);
   public selectedFeature$: Observable<{ latitude: number; longitude: number; id: string; quality: string } | null> = this.selectedFeatureSubject.asObservable();
@@ -37,7 +38,10 @@ export class GeoJsonService implements OnDestroy {
   private removeBuildingSubject = new BehaviorSubject<{ id: string } | null>(null);
   public removeBuildingId$: Observable<{ id: string } | null> = this.removeBuildingSubject.asObservable();
 
-  constructor() {
+  constructor(private sessionService: SessionService) {
+    // Initialize the geoJsonSubject with data from session storage
+    this.geoJsonSubject.next(this.getGeoJsonFromSessionStorage());
+
     // Listen for the beforeunload event to save the data
     window.addEventListener('beforeunload', this.handleUnload.bind(this));
   }
@@ -49,7 +53,7 @@ export class GeoJsonService implements OnDestroy {
 
   handleUnload(event: BeforeUnloadEvent) {
     const geoJson = this.geoJsonSubject.getValue();
-    sessionStorage.setItem('GEOJSONDATA', JSON.stringify(geoJson));
+    this.sessionService.setGeoJsonData(geoJson);
     // For modern browsers, you may want to include a returnValue to trigger a confirmation dialog
     event.returnValue = 'Your data is being saved. Are you sure you want to leave?';
   }
@@ -63,8 +67,19 @@ export class GeoJsonService implements OnDestroy {
   }
 
   updateGeoJsonFromMap(mapRemovedObject: any): void {
-    if (!mapRemovedObject || mapRemovedObject.properties.ubid === undefined) {
+    if (!mapRemovedObject) {
       console.error('Invalid object to remove');
+      return;
+    }
+
+    // Check if properties exist
+    if (!mapRemovedObject.properties) {
+      console.error('Object has no properties');
+      return;
+    }
+
+    if (mapRemovedObject.properties.ubid === undefined) {
+      console.error('Invalid object to remove - no ubid');
       return;
     }
 
@@ -74,6 +89,11 @@ export class GeoJsonService implements OnDestroy {
 
     // Get the current GeoJSON from the subject
     const currentGeoJson = this.geoJsonSubject.getValue();
+
+    if (!currentGeoJson || !currentGeoJson.features) {
+      console.error('No GeoJSON data available');
+      return;
+    }
 
     // Clone the features array to avoid modifying the original array directly
     const features = [...currentGeoJson.features];
@@ -117,11 +137,27 @@ export class GeoJsonService implements OnDestroy {
 
     const currentGeoJson = this.geoJsonSubject.getValue();
 
+    if (!currentGeoJson || !currentGeoJson.features) {
+      console.error('No GeoJSON data available');
+      return;
+    }
+
     // Clone the features array to avoid modifying the original array directly
     const features = [...currentGeoJson.features];
 
     // Find the index of the feature to remove
     const index = features.findIndex((feature: any) => feature.id === id.toString());
+
+    if (index === -1) {
+      console.error(`Feature with ID ${id} not found`);
+      return;
+    }
+
+    // Check if the feature exists before modifying
+    if (!features[index]) {
+      console.error(`Feature at index ${index} is undefined`);
+      return;
+    }
 
     features[index].properties.ubid = ubid;
     features[index].geometry.coordinates = [coordinates];
@@ -158,13 +194,29 @@ export class GeoJsonService implements OnDestroy {
 
   insertNewBuildingInGeoJson(buildingObject: GeoJsonFeature): void {
     const currentGeoJson = this.geoJsonSubject.getValue();
+
+    if (!currentGeoJson) {
+      console.error('No GeoJSON data available');
+      return;
+    }
+
+    if (!currentGeoJson.features) {
+      console.error('Features array is not available');
+      currentGeoJson.features = [];
+    }
+
+    if (!buildingObject) {
+      console.error('Invalid building object to insert');
+      return;
+    }
+
     currentGeoJson.features.unshift(buildingObject);
     this.setGeoJson(currentGeoJson);
     console.log('NEW GEO IN SOURCE', currentGeoJson);
   }
 
-  emitClickEvent(latitude: number, longitude: number, id: string): void {
-    this.clickEventSubject.next({ latitude, longitude, id });
+  emitClickEvent(latitude: number, longitude: number, id: string, isShiftClick: boolean = false): void {
+    this.clickEventSubject.next({ latitude, longitude, id, isShiftClick });
   }
 
   emitSelectedFeature(latitude: number, longitude: number, id: string, quality: string): void {
@@ -188,6 +240,6 @@ export class GeoJsonService implements OnDestroy {
   }
 
   private getGeoJsonFromSessionStorage(): any {
-    return JSON.parse(sessionStorage.getItem('GEOJSONDATA') || '{}');
+    return this.sessionService.getGeoJsonData();
   }
 }

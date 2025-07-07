@@ -8,15 +8,15 @@ import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import type { Subscription } from 'rxjs';
 import { MapboxMapComponent } from '../mapbox-map/mapbox-map.component';
-import { DropdownMenuComponent } from './dropdown-menu/dropdown-menu.component';
 import { NavigationComponent } from '../shared/navigation/navigation.component';
 import { GeoJsonService } from '../services/geojson.service';
 import { FlaskRequests } from '../services/server.service';
+import { SessionService } from '../services/session.service';
 
 @Component({
   selector: 'app-cbl-table',
   standalone: true,
-  imports: [AgGridAngular, CommonModule, MapboxMapComponent, DropdownMenuComponent, NavigationComponent],
+  imports: [AgGridAngular, CommonModule, MapboxMapComponent, NavigationComponent],
   templateUrl: './cbl-table.component.html',
   styleUrl: './cbl-table.component.css',
   encapsulation: ViewEncapsulation.None
@@ -47,25 +47,101 @@ export class CblTableComponent implements OnInit, OnDestroy {
   private gridApi: any;
   private geoJsonSubscription?: Subscription;
   private clickEventSubscription?: Subscription;
-  private newBuilingSubscription?: Subscription;
+  private newBuildingSubscription?: Subscription;
   private modifyBuildingSubscription?: Subscription;
   private isEditing = false;
   private selectedRowIdStorage?: string;
   private initialLoad = true; // Flag to track initial load
+  private isDeletingRows = false; // Flag to track when deleting rows to prevent zoom reset
+
+  // Reverse geocoding dialog properties
+  showReverseGeocodeDialog = false;
+  selectedRowForReverseGeocode: any = null;
+  selectedRowHasFootprint = false;
+
+  // Essential columns that should always be present in the table
+  private readonly essentialColumns = ['footprint_area_ft2', 'height',];
+
+  // Default properties for new buildings - easier to maintain
+  // To add new default fields:
+  // 1. Add the property name and default value to this object
+  // 2. The getEnhancedDefaultProperties() method will automatically include it in new buildings
+  // 3. Common patterns: areas = 0, heights/ids = null, text fields = ''
+  private defaultBuildingProperties: { [key: string]: any } = {
+    street_address: '123 Main Street',
+    city: 'Denver',
+    state: 'CO',
+    postal_code: '80202',
+    country: 'US',
+    quality: 'Poor',
+    ubid: '',
+    latitude: 39.7392,
+    longitude: -104.9903,
+    footprint_area_m2: 0,
+    footprint_area_ft2: 0,
+    height: null,
+    // Additional common properties
+    BUILD_ID: null,
+    HEIGHT: null,
+    OCC_CLS: 'Unclassified',
+    PRIM_OCC: 'Unclassified',
+    PROP_ADDR: '123 Main Street'
+  };
 
   constructor(
     private apiHandler: FlaskRequests,
     private router: Router,
     private cdr: ChangeDetectorRef,
-    private geoJsonService: GeoJsonService
+    private geoJsonService: GeoJsonService,
+    private sessionService: SessionService
   ) {}
+
+  get hasValidGeoJsonData(): boolean {
+    return !!(this.geoJson && this.geoJson.features && this.geoJson.features.length > 0);
+  }
+
+  get dataSourceInfo(): string {
+    if (!this.hasValidGeoJsonData) {
+      return '';
+    }
+
+    const totalFeatures = this.geoJson.features.length;
+    const featuresWithFootprints = this.geoJson.features.filter((feature: any) =>
+      this.hasFootprintData(feature)
+    ).length;
+
+    return `${totalFeatures} building${totalFeatures === 1 ? '' : 's'} loaded (${featuresWithFootprints} with footprint data)`;
+  }
+
+  get selectedRowsInfo(): string {
+    if (!this.gridApi) {
+      return '';
+    }
+
+    const selectedRows = this.gridApi.getSelectedRows();
+    const selectedCount = selectedRows.length;
+
+    if (selectedCount === 0) {
+      return 'No buildings selected';
+    }
+
+    return `${selectedCount} building${selectedCount === 1 ? '' : 's'} selected`;
+  }
+
+  navigateToMapWorkflow() {
+    this.router.navigate(['/map-workflow']);
+  }
+
+  navigateToHome() {
+    this.router.navigate(['/home']);
+  }
 
   ngOnInit() {
     this.geoJsonSubscription = this.geoJsonService.getGeoJson().subscribe((data) => {
       this.geoJson = data;
       if (this.initialLoad) {
         //keeps it from rendering every change..better performance
-        if (!sessionStorage.getItem('PROPERTYNAMES')) {
+        if (this.sessionService.getPropertyNames().length === 0) {
           const buildingArray = this.geoJson.features;
           let ValidBuilding = buildingArray[0];
 
@@ -76,10 +152,21 @@ export class CblTableComponent implements OnInit, OnDestroy {
           }
 
           const geoJsonPropertyNames = Object.keys(ValidBuilding.properties);
-          sessionStorage.setItem('PROPERTYNAMES', JSON.stringify(geoJsonPropertyNames));
+
+          // Ensure essential columns are always included
+          this.essentialColumns.forEach(col => {
+            if (!geoJsonPropertyNames.includes(col)) {
+              geoJsonPropertyNames.push(col);
+            }
+          });
+
+          this.sessionService.setPropertyNames(geoJsonPropertyNames);
         }
         this.updateTable(); // Update table only on initial load
         this.initialLoad = false; // Set the flag to false after the initial load
+      } else if (!this.isDeletingRows) {
+        // Only update table if we're not in the middle of deleting rows
+        this.updateTable();
       }
     });
 
@@ -88,15 +175,15 @@ export class CblTableComponent implements OnInit, OnDestroy {
       if (clickEvent) {
         if (clickEvent.id !== '') {
           this.selectedRowIdStorage = clickEvent.id;
-          this.scrollToFeatureById(this.selectedRowIdStorage);
+          this.scrollToFeatureById(this.selectedRowIdStorage, clickEvent.isShiftClick);
           console.log('THIS IS SELECTED ROW ID', this, this.selectedRowIdStorage); //keep selected row incase the table re renders and you want to go back to it
-          sessionStorage.setItem('SELECTEDROW', JSON.stringify(this.selectedRowIdStorage));
+          this.sessionService.setSelectedRow(this.selectedRowIdStorage ? [this.selectedRowIdStorage] : []);
         }
       }
     });
 
     //inserts new building in table and geojson
-    this.newBuilingSubscription = this.geoJsonService.newBuilding$.subscribe((newBuilding) => {
+    this.newBuildingSubscription = this.geoJsonService.newBuilding$.subscribe((newBuilding) => {
       if (newBuilding) {
         console.log(newBuilding);
         newBuilding.properties['latitude'] = Number(newBuilding.properties['latitude']);
@@ -147,8 +234,11 @@ export class CblTableComponent implements OnInit, OnDestroy {
     this.setColumnDefs();
 
     if (this.gridApi) {
-      this.gridApi.deselectAll();
-      this.scrollToTop();
+      // Only reset zoom/scroll if we're not deleting rows
+      if (!this.isDeletingRows) {
+        this.gridApi.deselectAll();
+        this.scrollToTop();
+      }
     }
   }
 
@@ -157,42 +247,158 @@ export class CblTableComponent implements OnInit, OnDestroy {
     return string.charAt(0).toUpperCase() + string.slice(1);
   };
 
-  //dynamically sets grid for geojson values
+  // Check if building has footprint data
+  hasFootprintData(building: any): boolean {
+    if (!building || !building.geometry) {
+      return false;
+    }
+
+    // Check if geometry has coordinates and they're not empty
+    const coordinates = building.geometry.coordinates;
+    if (!coordinates || !Array.isArray(coordinates)) {
+      return false;
+    }
+
+    // For polygon, check if it has actual coordinate data
+    if (building.geometry.type === 'Polygon') {
+      return coordinates.length > 0 &&
+             Array.isArray(coordinates[0]) &&
+             coordinates[0].length > 2; // Need at least 3 points for a valid polygon
+    }
+
+    // For other geometry types, check if coordinates exist
+    return coordinates.length > 0;
+  }
+
+  // Zoom to building footprint on the map
+  zoomToBuilding(building: any) {
+    if (!building || !building.geometry || !building.geometry.coordinates) {
+      console.warn('Building has no geometry data to zoom to');
+      return;
+    }
+
+    const coordinates = building.geometry.coordinates;
+
+    if (building.geometry.type === 'Polygon' && coordinates.length > 0 && coordinates[0].length > 0) {
+      // For polygon, calculate the center
+      const polygon = coordinates[0];
+      let minLng = polygon[0][0], maxLng = polygon[0][0];
+      let minLat = polygon[0][1], maxLat = polygon[0][1];
+
+      // Find bounds
+      for (const coord of polygon) {
+        minLng = Math.min(minLng, coord[0]);
+        maxLng = Math.max(maxLng, coord[0]);
+        minLat = Math.min(minLat, coord[1]);
+        maxLat = Math.max(maxLat, coord[1]);
+      }
+
+      const centerLng = (minLng + maxLng) / 2;
+      const centerLat = (minLat + maxLat) / 2;
+
+      this.geoJsonService.setMapCoordinates(centerLat, centerLng);
+
+      // And select the feature
+      this.geoJsonService.emitSelectedFeature(
+        building.properties?.latitude || centerLat,
+        building.properties?.longitude || centerLng,
+        building.id,
+        building.properties?.quality || 'Unknown'
+      );
+    }
+  }
+
+  // Dynamically sets grid for geojson values
   setColumnDefs() {
-    const keys = JSON.parse(sessionStorage.getItem('PROPERTYNAMES') || '{}');
+    const keys = this.sessionService.getPropertyNames();
+
+    // Ensure essential columns are always included in the keys array
+    this.essentialColumns.forEach(col => {
+      if (!keys.includes(col)) {
+        keys.push(col);
+      }
+    });
+
     keys.push('coordinates');
 
-    const nonEditableKeys = ['ubid', 'longitude', 'latitude'];
+    const nonEditableKeys = ['ubid', 'longitude', 'latitude', 'hasFootprint', 'footprint_area_ft2'];
 
-    this.colDefs = keys.map((key: string) => ({
-      field: key,
-      editable: !nonEditableKeys.includes(key),
-      headerName: this.capitalizeFirstLetter(key),
-      valueGetter: (params: ValueGetterParams) => {
-        if (this.geoJson.features.length !== 0) {
-          if (key === 'coordinates') {
-            return params.data.geometry?.coordinates;
+    // Add the hasFootprint column at the beginning (after selection)
+    this.colDefs = [
+      {
+        field: 'hasFootprint',
+        headerName: 'Footprint',
+        editable: false,
+        width: 120,
+        cellStyle: { 'text-align': 'center' },
+        cellRenderer: (params: any) => {
+          const hasFootprint = this.hasFootprintData(params.data);
+          return hasFootprint ?
+            '<div style="display: flex; justify-content: center; align-items: center; height: 100%; cursor: pointer;"><span style="color: green; font-weight: bold; font-size: 16px;">✓</span></div>' :
+            '<div style="display: flex; justify-content: center; align-items: center; height: 100%; cursor: pointer;"><span style="color: red; font-weight: bold; font-size: 16px;">✗</span></div>';
+        },
+        onCellClicked: (params: any) => {
+          if (this.hasFootprintData(params.data)) {
+            // First zoom to the building
+            this.zoomToBuilding(params.data);
+
+            // Then also select the row to keep table and map in sync
+            const rowNode = params.node;
+            if (rowNode) {
+              // Clear other selections first (single-click behavior)
+              this.gridApi.deselectAll();
+              rowNode.setSelected(true);
+            }
           }
-          return params.data.properties[key];
+        },
+        valueGetter: (params: ValueGetterParams) => {
+          return this.hasFootprintData(params.data) ? 'Yes' : 'No';
         }
       },
-      valueSetter: (params: ValueSetterParams) => {
-        if (this.geoJson.features.length !== 0) {
-          if (key === 'coordinates') {
-            params.data.geometry = params.data.geometry || {};
-            params.data.geometry.coordinates = params.newValue;
-          } else {
-            params.data.properties[key] = params.newValue;
+      ...keys.map((key: string) => ({
+        field: key,
+        editable: !nonEditableKeys.includes(key),
+        headerName: this.capitalizeFirstLetter(key),
+        cellStyle: key === 'footprint_area_ft2' ? { 'text-align': 'right' } :
+                   key === 'height' ? { 'text-align': 'right' } : undefined,
+        valueGetter: (params: ValueGetterParams) => {
+          if (this.geoJson.features.length !== 0) {
+            if (key === 'coordinates') {
+              return params.data.geometry?.coordinates;
+            }
+            const value = params.data.properties[key];
+            // Round footprint_area_ft2 to nearest whole number for display
+            if (key === 'footprint_area_ft2' && typeof value === 'number') {
+              return Math.round(value);
+            }
+            // Convert height from meters to feet and round to nearest whole number
+            if (key === 'height' && typeof value === 'number' && value !== null) {
+              return Math.round(value * 3.28084); // Convert meters to feet
+            }
+            return value;
           }
+        },
+        valueSetter: (params: ValueSetterParams) => {
+          if (this.geoJson.features.length !== 0) {
+            if (key === 'coordinates') {
+              params.data.geometry = params.data.geometry || {};
+              params.data.geometry.coordinates = params.newValue;
+            } else {
+              params.data.properties[key] = params.newValue;
+            }
+          }
+          return true;
         }
-        return true;
-      }
-    }));
-    sessionStorage.setItem('COL', JSON.stringify(this.colDefs));
+      }))
+    ];
+    this.sessionService.setColumnDefinitions(this.colDefs);
   }
 
   scrollToTop() {
     if (this.rowData.length > 0) {
+      // Clear any existing selections first
+      this.gridApi.deselectAll();
+
       this.gridApi.ensureIndexVisible(0, 'top');
       const rowNode1 = this.gridApi!.getDisplayedRowAtIndex(0)!;
       this.gridApi!.flashCells({ rowNodes: [rowNode1] });
@@ -202,9 +408,8 @@ export class CblTableComponent implements OnInit, OnDestroy {
     }
   }
 
-  scrollToFeatureById(id: string) {
+  scrollToFeatureById(id: string, isShiftClick: boolean = false) {
     // Find the feature in rowData'
-
     const feature = this.rowData.find((f: any) => f.id === id);
 
     if (!feature) {
@@ -216,6 +421,12 @@ export class CblTableComponent implements OnInit, OnDestroy {
     console.log(this.rowData.indexOf(feature));
 
     if (feature && this.gridApi) {
+      // For shift-click, don't clear existing selections to allow multi-select
+      if (!isShiftClick) {
+        // Clear any existing selections first (single-click behavior from map)
+        this.gridApi.deselectAll();
+      }
+
       this.gridApi.ensureIndexVisible(this.rowData.indexOf(feature), 'middle');
       const index = this.rowData.indexOf(feature);
       const rowNode = this.gridApi.getDisplayedRowAtIndex(index);
@@ -227,6 +438,14 @@ export class CblTableComponent implements OnInit, OnDestroy {
   }
 
   onRowClicked(event: any) {
+    // Check if Shift key is pressed for multi-select
+    if (!event.event.shiftKey) {
+      // Single click without shift - clear other selections first
+      this.gridApi.deselectAll();
+      event.node.setSelected(true);
+    }
+    // If shift is pressed, let the default multi-select behavior happen
+
     this.geoJsonService.setIsDataSentFromTable(false);
     this.onRowSelected(event);
   }
@@ -234,16 +453,31 @@ export class CblTableComponent implements OnInit, OnDestroy {
   onRowSelected(event: any) {
     if (event.node.isSelected()) {
       const data = event.node.data;
+      if (!data) {
+        console.warn('Row data is undefined');
+        return;
+      }
+
       const id = data.id;
+      if (id === undefined || id === null) {
+        console.warn('Row id is undefined or null');
+        return;
+      }
+
       this.selectedRowIdStorage = id;
-      sessionStorage.setItem('SELECTEDROW', JSON.stringify(this.selectedRowIdStorage));
-      const latitude = data.properties.latitude;
-      const longitude = data.properties.longitude;
-      const quality = data.properties.quality;
+      this.sessionService.setSelectedRow(this.selectedRowIdStorage ? [this.selectedRowIdStorage] : []);
+      const latitude = data.properties?.latitude;
+      const longitude = data.properties?.longitude;
+      const quality = data.properties?.quality;
       if (!this.geoJsonService.isDataSentFromTable()) {
         this.geoJsonService.emitSelectedFeature(latitude, longitude, id, quality);
       }
     }
+  }
+
+  onSelectionChanged(event: any) {
+    // Trigger change detection for the selectedRowsInfo getter
+    this.cdr.detectChanges();
   }
 
   onCellEditingStarted(event: any) {
@@ -257,14 +491,215 @@ export class CblTableComponent implements OnInit, OnDestroy {
 
   handleDelete() {
     if (this.rowData.length !== 0) {
+      // Set flag to prevent zoom reset during deletion
+      this.isDeletingRows = true;
+
       const selectedData = this.gridApi.getSelectedRows();
       const res = this.gridApi.applyTransaction({ remove: selectedData })!;
 
-      console.log('THIS IS BEING SENT FROM THE MAP TO TABLE', res.remove[0].data);
-      this.geoJsonService.removeEntirePolygonRefInMap(res.remove[0].data.id);
+      // Remove all deleted rows from the map, not just the first one
+      if (res.remove && res.remove.length > 0) {
+        res.remove.forEach((removedRow: any) => {
+          console.log('Removing from map:', removedRow.data);
+          this.geoJsonService.removeEntirePolygonRefInMap(removedRow.data.id);
+        });
+      }
 
-      this.updateTable();
+      // Update the data arrays to stay in sync
+      this.featuresArray = this.geoJson.features;
+      this.rowData = this.featuresArray;
+
+      // Clear the flag after a short delay to allow any triggered updates to complete
+      setTimeout(() => {
+        this.isDeletingRows = false;
+        // Trigger change detection to update the selected count
+        this.cdr.detectChanges();
+      }, 100);
     }
+  }
+
+  addNewRow() {
+    const newId = Date.now().toString();
+
+    // Create a new building feature with enhanced default values
+    const newBuilding: any = {
+      type: 'Feature',
+      id: newId,
+      geometry: {
+        type: 'Polygon',
+        coordinates: [[]]
+      },
+      properties: this.getEnhancedDefaultProperties()
+    };
+
+    // Add the new row to the beginning of the grid
+    this.gridApi.applyTransaction({ add: [newBuilding], addIndex: 0 });
+
+    // Update the GeoJSON service with the new building
+    this.geoJsonService.insertNewBuildingInGeoJson(newBuilding);
+
+    // Scroll to the new row and select it
+    setTimeout(() => {
+      this.scrollToTop();
+    }, 100);
+  }
+
+  reverseGeocodeSelected() {
+    if (this.rowData.length === 0) {
+      alert('No data available');
+      return;
+    }
+
+    const selectedData = this.gridApi.getSelectedRows();
+    if (selectedData.length === 0) {
+      alert('Please select a row first');
+      return;
+    }
+
+    if (selectedData.length > 1) {
+      alert('Please select only one row for reverse geocoding. Using the first selected row.');
+    }
+
+    this.selectedRowForReverseGeocode = selectedData[0];
+    this.selectedRowHasFootprint = this.hasFootprintData(this.selectedRowForReverseGeocode);
+    this.showReverseGeocodeDialog = true;
+  }
+
+  closeReverseGeocodeDialog() {
+    this.showReverseGeocodeDialog = false;
+    this.selectedRowForReverseGeocode = null;
+    this.selectedRowHasFootprint = false;
+  }
+
+  reverseGeocodeByFootprint() {
+    if (!this.selectedRowForReverseGeocode || !this.selectedRowHasFootprint) {
+      alert('Selected building has no footprint data');
+      return;
+    }
+
+    const building = this.selectedRowForReverseGeocode;
+    const coordinates = building.geometry?.coordinates;
+
+    if (!coordinates || !coordinates[0] || coordinates[0].length === 0) {
+      alert('Invalid footprint data');
+      return;
+    }
+
+    // Prepare data for Flask API call
+    const jsonData = {
+      coordinates: coordinates[0], // Get the first polygon ring
+      propertyNames: this.sessionService.getPropertyNames(),
+      featuresLength: this.rowData.length
+    };
+
+    const jsonDataString = JSON.stringify(jsonData);
+    console.log('Reverse geocoding by footprint:', jsonData);
+
+    this.apiHandler.sendReverseGeoCodeData(jsonDataString).subscribe(
+      (response) => {
+        console.log('Reverse geocoding successful:', response);
+        const updatedBuilding = JSON.parse(response.user_data);
+
+        // Update the selected building with new address data
+        this.updateBuildingWithReverseGeocodeData(building, updatedBuilding);
+
+        this.closeReverseGeocodeDialog();
+        alert('Building successfully reverse geocoded using footprint!');
+      },
+      (errorResponse) => {
+        console.error('Reverse geocoding failed:', errorResponse);
+        alert('Reverse geocoding failed: ' + (errorResponse.error?.message || 'Unknown error'));
+        this.closeReverseGeocodeDialog();
+      }
+    );
+  }
+
+  reverseGeocodeByAddress() {
+    if (!this.selectedRowForReverseGeocode) {
+      alert('No building selected');
+      return;
+    }
+
+    const building = this.selectedRowForReverseGeocode;
+    const streetAddress = building.properties?.street_address;
+
+    if (!streetAddress || streetAddress.trim() === '') {
+      alert('No address available for reverse geocoding');
+      return;
+    }
+
+    // For address-based reverse geocoding, we would typically use a geocoding service
+    // to get coordinates from the address, then reverse geocode those coordinates
+    // For now, we'll use the existing lat/lng if available
+    const latitude = building.properties?.latitude;
+    const longitude = building.properties?.longitude;
+
+    if (!latitude || !longitude || latitude === 0 || longitude === 0) {
+      alert('No valid coordinates available for this address');
+      return;
+    }
+
+    // Create a simple polygon around the lat/lng point for reverse geocoding
+    const offset = 0.0001; // Small offset to create a minimal polygon
+    const coordinates = [
+      [longitude - offset, latitude - offset],
+      [longitude + offset, latitude - offset],
+      [longitude + offset, latitude + offset],
+      [longitude - offset, latitude + offset],
+      [longitude - offset, latitude - offset]
+    ];
+
+    const jsonData = {
+      coordinates: coordinates,
+      propertyNames: this.sessionService.getPropertyNames(),
+      featuresLength: this.rowData.length
+    };
+
+    const jsonDataString = JSON.stringify(jsonData);
+    console.log('Reverse geocoding by address:', jsonData);
+
+    this.apiHandler.sendReverseGeoCodeData(jsonDataString).subscribe(
+      (response) => {
+        console.log('Reverse geocoding successful:', response);
+        const updatedBuilding = JSON.parse(response.user_data);
+
+        // Update the selected building with new address data
+        this.updateBuildingWithReverseGeocodeData(building, updatedBuilding);
+
+        this.closeReverseGeocodeDialog();
+        alert('Building successfully reverse geocoded using address!');
+      },
+      (errorResponse) => {
+        console.error('Reverse geocoding failed:', errorResponse);
+        alert('Reverse geocoding failed: ' + (errorResponse.error?.message || 'Unknown error'));
+        this.closeReverseGeocodeDialog();
+      }
+    );
+  }
+
+  updateBuildingWithReverseGeocodeData(originalBuilding: any, updatedData: any) {
+    // Update the original building's properties with the reverse geocoded data
+    if (updatedData.properties) {
+      // Update specific fields while preserving others
+      const fieldsToUpdate = ['street_address', 'city', 'state', 'postal_code', 'country'];
+
+      fieldsToUpdate.forEach(field => {
+        if (updatedData.properties[field]) {
+          originalBuilding.properties[field] = updatedData.properties[field];
+        }
+      });
+
+      // Update quality to indicate it was reverse geocoded
+      originalBuilding.properties.quality = 'Reverse Geocoded';
+    }
+
+    // Refresh the grid to show updated data
+    this.gridApi.applyTransaction({
+      update: [originalBuilding]
+    });
+
+    // Update the GeoJSON service
+    this.geoJsonService.setGeoJson(this.geoJson);
   }
 
   updateModifiedRow(modBuilding: any) {
@@ -275,7 +710,16 @@ export class CblTableComponent implements OnInit, OnDestroy {
         // Update the row data
         const data = rowNode;
 
-        data.geometry.coordinates = modBuilding.coordinates;
+        // Handle footprint deletion - if coordinates are empty, clear the footprint
+        if (!modBuilding.coordinates || modBuilding.coordinates.length === 0) {
+          // Clear the footprint data
+          data.geometry.coordinates = [[]]; // Empty polygon coordinates
+          data.properties.ubid = ''; // Clear UBID
+        } else {
+          // Update with new coordinates
+          data.geometry.coordinates = [modBuilding.coordinates];
+        }
+
         data.properties.latitude = modBuilding.latitude;
         data.properties.longitude = modBuilding.longitude;
         data.properties.ubid = modBuilding.ubid;
@@ -283,6 +727,12 @@ export class CblTableComponent implements OnInit, OnDestroy {
         // Apply the update transaction
         const res = this.gridApi.applyTransaction({
           update: [data] // Use `update` key to modify existing rows
+        });
+
+        // Force refresh of the "Has Footprint" column to update the checkbox
+        this.gridApi.refreshCells({
+          columns: ['hasFootprint'],
+          force: true
         });
       }
     }
@@ -294,7 +744,6 @@ export class CblTableComponent implements OnInit, OnDestroy {
     this.gridApi.stopEditing();
 
     // Get the data as CSV
-
     const json = this.jsonConverter();
 
     // Retrieve the CSV data from the grid API
@@ -407,7 +856,6 @@ export class CblTableComponent implements OnInit, OnDestroy {
 
     for (const building of data) {
       // Create a new object with properties in the desired order
-
       let buildingObject;
 
       if (building?.geometry) {
@@ -417,6 +865,7 @@ export class CblTableComponent implements OnInit, OnDestroy {
           state: building.properties.state,
           quality: building.properties.quality,
           ubid: building.properties.ubid,
+          footprint_area_ft2: building.properties.footprint_area_ft2,
           ...building.properties, // Spread the remaining properties after the desired ones
           coordinates: building.geometry?.coordinates || null // Add the coordinates
         };
@@ -427,6 +876,7 @@ export class CblTableComponent implements OnInit, OnDestroy {
           state: building.properties.state,
           quality: building.properties.quality,
           ubid: building.properties.ubid,
+          footprint_area_ft2: building.properties.footprint_area_ft2,
           ...building.properties, // Spread the remaining properties after the desired ones
           coordinates: null // Add the coordinates
         };
@@ -438,5 +888,35 @@ export class CblTableComponent implements OnInit, OnDestroy {
 
     // Optionally, return the jsonArray if needed
     return jsonArray;
+  }
+
+  /**
+   * Get default properties for new buildings, enhanced with any additional
+   * properties found in existing data to ensure consistency
+   */
+  private getEnhancedDefaultProperties(): any {
+    const existingPropertyNames = this.sessionService.getPropertyNames();
+    const enhancedDefaults = { ...this.defaultBuildingProperties };
+
+    // Add any missing properties from existing data with sensible defaults
+    existingPropertyNames.forEach((propName: string) => {
+      if (!(propName in enhancedDefaults)) {
+        // Provide sensible defaults based on property name patterns
+        if (propName.toLowerCase().includes('area')) {
+          enhancedDefaults[propName] = 0;
+        } else if (propName.toLowerCase().includes('height') || propName.toLowerCase().includes('elevation')) {
+          enhancedDefaults[propName] = null;
+        } else if (propName.toLowerCase().includes('id')) {
+          enhancedDefaults[propName] = null;
+        } else if (propName.toLowerCase().includes('url') || propName.toLowerCase().includes('link')) {
+          enhancedDefaults[propName] = '';
+        } else {
+          // Default to empty string for most other fields
+          enhancedDefaults[propName] = '';
+        }
+      }
+    });
+
+    return enhancedDefaults;
   }
 }

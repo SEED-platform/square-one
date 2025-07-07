@@ -1,14 +1,16 @@
 import gzip
 import json
 import json.scanner
+import logging
 import os
+import sys
+import traceback
 import warnings
 from collections import OrderedDict
 from typing import Any
 
 import geopandas as gpd
 import mercantile
-import requests
 from cbl_workflow.utils.common import Location
 from cbl_workflow.utils.geocode_addresses import geocode_addresses
 from cbl_workflow.utils.normalize_address import normalize_address
@@ -18,14 +20,20 @@ from cbl_workflow.utils.update_quadkeys import update_quadkeys
 from dotenv import load_dotenv
 from flask import Flask, jsonify, request
 from flask_cors import CORS
-from shapely.geometry import Point, Polygon
+from shapely.geometry import Point
 
 import flask_app.config as config
-from flask_app.utils.convert_file_to_dicts import convert_file_to_dicts, geodataframe_to_json
-from flask_app.utils.generate_locations_list import generate_locations_list
-from flask_app.utils.location_error import LocationError
-from flask_app.utils.merge_dicts import merge_dicts
-from flask_app.utils.normalize_state import normalize_state
+from flask_app.services.common_service import (
+    create_geojson_response,
+    handle_service_exceptions,
+    log_error_with_context,
+    parse_polygon_from_request,
+    validate_request_data,
+)
+from flask_app.services.data_transformation_service import DataTransformationService
+from flask_app.services.file_processing_service import FileProcessingService
+from flask_app.services.footprint_service import FootprintService
+from flask_app.services.geocoding_service import GeocodingService
 
 warnings.filterwarnings("ignore", category=RuntimeWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -34,7 +42,71 @@ app = Flask(__name__)
 CORS(app)
 load_dotenv()
 
+# Initialize services
+footprint_service = FootprintService()
+geocoding_service = GeocodingService()
+file_processing_service = FileProcessingService()
+data_transformation_service = DataTransformationService()
+
+# Configure detailed logging
+logging.basicConfig(level=logging.DEBUG, format="[%(asctime)s] %(levelname)s in %(module)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+
+# Configure Flask app logging
+app.logger.setLevel(logging.DEBUG)
+app.config["DEBUG"] = True
+
+if not app.logger.handlers:
+    stream_handler = logging.StreamHandler(sys.stdout)
+    stream_handler.setLevel(logging.DEBUG)
+    formatter = logging.Formatter("[%(asctime)s] %(levelname)s: %(message)s")
+    stream_handler.setFormatter(formatter)
+    app.logger.addHandler(stream_handler)
+
 api_key = ""
+
+
+@app.errorhandler(Exception)
+def handle_exception(e):
+    """Global error handler to catch and log all exceptions"""
+    app.logger.error("=" * 50)
+    app.logger.error(f"UNHANDLED EXCEPTION: {e!s}")
+    app.logger.error(f"Exception type: {type(e).__name__}")
+    app.logger.error(f"Traceback: {traceback.format_exc()}")
+    app.logger.error("=" * 50)
+
+    # Also print to console for visibility
+    print("=" * 50)
+    print(f"UNHANDLED EXCEPTION: {e!s}")
+    print(f"Exception type: {type(e).__name__}")
+    print(f"Traceback: {traceback.format_exc()}")
+    print("=" * 50)
+
+    # Return JSON error response
+    return jsonify({"error": True, "message": f"Internal server error: {e!s}", "type": type(e).__name__}), 500
+
+
+@app.errorhandler(400)
+def handle_bad_request(e):
+    """Handle 400 Bad Request errors"""
+    app.logger.error(f"Bad Request (400): {e!s}")
+    print(f"Bad Request (400): {e!s}")
+    return jsonify({"error": True, "message": "Bad Request", "details": str(e)}), 400
+
+
+@app.errorhandler(404)
+def handle_not_found(e):
+    """Handle 404 Not Found errors"""
+    app.logger.error(f"Not Found (404): {e!s}")
+    print(f"Not Found (404): {e!s}")
+    return jsonify({"error": True, "message": "Endpoint not found", "details": str(e)}), 404
+
+
+@app.errorhandler(500)
+def handle_internal_error(e):
+    """Handle 500 Internal Server errors"""
+    app.logger.error(f"Internal Server Error (500): {e!s}")
+    print(f"Internal Server Error (500): {e!s}")
+    return jsonify({"error": True, "message": "Internal server error", "details": str(e)}), 500
 
 
 @app.route("/api/submit_file", methods=["POST"])
@@ -54,12 +126,12 @@ def submit_file():
         if file.filename in input_dict:
             return jsonify({"message": "Uploaded two files with the same filename. Please upload non-duplicate files."}), 400
 
-        file_data = convert_file_to_dicts(file)
+        file_data, error_message = file_processing_service.process_uploaded_file(file)
+        if error_message:
+            return jsonify({"message": error_message}), 400
+
         if not file_data or len(file_data) == 0:
             return jsonify({"message": "Uploaded a file in the wrong format. Please upload different format"}), 400
-
-        if isinstance(file_data, LocationError):
-            return jsonify({"message": f"{file_data.message}"}), 400
 
         input_dict[file.filename] = file_data
 
@@ -74,13 +146,14 @@ def check_data():
     """
     app.logger.info("function: check_data")
 
+    if not request.json or "value" not in request.json:
+        return jsonify({"message": "Missing 'value' in request body"}), 400
     json_string = request.json.get("value")
     file_data = json.loads(json_string)
     json_data = json.dumps(file_data)
 
-    isGoodData = True  # check_data_quality(file_data)
-    if isinstance(isGoodData, LocationError):
-        return jsonify({"message": f"{isGoodData.message}", "user_data": json_data}), 400
+    # is_good_data = True  # check_data_quality(file_data)
+    # TODO: implement check_data_quality
 
     return jsonify({"message": "success", "user_data": json_data}), 200
 
@@ -101,7 +174,7 @@ def generate_cbl():
     except ValueError:
         return jsonify({"message": "Something went wrong while reading the edited json"}), 400
 
-    locations = generate_locations_list(file_data)
+    locations = data_transformation_service.generate_locations_list(file_data)
 
     MAPQUEST_API_KEY = os.getenv("MAPQUEST_API_KEY")
 
@@ -122,6 +195,7 @@ def generate_cbl():
     poorQualityCodes = ["Ambiguous", "P1CAA", "B1CAA", "B1ACA", "A5XAX", "L1CAA", "B1AAA", "L1BCA", "L1CBA"]
 
     # Find all quadkeys that the coordinates fall within
+    # TODO: this is redundant with the quadkey generation in the download_ms_footprints function, resolve
     quadkeys = set()
     for datum in data:
         if datum["quality"] not in poorQualityCodes:  # todo: check that "longitude" field is present
@@ -193,7 +267,7 @@ def generate_cbl():
         elif data_dict["quality"] in poorQualityCodes:
             data_dict["quality"] = "Poor"
 
-        merged_dict = merge_dicts(file_dict, data_dict)
+        merged_dict = data_transformation_service.merge_dicts(file_dict, data_dict)
         merged_data.append(merged_dict)
 
     columns = ["street_address", "city", "state"]
@@ -203,115 +277,116 @@ def generate_cbl():
 
     # Convert covered building list as GeoJSON
     gdf = gpd.GeoDataFrame(data=merged_data, columns=columns)
-    final_geojson = geodataframe_to_json(gdf)
+    final_geojson = file_processing_service.geodataframe_to_json(gdf)
 
     return jsonify({"message": "success", "user_data": final_geojson}), 200
 
 
 @app.route("/api/reverse_geocode", methods=["POST"])
+@handle_service_exceptions("reverse_geocode")
 def reverse_geocode():
     """
     Given lat/lon in request, look up the address using Mapbox and return the resulting data.
     """
-    app.logger.info("function: reverse_geocode")
+    app.logger.info("=== Starting reverse_geocode function ===")
+    app.logger.info(f"Request data: {request.json}")
 
-    # todo: make sure this is the best way to handle this error. Nothing is being displayed to the user.
-    if "MAPBOX_ACCESS_TOKEN" not in os.environ:
-        return jsonify({"message": "MAPBOX_ACCESS_TOKEN not present in env file"}), 400
-
-    json_string = request.json.get("value")
-    json_data = json.loads(json_string)
-
-    coords = json_data["coordinates"]
-
-    properties = {}
-    for key in json_data["propertyNames"]:
-        properties[key] = " "
-    newId = str(json_data["featuresLength"])
-
-    polygon = Polygon(coords)
-    centroid = polygon.centroid
-
-    # calculate lat, long (center of polygon)
-    lat = centroid.y
-    lon = centroid.x
-
-    # encode ubid from coordinates
-    ubid = ""
     try:
-        ubid = encode_ubid(polygon)
-    except AssertionError:
-        return jsonify({"message": "Invalid longitude coordinates"}), 400
+        # Validate request data
+        data, error = validate_request_data(["value"])
+        if error:
+            return error
 
-    url = f"https://api.mapbox.com/geocoding/v5/mapbox.places/{lon},{lat}.json"
-    params = {"access_token": os.environ["MAPBOX_ACCESS_TOKEN"], "limit": 1}
+        # Parse the value
+        json_string = data.get("value")
+        app.logger.info(f"json_string: {json_string}")
 
-    # TODO: remove verify
-    response = requests.get(url, params=params, verify=True)
-    if response.status_code in {401, 403}:
-        return jsonify({"message": "Error: Could not reverse geocode using the mapbox API."}), 400
+        try:
+            json_data = json.loads(json_string)
+            app.logger.info(f"Parsed json_data: {json_data}")
+        except json.JSONDecodeError as e:
+            app.logger.error(f"Invalid JSON in request: {e}")
+            return jsonify({"message": f"Invalid JSON in request: {e}"}), 400
 
-    result = response.json()
-    try:
-        properties["ubid"] = ubid
-        properties["latitude"] = str(lat)
-        properties["longitude"] = str(lon)
-        features = result["features"]
-        context = features[0]["context"]
-        for item in context:
-            if "place" in item["id"]:
-                properties["city"] = item["text"]
+        # Extract coordinates
+        coords = json_data.get("coordinates")
+        if not coords:
+            app.logger.error("No coordinates found in request data")
+            return jsonify({"message": "No coordinates found in request data"}), 400
 
-            if "region" in item["id"]:
-                state_name = item["text"]
-                properties["state"] = normalize_state(state_name)
+        app.logger.info(f"Coordinates: {coords}")
 
-            if "postcode" in item["id"]:
-                properties["postal_code"] = item["text"]
+        # Parse polygon from coordinates
+        polygon, error = parse_polygon_from_request({"coordinates": [coords]})
+        if error:
+            return error
 
-            if "country" in item["id"]:
-                properties["country"] = item["text"]
+        # Get property names and features length
+        property_names = json_data.get("propertyNames", [])
+        features_length = json_data.get("featuresLength", 0)
 
-        properties["street_address"] = normalize_address(features[0]["place_name"])
-    except Exception:
-        app.logger.warning("missing data from reverse geocoding")
+        app.logger.info(f"Property names: {property_names}")
+        app.logger.info(f"Features length: {features_length}")
 
-    if not properties or len(properties) == 0:
-        return jsonify({"message": "Error: Reverse geocoding returned poor data."}), 400
+        # Use geocoding service to reverse geocode
+        properties, error_msg = geocoding_service.reverse_geocode_polygon(polygon, property_names)
+        if error_msg:
+            return jsonify({"message": error_msg}), 400
 
-    properties["quality"] = "reverseGeocode"
-    returned_feature = {"id": newId, "type": "Feature", "properties": properties, "geometry": {"type": "Polygon", "coordinates": [coords]}}
+        # Create returned feature
+        properties["quality"] = "reverseGeocode"
+        new_id = str(features_length)
+        returned_feature = {
+            "id": new_id,
+            "type": "Feature",
+            "properties": properties,
+            "geometry": {"type": "Polygon", "coordinates": [coords]},
+        }
 
-    return jsonify({"message": "success", "user_data": json.dumps(returned_feature)}), 200
+        app.logger.info(f"Returning feature: {returned_feature}")
+        return jsonify({"message": "success", "user_data": json.dumps(returned_feature)}), 200
+
+    except Exception as e:
+        log_error_with_context("Unexpected error in reverse_geocode", e)
+        return jsonify({"message": f"Unexpected error: {e}"}), 500
 
 
 @app.route("/api/edit_footprint", methods=["POST"])
+@handle_service_exceptions("edit_footprint")
 def edit_footprint():
     """
     Receive a new footprint in the request, add UBID, return new lat, lon, and UBID.
     """
     app.logger.info("function: edit_footprint")
 
-    json_string = request.json.get("value")
+    # Validate request data
+    data, error = validate_request_data(["value"])
+    if error:
+        return error
+
+    # Parse the value
+    json_string = data.get("value")
     json_data = json.loads(json_string)
     coords = json_data["coordinates"]
 
-    polygon = Polygon(coords)
-    centroid = polygon.centroid
+    # Parse polygon from coordinates
+    polygon, error = parse_polygon_from_request({"coordinates": [coords]})
+    if error:
+        return error
 
-    # calculate lat, long (center of polygon)
+    # Calculate centroid
+    centroid = polygon.centroid
     lat = centroid.y
     lon = centroid.x
 
-    # encode ubid from coordinates
-    ubid = ""
+    # Encode UBID from coordinates
     try:
         ubid = encode_ubid(polygon)
     except AssertionError:
         return jsonify({"message": "Invalid longitude coordinates"}), 400
 
-    newPolygonData = {"lat": lat, "lon": lon, "ubid": ubid}
-    return jsonify({"message": "success", "user_data": json.dumps(newPolygonData)}), 200
+    new_polygon_data = {"lat": lat, "lon": lon, "ubid": ubid}
+    return jsonify({"message": "success", "user_data": json.dumps(new_polygon_data)}), 200
 
 
 @app.route("/api/update_api_key", methods=["POST"])
@@ -333,9 +408,125 @@ def update_api_key():
         return jsonify({"message": "No API key provided!"}), 400
 
 
+@app.route("/api/download_ms_footprints", methods=["POST"])
+@handle_service_exceptions("download_ms_footprints")
+def download_ms_footprints():
+    """
+    Download Microsoft footprint buildings within a selected polygon.
+    Takes a polygon GeoJSON and returns a GeoJSON/Excel file with all intersecting MS footprints.
+    """
+    app.logger.info("=== Starting download_ms_footprints function ===")
+
+    try:
+        # Validate request data
+        data, error = validate_request_data(["polygon"])
+        if error:
+            return error
+
+        polygon_data = data["polygon"]
+        app.logger.info(f"Polygon data: {polygon_data}")
+
+        # Parse polygon from request
+        polygon, error = parse_polygon_from_request(polygon_data)
+        if error:
+            return error
+
+        # Get quadkeys for the polygon
+        quadkeys = footprint_service.get_quadkeys_for_polygon(polygon)
+
+        # Update datasets
+        footprint_service.update_datasets(quadkeys)
+
+        # Load Microsoft footprints
+        ms_gdf = footprint_service.load_ms_footprints(polygon, quadkeys)
+
+        if len(ms_gdf) == 0:
+            app.logger.warning("No Microsoft footprints found in the area")
+            return jsonify({"message": "No Microsoft footprints found in the selected area", "footprints_count": 0}), 200
+
+        # Process the footprints
+        processed_gdf = footprint_service.process_ms_footprints(ms_gdf)
+
+        # Save debug CSV
+        processed_gdf.to_csv("ms_footprints_debug.csv", index=False)
+
+        # Create GeoJSON response
+        return create_geojson_response(processed_gdf, "footprints_count")
+
+    except Exception as e:
+        log_error_with_context("Unexpected error in download_ms_footprints", e)
+        return jsonify({"error": f"Unexpected error: {e}"}), 500
+
+
+@app.route("/api/download_osm_footprints", methods=["POST"])
+@handle_service_exceptions("download_osm_footprints")
+def download_osm_footprints():
+    """
+    Download OpenStreetMap building footprints for a given polygon using OSMnx.
+    """
+    app.logger.info("=== Starting download_osm_footprints function ===")
+
+    try:
+        # Validate request data
+        data, error = validate_request_data(["polygon"])
+        if error:
+            return error
+
+        polygon_data = data["polygon"]
+        app.logger.info(f"Received polygon: {polygon_data}")
+
+        # Parse polygon from request
+        polygon, error = parse_polygon_from_request(polygon_data)
+        if error:
+            return error
+
+        # Load OSM footprints
+        osm_gdf = footprint_service.load_osm_footprints(polygon)
+
+        if len(osm_gdf) == 0:
+            app.logger.info("No OSM building footprints found in the polygon")
+            return jsonify({"message": "No OSM building footprints found in the selected area", "footprints_count": 0}), 200
+
+        # Process the footprints
+        processed_gdf = footprint_service.process_osm_footprints(osm_gdf)
+
+        # Save debug CSV
+        processed_gdf.to_csv("osm_footprints_debug.csv", index=False)
+
+        # Create GeoJSON response
+        return create_geojson_response(processed_gdf, "footprints_count")
+
+    except Exception as e:
+        log_error_with_context("Unexpected error in download_osm_footprints", e)
+        return jsonify({"error": f"Unexpected error: {e}"}), 500
+
+
 def return_one():
     return 1
 
 
 if __name__ == "__main__":
-    app.run(port=5001)
+    # Configure logging for development
+    import sys
+
+    # Create a console handler
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(logging.DEBUG)
+
+    # Create a formatter
+    formatter = logging.Formatter("[%(asctime)s] %(levelname)s in %(module)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+    console_handler.setFormatter(formatter)
+
+    # Add the handler to the Flask app logger
+    app.logger.addHandler(console_handler)
+    app.logger.setLevel(logging.DEBUG)
+
+    # Also add to the root logger
+    root_logger = logging.getLogger()
+    root_logger.addHandler(console_handler)
+    root_logger.setLevel(logging.DEBUG)
+
+    print("Flask app starting with detailed logging enabled...")
+    print("All error messages will be displayed in this console.")
+
+    app.run(port=5001, use_reloader=False)

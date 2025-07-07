@@ -2,6 +2,7 @@ import { CommonModule } from '@angular/common';
 import { ChangeDetectorRef, Component, ElementRef, ViewChild } from '@angular/core';
 import { FlaskRequests } from '../../services/server.service';
 import { Router } from '@angular/router';
+import { SessionService } from '../../services/session.service';
 import LZString from 'lz-string';
 
 interface FileItem {
@@ -35,7 +36,8 @@ export class FileUploadComponent {
   constructor(
     private apiHandler: FlaskRequests,
     private router: Router,
-    private ref: ChangeDetectorRef
+    private ref: ChangeDetectorRef,
+    private sessionService: SessionService
   ) {}
 
   onDrop(event: DragEvent) {
@@ -168,10 +170,10 @@ export class FileUploadComponent {
       (response) => {
         console.log(response.message);
         this.initialJsonData = response.user_data;
-        sessionStorage.setItem('FIRSTTABLEDATA', LZString.compress(this.initialJsonData));
+        this.sessionService.setFirstTableData(LZString.compress(this.initialJsonData));
         if (JSON.parse(this.initialJsonData).length !== 0) {
-          sessionStorage.setItem('CURRENTPAGE', 'first-table');
-          sessionStorage.setItem('HOMEACCESS', JSON.stringify(false));
+          this.sessionService.setCurrentPage('first-table');
+          this.sessionService.setHomeAccess(false);
           this.router.navigate(['/first-table']);
         } else {
           alert('No File Submitted');
@@ -184,11 +186,11 @@ export class FileUploadComponent {
 
         if (!this.fatalErrorArray.includes(errorResponse.error.message) && errorResponse.error.message !== undefined) {
           this.initialJsonData = errorResponse.error.user_data;
-          sessionStorage.setItem('FIRSTTABLEDATA', LZString.compress(this.initialJsonData));
+          this.sessionService.setFirstTableData(LZString.compress(this.initialJsonData));
           setTimeout(() => {
             console.log(this.initialJsonData);
-            sessionStorage.setItem('CURRENTPAGE', 'first-table');
-            sessionStorage.setItem('HOMEACCESS', JSON.stringify(false));
+            this.sessionService.setCurrentPage('first-table');
+            this.sessionService.setHomeAccess(false);
             this.router.navigate(['/first-table']);
           }, 500);
         } else {

@@ -8,6 +8,7 @@ import type { ColDef, GridApi, GridReadyEvent } from 'ag-grid-community';
 import Papa from 'papaparse';
 import { GeoJsonService } from '../services/geojson.service';
 import { FlaskRequests } from '../services/server.service';
+import { SessionService } from '../services/session.service';
 import { CustomHeaderComponent } from './custom-header/custom-header.component';
 import { NavigationComponent } from '../shared/navigation/navigation.component';
 import LZString from 'lz-string';
@@ -79,7 +80,6 @@ export class FirstTableComponent implements OnInit {
   dataValid = false;
   geoJsonString = '';
   isLoading = false;
-  apiKey = '';
 
   defaultColDef = {
     flex: 1,
@@ -97,7 +97,8 @@ export class FirstTableComponent implements OnInit {
     private apiHandler: FlaskRequests,
     private router: Router,
     private cdr: ChangeDetectorRef,
-    private geoJsonService: GeoJsonService
+    private geoJsonService: GeoJsonService,
+    private sessionService: SessionService
   ) {
     this._userList = [];
     this.isDataLoaded = false;
@@ -105,7 +106,7 @@ export class FirstTableComponent implements OnInit {
 
   getUser() {
     this.isDataLoaded = false;
-    const rawData = sessionStorage.getItem('FIRSTTABLEDATA');
+    const rawData = this.sessionService.getFirstTableData();
 
     if (rawData) {
       try {
@@ -149,12 +150,12 @@ export class FirstTableComponent implements OnInit {
       this.colDefs = [];
     }
 
-    sessionStorage.setItem('COL', JSON.stringify(this.colDefs));
+    this.sessionService.setColumnDefinitions(this.colDefs);
   }
 
   convertAgGridDataToJson() {
     const csvUserData = this.gridApi.getDataAsCsv() ?? '';
-    const jsonHeaderData: ColDef[] = JSON.parse(sessionStorage.getItem('COL') || '[]');
+    const jsonHeaderData: ColDef[] = this.sessionService.getColumnDefinitions();
     const { data: parsedCsvData } = Papa.parse(csvUserData, { header: true });
 
     if (!Array.isArray(parsedCsvData)) {
@@ -203,26 +204,11 @@ export class FirstTableComponent implements OnInit {
         this.geoJsonString = response.user_data;
         const geoJson = JSON.parse(this.geoJsonString);
         this.geoJsonService.setGeoJson(geoJson);
-        sessionStorage.setItem('GEOJSONDATA', LZString.compress(this.geoJsonString));
-        sessionStorage.setItem('CURRENTPAGE', 'cbl-table');
+        this.sessionService.setGeoJsonData(LZString.compress(this.geoJsonString));
+        this.sessionService.setCurrentPage('cbl-table');
         this.router.navigate(['/cbl-table']);
         this.isLoading = false;
         this.cdr.detectChanges();
-      },
-      (errorResponse) => {
-        console.error(errorResponse.error.message);
-        alert(errorResponse.error.message);
-        this.isLoading = false;
-        this.cdr.detectChanges();
-      }
-    );
-  }
-
-  submitApiKey() {
-    this.apiHandler.sendMapQuestKey(this.apiKey).subscribe(
-      (response) => {
-        console.log('Response:', response);
-        alert(response.message);
       },
       (errorResponse) => {
         console.error(errorResponse.error.message);
@@ -274,4 +260,7 @@ export class FirstTableComponent implements OnInit {
 
     return 'Not a filename object';
   }
+
+
+
 }
