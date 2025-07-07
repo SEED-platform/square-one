@@ -11,7 +11,6 @@ import { FlaskRequests } from '../services/server.service';
 import { SessionService } from '../services/session.service';
 import { CustomHeaderComponent } from './custom-header/custom-header.component';
 import { NavigationComponent } from '../shared/navigation/navigation.component';
-import LZString from 'lz-string';
 
 @Component({
   selector: 'app-first-table',
@@ -110,11 +109,15 @@ export class FirstTableComponent implements OnInit {
 
     if (rawData) {
       try {
-        const decompressedData = LZString.decompress(rawData);
-        const parsedData = JSON.parse(decompressedData || '[]');
-
-        // Use the setter which will handle the data validation and set isDataLoaded
-        this.userList = parsedData;
+        // Data is now stored as JSON object, not compressed string
+        if (Array.isArray(rawData)) {
+          // If it's already an array, use it directly
+          this.userList = rawData;
+        } else {
+          // If it's a string, parse it
+          const parsedData = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
+          this.userList = parsedData;
+        }
       } catch (error) {
         console.error('Error parsing data:', error);
         this.userList = [];
@@ -203,8 +206,9 @@ export class FirstTableComponent implements OnInit {
         console.log(response.message);
         this.geoJsonString = response.user_data;
         const geoJson = JSON.parse(this.geoJsonString);
+        this.geoJsonService.enableAutoSave(); // Re-enable auto-save for new data
         this.geoJsonService.setGeoJson(geoJson);
-        this.sessionService.setGeoJsonData(LZString.compress(this.geoJsonString));
+        this.sessionService.setGeoJsonData(geoJson); // Store as JSON object, not compressed
         this.sessionService.setCurrentPage('cbl-table');
         this.router.navigate(['/cbl-table']);
         this.isLoading = false;

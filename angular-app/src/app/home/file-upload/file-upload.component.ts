@@ -3,7 +3,6 @@ import { ChangeDetectorRef, Component, ElementRef, ViewChild } from '@angular/co
 import { FlaskRequests } from '../../services/server.service';
 import { Router } from '@angular/router';
 import { SessionService } from '../../services/session.service';
-import LZString from 'lz-string';
 
 interface FileItem {
   objectURL: string;
@@ -170,8 +169,9 @@ export class FileUploadComponent {
       (response) => {
         console.log(response.message);
         this.initialJsonData = response.user_data;
-        this.sessionService.setFirstTableData(LZString.compress(this.initialJsonData));
-        if (JSON.parse(this.initialJsonData).length !== 0) {
+        const parsedData = JSON.parse(this.initialJsonData);
+        this.sessionService.setFirstTableData(parsedData); // Store as JSON object, not compressed
+        if (parsedData.length !== 0) {
           this.sessionService.setCurrentPage('first-table');
           this.sessionService.setHomeAccess(false);
           this.router.navigate(['/first-table']);
@@ -186,7 +186,8 @@ export class FileUploadComponent {
 
         if (!this.fatalErrorArray.includes(errorResponse.error.message) && errorResponse.error.message !== undefined) {
           this.initialJsonData = errorResponse.error.user_data;
-          this.sessionService.setFirstTableData(LZString.compress(this.initialJsonData));
+          const parsedData = JSON.parse(this.initialJsonData);
+          this.sessionService.setFirstTableData(parsedData); // Store as JSON object, not compressed
           setTimeout(() => {
             console.log(this.initialJsonData);
             this.sessionService.setCurrentPage('first-table');
