@@ -58,11 +58,11 @@ git clone git@github.com:SEED-platform/cbl-workflow.git
 
 2. Install `nvm` (macos: `brew install nvm`)
 
-3. Ensure you are running Node v20.11.1: `node -v`, if not run `nvm install 20.11.1`
+3. Ensure you are running Node v22.13.1: `node -v`, if not run `nvm install 22.13.1`
 
 4. Install angular and other dependencies by running `npm install`
 
-5. Install angular's CLI in a global location by running `npm install -g @angular/cli@17`
+5. Install angular's CLI (v20) in a global location by running `npm install -g @angular/cli@20`
 
 6. Copy the environment template in `angular-app/src/environments/environment.ts.template` to a new file named `angular-app/src/environments/environment.ts`. Replace the mapboxToken with your own.
 
