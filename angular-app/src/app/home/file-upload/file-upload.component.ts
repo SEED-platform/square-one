@@ -13,10 +13,9 @@ interface FileItem {
 }
 
 @Component({
-  selector: 'app-file-upload',
-  standalone: true,
-  imports: [CommonModule],
-  templateUrl: './file-upload.component.html'
+    selector: 'app-file-upload',
+    imports: [CommonModule],
+    templateUrl: './file-upload.component.html'
 })
 export class FileUploadComponent {
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;

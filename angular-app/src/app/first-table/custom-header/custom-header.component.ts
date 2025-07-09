@@ -5,11 +5,10 @@ import type { ColDef, IHeaderParams } from 'ag-grid-community';
 import { SessionService } from '../../services/session.service';
 
 @Component({
-  selector: 'app-custom-header',
-  standalone: true,
-  imports: [FormsModule],
-  templateUrl: './custom-header.component.html',
-  styleUrl: './custom-header.component.css'
+    selector: 'app-custom-header',
+    imports: [FormsModule],
+    templateUrl: './custom-header.component.html',
+    styleUrl: './custom-header.component.css'
 })
 export class CustomHeaderComponent implements IHeaderAngularComp {
   field?: string;

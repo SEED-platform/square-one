@@ -2,10 +2,9 @@ import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
 @Component({
-  selector: 'app-image-slider',
-  standalone: true,
-  imports: [CommonModule],
-  templateUrl: './image-slider.component.html'
+    selector: 'app-image-slider',
+    imports: [CommonModule],
+    templateUrl: './image-slider.component.html'
 })
 export class ImageSliderComponent {
   currentIndex = 0;

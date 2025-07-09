@@ -11,11 +11,10 @@ import { GeoJsonService } from '../services/geojson.service';
 import { SessionService, MapLocation } from '../services/session.service';
 
 @Component({
-  selector: 'app-map-workflow',
-  standalone: true,
-  imports: [NavigationComponent, CommonModule],
-  templateUrl: './map-workflow.component.html',
-  styleUrl: './map-workflow.component.css'
+    selector: 'app-map-workflow',
+    imports: [NavigationComponent, CommonModule],
+    templateUrl: './map-workflow.component.html',
+    styleUrl: './map-workflow.component.css'
 })
 export class MapWorkflowComponent implements AfterViewInit {
   private map!: mapboxgl.Map;
