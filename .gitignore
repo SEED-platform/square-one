@@ -23,6 +23,11 @@ flask_app/ms_footprints_debug.csv
 flask_app/osm_footprints_debug.csv
 flask_app/cache/
 
+# tests
+coverage.xml
+.coverage
+htmlcov/
+
 # Jupyter Notebook
 .ipynb_checkpoints
 docs/notebooks/data
