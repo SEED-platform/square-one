@@ -17,11 +17,10 @@ import { v4 as uuidv4 } from 'uuid';
 import { InfoButton } from './custom-info-button';
 
 @Component({
-  selector: 'app-mapbox-map',
-  standalone: true,
-  imports: [CommonModule],
-  templateUrl: './mapbox-map.component.html',
-  styleUrls: ['./mapbox-map.component.css']
+    selector: 'app-mapbox-map',
+    imports: [CommonModule],
+    templateUrl: './mapbox-map.component.html',
+    styleUrls: ['./mapbox-map.component.css']
 })
 export class MapboxMapComponent implements OnInit, OnDestroy {
   map: mapboxgl.Map | undefined;

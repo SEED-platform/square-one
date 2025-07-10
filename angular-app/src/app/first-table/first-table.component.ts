@@ -13,11 +13,10 @@ import { CustomHeaderComponent } from './custom-header/custom-header.component';
 import { NavigationComponent } from '../shared/navigation/navigation.component';
 
 @Component({
-  selector: 'app-first-table',
-  standalone: true,
-  templateUrl: './first-table.component.html',
-  styleUrl: 'first-table.component.css',
-  imports: [AgGridAngular, FormsModule, CommonModule, NavigationComponent]
+    selector: 'app-first-table',
+    templateUrl: './first-table.component.html',
+    styleUrl: 'first-table.component.css',
+    imports: [AgGridAngular, FormsModule, CommonModule, NavigationComponent]
 })
 export class FirstTableComponent implements OnInit {
   private _userList: any[] = [];

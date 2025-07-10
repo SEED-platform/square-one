@@ -14,11 +14,10 @@ import { SessionService } from '../services/session.service';
 import LZString from 'lz-string';
 
 @Component({
-  selector: 'app-home',
-  standalone: true,
-  templateUrl: './home.component.html',
-  styleUrl: './home.component.css',
-  imports: [ReactiveFormsModule, CommonModule, FileUploadComponent, NavigationComponent]
+    selector: 'app-home',
+    templateUrl: './home.component.html',
+    styleUrl: './home.component.css',
+    imports: [ReactiveFormsModule, CommonModule, FileUploadComponent, NavigationComponent]
 })
 export class HomeComponent implements OnInit, OnDestroy {
   userFile: any;
