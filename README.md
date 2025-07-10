@@ -110,6 +110,11 @@ git clone git@github.com:SEED-platform/cbl-workflow.git
 - adding building heights from heuristics and multiple datasets
 - reimporting CBL lists
 
+## Development
+
+- run precommit before pushing to the repo
+  `poetry run pre-commit run --all-files`
+
 ## Releasing
 
 - These instructions are not yet complete
