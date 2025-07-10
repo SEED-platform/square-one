@@ -1,0 +1,38 @@
+/* Footer component styles */
+footer {
+  flex-shrink: 0;
+}
+
+/* Ensure footer links have proper hover states */
+footer a {
+  text-decoration: none;
+}
+
+footer a:hover {
+  text-decoration: underline;
+}
+
+/* Responsive adjustments for mobile */
+@media (max-width: 768px) {
+  footer nav {
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  footer nav a {
+    display: block;
+    text-align: center;
+  }
+}
+
+/* Ensure proper spacing for footer sections */
+footer .space-x-6 > * + * {
+  margin-left: 1.5rem;
+}
+
+@media (max-width: 640px) {
+  footer .space-x-6 > * + * {
+    margin-left: 0;
+  }
+}

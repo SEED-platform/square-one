@@ -7,6 +7,7 @@ import type { Subscription } from 'rxjs';
 import { FirstTableComponent } from '../first-table/first-table.component';
 import { FileUploadComponent } from './file-upload/file-upload.component';
 import { NavigationComponent } from '../shared/navigation/navigation.component';
+import { FooterComponent } from '../shared/footer/footer.component';
 import { FileExportService } from '../services/file-export.service';
 import { GeoJsonService } from '../services/geojson.service';
 import { FlaskRequests } from '../services/server.service';
@@ -17,7 +18,7 @@ import LZString from 'lz-string';
     selector: 'app-home',
     templateUrl: './home.component.html',
     styleUrl: './home.component.css',
-    imports: [ReactiveFormsModule, CommonModule, FileUploadComponent, NavigationComponent]
+    imports: [ReactiveFormsModule, CommonModule, FileUploadComponent, NavigationComponent, FooterComponent]
 })
 export class HomeComponent implements OnInit, OnDestroy {
   userFile: any;
