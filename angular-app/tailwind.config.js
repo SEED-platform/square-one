@@ -3,6 +3,9 @@ module.exports = {
   content: ['./src/**/*.{html,ts}'],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['Roboto', 'Arial', 'sans-serif'],
+      },
       colors: {
         'nrel-dark-blue': '#0B5E90',
         'nrel-second-dark-blue': '#0079C2',
