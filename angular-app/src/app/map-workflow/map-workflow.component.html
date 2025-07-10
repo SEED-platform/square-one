@@ -1,30 +1,24 @@
 <app-navigation></app-navigation>
+<app-top-menu></app-top-menu>
 
 <div class="map-workflow-container mx-auto mt-10 max-w-7xl px-2 sm:px-6 lg:px-8">
   <h1 class="text-4xl font-bold">Map-based Workflow</h1>
   <p class="mt-5 text-lg">This page will guide you through the map-based workflow for creating a Covered Building List (CBL).</p>
-  <div class="map-container" id="map"></div>
 
-  <!-- Control buttons -->
-  <div class="controls-container">
-    <!-- Data loading buttons -->
-    <div class="data-buttons">
+  <div class="map-controls-layout">
+    <div class="map-container" id="map"></div>
+    <!-- Control buttons -->
+    <div class="controls-container">
       <button class="load-btn ms-btn" [disabled]="!hasPolygon" (click)="loadMSFootprints()">Load MS Footprints</button>
-      <button class="load-btn osm-btn" [disabled]="!hasPolygon" (click)="loadOSMFootprints()">Load OSM Footprints</button>
-    </div>
-
-    <!-- Clear buttons -->
-    <div class="clear-buttons">
-      <button class="clear-btn polygon-clear" (click)="clearPolygon()">Clear Polygon</button>
       <button class="clear-btn ms-clear" (click)="clearMSFootprints()">Clear MS</button>
+      <button class="load-btn osm-btn" [disabled]="!hasPolygon" (click)="loadOSMFootprints()">Load OSM Footprints</button>
       <button class="clear-btn osm-clear" (click)="clearOSMFootprints()">Clear OSM</button>
+      <button class="clear-btn polygon-clear" (click)="clearPolygon()">Clear Polygon</button>
       <button class="clear-btn all-clear" (click)="clearAllFootprints()">Clear All</button>
+      <button class="proceed-btn" [disabled]="!hasAnyFootprints" (click)="proceedToCBLTable()">Proceed to CBL Table</button>
     </div>
-
-    <button class="proceed-btn" [disabled]="!hasAnyFootprints" (click)="proceedToCBLTable()">Proceed to CBL Table</button>
   </div>
 
-  <!-- Status message -->
   <div class="status-message" *ngIf="statusMessage" [ngClass]="{ error: isError, success: !isError }">
     {{ statusMessage }}
   </div>

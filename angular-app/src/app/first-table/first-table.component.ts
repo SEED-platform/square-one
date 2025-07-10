@@ -11,12 +11,13 @@ import { FlaskRequests } from '../services/server.service';
 import { SessionService } from '../services/session.service';
 import { CustomHeaderComponent } from './custom-header/custom-header.component';
 import { NavigationComponent } from '../shared/navigation/navigation.component';
+import { TopMenuComponent } from '../shared/top-menu/top-menu.component';
 
 @Component({
     selector: 'app-first-table',
     templateUrl: './first-table.component.html',
     styleUrl: 'first-table.component.css',
-    imports: [AgGridAngular, FormsModule, CommonModule, NavigationComponent]
+    imports: [AgGridAngular, FormsModule, CommonModule, NavigationComponent, TopMenuComponent]
 })
 export class FirstTableComponent implements OnInit {
   private _userList: any[] = [];
