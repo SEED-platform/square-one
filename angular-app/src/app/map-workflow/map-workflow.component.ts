@@ -13,7 +13,7 @@ import { SessionService, MapLocation } from '../services/session.service';
 
 @Component({
     selector: 'app-map-workflow',
-    imports: [NavigationComponent, FooterComponent, CommonModule],
+    imports: [NavigationComponent, CommonModule],
     templateUrl: './map-workflow.component.html',
     styleUrl: './map-workflow.component.css'
 })

@@ -26,6 +26,7 @@ cbl-workflow = { path = "../cbl-workflow", develop = true }
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^3.8.0"
 pytest = "8.3.5"
+pytest-cov = "^6.2.1"
 nbformat = "^5.10.4"
 folium = "^0.19.5"
 osmnx = "^2.0.2"
