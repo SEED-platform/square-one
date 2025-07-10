@@ -14,12 +14,11 @@ import { FlaskRequests } from '../services/server.service';
 import { SessionService } from '../services/session.service';
 
 @Component({
-  selector: 'app-cbl-table',
-  standalone: true,
-  imports: [AgGridAngular, CommonModule, MapboxMapComponent, NavigationComponent],
-  templateUrl: './cbl-table.component.html',
-  styleUrl: './cbl-table.component.css',
-  encapsulation: ViewEncapsulation.None
+    selector: 'app-cbl-table',
+    imports: [AgGridAngular, CommonModule, MapboxMapComponent, NavigationComponent],
+    templateUrl: './cbl-table.component.html',
+    styleUrl: './cbl-table.component.css',
+    encapsulation: ViewEncapsulation.None
 })
 export class CblTableComponent implements OnInit, OnDestroy {
   featuresArray: any[] = [];
