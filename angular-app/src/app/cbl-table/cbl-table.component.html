@@ -20,12 +20,7 @@
       <button class="w-full rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:outline-none" (click)="navigateToMapWorkflow()">
         Go to Map Workflow
       </button>
-      <button
-        class="w-full rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        (click)="uploadFile()"
-      >
-        Upload Building Data
-      </button>
+      <button class="w-full rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500" (click)="uploadFile()">Upload Building Data</button>
     </div>
   </div>
 </div>
@@ -139,7 +134,6 @@
 </div>
 
 <!-- File Upload Dialog -->
-<app-file-upload-dialog [isOpen]="showFileUploadDialog" (dialogClosed)="closeFileUploadDialog()" (fileUploaded)="onFileUploaded($event)">
-</app-file-upload-dialog>
+<app-file-upload-dialog [isOpen]="showFileUploadDialog" (dialogClosed)="closeFileUploadDialog()" (fileUploaded)="onFileUploaded($event)"> </app-file-upload-dialog>
 
 <app-footer></app-footer>
