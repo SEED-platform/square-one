@@ -10,13 +10,15 @@ import type { Subscription } from 'rxjs';
 import { MapboxMapComponent } from '../mapbox-map/mapbox-map.component';
 import { NavigationComponent } from '../shared/navigation/navigation.component';
 import { TopMenuComponent } from '../shared/top-menu/top-menu.component';
+import { FooterComponent } from '../shared/footer/footer.component';
+import { FileUploadDialogComponent } from '../shared/file-upload-dialog/file-upload-dialog.component';
 import { GeoJsonService } from '../services/geojson.service';
 import { FlaskRequests } from '../services/server.service';
 import { SessionService } from '../services/session.service';
 
 @Component({
     selector: 'app-cbl-table',
-    imports: [AgGridAngular, CommonModule, MapboxMapComponent, NavigationComponent, TopMenuComponent],
+    imports: [AgGridAngular, CommonModule, MapboxMapComponent, NavigationComponent, TopMenuComponent, FooterComponent, FileUploadDialogComponent],
     templateUrl: './cbl-table.component.html',
     styleUrl: './cbl-table.component.css',
     encapsulation: ViewEncapsulation.None
@@ -62,6 +64,9 @@ export class CblTableComponent implements OnInit, OnDestroy {
   showReverseGeocodeDialog = false;
   selectedRowForReverseGeocode: any = null;
   selectedRowHasFootprint = false;
+
+  // File upload dialog properties
+  showFileUploadDialog = false;
 
   // Essential columns that should always be present in the table
   private readonly essentialColumns = ['footprint_area_ft2', 'height',];
@@ -148,10 +153,19 @@ export class CblTableComponent implements OnInit, OnDestroy {
     this.router.navigate(['/map-workflow']);
   }
 
-  navigateToHome() {
-    // Clear all data when navigating home
-    this.clearTableData();
-    this.router.navigate(['/home']);
+  uploadFile() {
+    // Open file upload dialog
+    this.showFileUploadDialog = true;
+  }
+
+  closeFileUploadDialog() {
+    this.showFileUploadDialog = false;
+  }
+
+  onFileUploaded(data: any) {
+    console.log('File uploaded successfully:', data);
+    // The FileUploadDialogComponent already handles updating the GeoJSON service
+    // The data will be automatically reflected in the table through the subscription
   }  private clearTableData() {
     // Clear the table data
     this.rowData = [];
@@ -211,8 +225,8 @@ export class CblTableComponent implements OnInit, OnDestroy {
             // Try to find a building with better quality, but ensure we don't go out of bounds
             let i = 0;
             while (i < buildingArray.length - 1 &&
-                   ValidBuilding.properties && ValidBuilding.properties.quality &&
-                   (ValidBuilding.properties.quality === 'Poor' || ValidBuilding.properties.quality === 'Very Poor')) {
+                    ValidBuilding.properties && ValidBuilding.properties.quality &&
+                    (ValidBuilding.properties.quality === 'Poor' || ValidBuilding.properties.quality === 'Very Poor')) {
               i++;
               ValidBuilding = buildingArray[i];
             }

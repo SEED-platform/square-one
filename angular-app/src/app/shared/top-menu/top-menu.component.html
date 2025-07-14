@@ -20,6 +20,14 @@
         >
           Resources
         </a>
+        <a
+          class="block px-4 py-3 text-sm font-medium transition-colors duration-200"
+          [class.active]="isActiveRoute('/cbl-table')"
+          [class.inactive]="!isActiveRoute('/cbl-table')"
+          routerLink="/cbl-table"
+        >
+          CBL Table
+        </a>
       </nav>
     </div>
   </div>

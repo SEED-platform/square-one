@@ -1,0 +1,55 @@
+/* File Upload Dialog Component Styles */
+
+/* Ensure dialog is always on top */
+.dialog-overlay {
+  z-index: 9999;
+}
+
+/* Smooth transitions for drag and drop */
+.drag-over {
+  transition: all 0.2s ease-in-out;
+  transform: scale(1.02);
+}
+
+/* File preview styles */
+.file-preview {
+  max-height: 200px;
+  object-fit: cover;
+}
+
+/* Loading spinner animation */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* Focus styles for accessibility */
+button:focus,
+input:focus {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+/* Error message styling */
+.error-message {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
