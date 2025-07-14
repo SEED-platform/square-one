@@ -16,10 +16,10 @@
     <h3 class="mb-2 text-lg font-medium text-gray-900">No Building Data Available</h3>
     <p class="mb-4 text-sm text-gray-500">To get started, you can upload building data or use the map workflow to fetch Microsoft building footprints.</p>
     <div class="space-y-2">
-      <button class="w-full rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500" (click)="navigateToMapWorkflow()">
+      <button class="w-full rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:outline-none" (click)="navigateToMapWorkflow()">
         Go to Map Workflow
       </button>
-      <button class="w-full rounded bg-gray-600 px-4 py-2 text-white hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500" (click)="navigateToHome()">Upload Data</button>
+      <button class="w-full rounded bg-gray-600 px-4 py-2 text-white hover:bg-gray-700 focus:ring-2 focus:ring-gray-500 focus:outline-none" (click)="navigateToHome()">Upload Data</button>
     </div>
   </div>
 </div>
@@ -36,7 +36,7 @@
     <div class="relative ml-5 inline-block text-left">
       <div>
         <button
-          class="inline-flex w-full justify-center gap-x-1.5 rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
+          class="inline-flex w-full justify-center gap-x-1.5 rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 ring-inset hover:bg-gray-50"
           id="menu-button"
           (click)="toggleMenu()"
           type="button"
@@ -53,7 +53,7 @@
 
     <!-- Dropdown menu -->
     <div
-      class="absolute left-[5%] z-10 mt-52 w-40 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none"
+      class="ring-opacity-5 absolute left-[5%] z-10 mt-52 w-40 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black focus:outline-none"
       *ngIf="isOpen"
       role="menu"
       aria-orientation="vertical"
@@ -97,7 +97,7 @@
 </div>
 
 <!-- Reverse Geocode Dialog -->
-<div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" *ngIf="showReverseGeocodeDialog">
+<div class="bg-opacity-50 fixed inset-0 z-50 flex items-center justify-center bg-black" *ngIf="showReverseGeocodeDialog">
   <div class="mx-4 w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
     <h3 class="mb-4 text-lg font-semibold text-gray-900">Choose Reverse Geocoding Method</h3>
     <p class="mb-6 text-sm text-gray-600">How would you like to reverse geocode the selected building?</p>
