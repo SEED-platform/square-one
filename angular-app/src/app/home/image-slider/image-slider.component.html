@@ -1,27 +1,16 @@
 <div class="relative mx-auto max-w-2xl overflow-hidden rounded-md bg-gray-100 p-2 sm:p-4">
-  <div class="absolute top-5 right-5 z-10 rounded-full bg-gray-600 px-2 text-center text-sm text-white">
-    {{ currentIndex + 1 }}/{{ images.length }}
-  </div>
+  <div class="absolute right-5 top-5 z-10 rounded-full bg-gray-600 px-2 text-center text-sm text-white">{{ currentIndex + 1 }}/{{ images.length }}</div>
 
-  <button
-    class="absolute top-1/2 left-5 z-10 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-gray-100 shadow-md"
-    (click)="previous()"
-  >
+  <button class="absolute left-5 top-1/2 z-10 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-gray-100 shadow-md" (click)="previous()">
     <i class="fas fa-chevron-left text-2xl font-bold text-gray-500"></i>
   </button>
 
-  <button
-    class="absolute top-1/2 right-5 z-10 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-gray-100 shadow-md"
-    (click)="forward()"
-  >
+  <button class="absolute right-5 top-1/2 z-10 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-gray-100 shadow-md" (click)="forward()">
     <i class="fas fa-chevron-right text-2xl font-bold text-gray-500"></i>
   </button>
 
   <div class="relative h-[25rem] w-[25rem]">
-    <div
-      *ngFor="let image of images; let i = index"
-      [ngClass]="{ 'absolute top-0': true, 'opacity-0': i !== currentIndex, 'opacity-100': i === currentIndex }"
-    >
+    <div *ngFor="let image of images; let i = index" [ngClass]="{ 'absolute top-0': true, 'opacity-0': i !== currentIndex, 'opacity-100': i === currentIndex }">
       <img class="rounded-sm" [src]="image" alt="image" />
     </div>
   </div>

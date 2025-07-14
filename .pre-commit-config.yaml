@@ -26,12 +26,12 @@ repos:
         args: ["--autofix", "--no-sort-keys"]
         files: \.(json|template)$
   - repo: https://github.com/pre-commit/mirrors-prettier
-    rev: v4.0.0-alpha.8
+    rev: v3.0.3
     hooks:
       - id: prettier
         types_or: [yaml, markdown, css, scss, html, javascript]
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.12.2
+    rev: v0.12.3
     hooks:
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix, --output-format=full]
