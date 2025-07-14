@@ -15,6 +15,7 @@
         [defaultColDef]="defaultColDef"
         [rowData]="gridData"
         (gridReady)="onGridReady($event)"
+        theme="legacy"
         style="height: 70vh; width: 90vw"
       />
       <div class="p-4 text-center" *ngIf="!isDataLoaded">
