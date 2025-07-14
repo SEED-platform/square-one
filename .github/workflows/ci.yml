@@ -110,10 +110,8 @@ jobs:
           MAPQUEST_API_KEY: ${{ secrets.MAPQUEST_API_KEY }}
         working-directory: angular-app
         run: |
-          # install angular cli
-          # npm install -g @angular/cli@17
           # This executes all *.spec.ts files in the project
-          ng test --watch=false --browsers=ChromeHeadless --code-coverage --progress
+          npm test
       - name: Upload Angular Test Coverage
         uses: actions/upload-artifact@v4
         with:
