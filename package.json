@@ -1,5 +1,13 @@
 {
   "workspaces": [
     "angular-app"
-  ]
+  ],
+  "scripts": {
+    "start": "cd angular-app && npm start",
+    "start:angular": "cd angular-app && npm start",
+    "start:python": "cd flask_app && python app.py",
+    "build": "cd angular-app && npm run build",
+    "test": "cd angular-app && npm test",
+    "lint": "cd angular-app && npm run lint"
+  }
 }
