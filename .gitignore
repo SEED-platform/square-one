@@ -1,6 +1,7 @@
 .DS_Store
 .idea
 .python-version
+.nvmrc
 .vscode
 .ruff_cache
 .pytest_cache
@@ -22,6 +23,11 @@ flask_app/.pytest_cache
 flask_app/ms_footprints_debug.csv
 flask_app/osm_footprints_debug.csv
 flask_app/cache/
+
+# tests
+coverage.xml
+.coverage
+htmlcov/
 
 # Jupyter Notebook
 .ipynb_checkpoints

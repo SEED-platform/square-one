@@ -59,8 +59,9 @@ git clone git@github.com:SEED-platform/cbl-workflow.git
 2. Install `nvm` (macos: `brew install nvm`)
 
 3. Ensure you are running Node v22.13.1: `node -v`, if not run `nvm install 22.13.1`
+3. Ensure you are running Node v22.13.1: `node -v`, if not run `nvm install 22.13.1`
 
-4. Install angular and other dependencies by running `npm install`
+4. Set your `.nvmrc` file to use the correct nvm version: `echo "22.14.0" > .nvmrc`
 
 5. Install angular's CLI (v20) in a global location by running `npm install -g @angular/cli@20`
 
@@ -68,7 +69,10 @@ git clone git@github.com:SEED-platform/cbl-workflow.git
 
 ### Running the Web App
 
-1. Run the web app by opening two terminals: one with the working directory as angular-app and running `ng serve -o` and the other with the working directory as flask_app(in your virtual environment) and running `python app.py`
+1. Run the web app by opening two terminals:
+
+   - One in the root directory (or angular-app directory) and running `npm start` to start the Angular development server
+   - Another with the working directory as flask_app (in your virtual environment) and running `python app.py`
 
 2. After connecting to the web application using the following link <http://localhost:4200/>, upload a file in the format of a json (example below) or excel/csv with columns for street_address, city, and state:
 
@@ -109,6 +113,11 @@ git clone git@github.com:SEED-platform/cbl-workflow.git
 - flagging duplicate buildings, selecting which building to use (in some cases a dataset will have different building boundaries)
 - adding building heights from heuristics and multiple datasets
 - reimporting CBL lists
+
+## Development
+
+- run precommit before pushing to the repo
+  `poetry run pre-commit run --all-files`
 
 ## Development
 

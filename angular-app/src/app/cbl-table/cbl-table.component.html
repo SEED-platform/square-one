@@ -15,14 +15,9 @@
       </svg>
     </div>
     <h3 class="mb-2 text-lg font-medium text-gray-900">No Building Data Available</h3>
-    <p class="mb-4 text-sm text-gray-500">
-      To get started, you can upload building data or use the map workflow to fetch Microsoft building footprints.
-    </p>
+    <p class="mb-4 text-sm text-gray-500">To get started, you can upload building data or use the map workflow to fetch Microsoft building footprints.</p>
     <div class="space-y-2">
-      <button
-        class="w-full rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        (click)="navigateToMapWorkflow()"
-      >
+      <button class="w-full rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:outline-none" (click)="navigateToMapWorkflow()">
         Go to Map Workflow
       </button>
       <button
@@ -35,23 +30,18 @@
   </div>
 </div>
 
-<
 <div class="mt-10 flex max-h-[100vh] w-[100vw] flex-col items-center justify-center" *ngIf="hasValidGeoJsonData">
   <!-- Data source information -->
   <div class="mb-2 w-[90%] space-y-1 text-center">
-    <p class="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-gray-600">
-      <strong>Data loaded:</strong> {{ cachedDataSourceInfo }}
-    </p>
-    <p class="rounded-lg border border-green-200 bg-green-50 px-4 py-2 text-sm text-gray-600">
-      <strong>Selection:</strong> {{ cachedSelectedRowsInfo }}
-    </p>
+    <p class="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-gray-600"><strong>Data loaded:</strong> {{ cachedDataSourceInfo }}</p>
+    <p class="rounded-lg border border-green-200 bg-green-50 px-4 py-2 text-sm text-gray-600"><strong>Selection:</strong> {{ cachedSelectedRowsInfo }}</p>
   </div>
 
   <div class="bg-nrel-second-dark-blue flex h-16 w-[90%] items-center justify-between rounded-tl-lg rounded-tr-lg">
     <div class="relative ml-5 inline-block text-left">
       <div>
         <button
-          class="inline-flex w-full justify-center gap-x-1.5 rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
+          class="inline-flex w-full justify-center gap-x-1.5 rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 ring-inset hover:bg-gray-50"
           id="menu-button"
           (click)="toggleMenu()"
           type="button"
@@ -60,11 +50,7 @@
         >
           Export
           <svg class="-mr-1 h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-            <path
-              fill-rule="evenodd"
-              d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
-              clip-rule="evenodd"
-            />
+            <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
           </svg>
         </button>
       </div>
@@ -72,7 +58,7 @@
 
     <!-- Dropdown menu -->
     <div
-      class="absolute left-[5%] z-10 mt-52 w-40 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none"
+      class="ring-opacity-5 absolute left-[5%] z-10 mt-52 w-40 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black focus:outline-none"
       *ngIf="isOpen"
       role="menu"
       aria-orientation="vertical"
@@ -80,62 +66,19 @@
       tabindex="-1"
     >
       <div class="py-1" role="none">
-        <a
-          class="block border-b border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-          id="menu-item-0"
-          (click)="exportAsExcel($event)"
-          href=""
-          role="menuitem"
-          tabindex="-1"
-          >Excel</a
-        >
-        <a
-          class="block border-b border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-          id="menu-item-1"
-          (click)="exportAsCsv($event)"
-          href=""
-          role="menuitem"
-          tabindex="-1"
-          >CSV</a
-        >
-        <a
-          class="block border-b border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-          id="menu-item-2"
-          (click)="exportAsJson($event)"
-          href=""
-          role="menuitem"
-          tabindex="-1"
-          >JSON</a
-        >
-        <a
-          class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-          id="menu-item-3"
-          (click)="exportAsGeoJson($event)"
-          href=""
-          role="menuitem"
-          tabindex="-1"
-          >GeoJSON</a
-        >
+        <a class="block border-b border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" id="menu-item-0" (click)="exportAsExcel($event)" href="" role="menuitem" tabindex="-1">Excel</a>
+        <a class="block border-b border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" id="menu-item-1" (click)="exportAsCsv($event)" href="" role="menuitem" tabindex="-1">CSV</a>
+        <a class="block border-b border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" id="menu-item-2" (click)="exportAsJson($event)" href="" role="menuitem" tabindex="-1">JSON</a>
+        <a class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" id="menu-item-3" (click)="exportAsGeoJson($event)" href="" role="menuitem" tabindex="-1">GeoJSON</a>
       </div>
     </div>
 
     <div class="mr-5 flex gap-2">
-      <button
-        class="inline-flex justify-center gap-x-1.5 rounded-md bg-green-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-700"
-        (click)="addNewRow()"
-      >
-        Add New Row
-      </button>
-      <button
-        class="inline-flex justify-center gap-x-1.5 rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
-        (click)="reverseGeocodeSelected()"
-      >
+      <button class="inline-flex justify-center gap-x-1.5 rounded-md bg-green-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-700" (click)="addNewRow()">Add New Row</button>
+      <button class="inline-flex justify-center gap-x-1.5 rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700" (click)="reverseGeocodeSelected()">
         Reverse Geocode
       </button>
-      <button
-        class="inline-flex justify-center gap-x-1.5 rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-700"
-        (click)="handleDelete()"
-      >
+      <button class="inline-flex justify-center gap-x-1.5 rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-700" (click)="handleDelete()">
         Delete Selected Row(s)
       </button>
     </div>
@@ -152,6 +95,7 @@
         (gridReady)="onGridReady($event)"
         (rowClicked)="onRowClicked($event)"
         (selectionChanged)="onSelectionChanged($event)"
+        theme="legacy"
         style="height: 90%; width: 45vw"
       />
     </div>
@@ -159,7 +103,7 @@
 </div>
 
 <!-- Reverse Geocode Dialog -->
-<div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" *ngIf="showReverseGeocodeDialog">
+<div class="bg-opacity-50 fixed inset-0 z-50 flex items-center justify-center bg-black" *ngIf="showReverseGeocodeDialog">
   <div class="mx-4 w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
     <h3 class="mb-4 text-lg font-semibold text-gray-900">Choose Reverse Geocoding Method</h3>
     <p class="mb-6 text-sm text-gray-600">How would you like to reverse geocode the selected building?</p>
@@ -173,28 +117,15 @@
         (click)="reverseGeocodeByFootprint()"
       >
         <svg class="mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 01.553-.894L9 2l6 3 6-3v15l-6 3-6-3z"
-          ></path>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 01.553-.894L9 2l6 3 6-3v15l-6 3-6-3z"></path>
         </svg>
         By Footprint Polygon
         <span class="ml-2 text-xs" *ngIf="!selectedRowHasFootprint">(No footprint available)</span>
       </button>
 
-      <button
-        class="flex w-full items-center justify-center rounded-md bg-green-600 px-4 py-3 text-white transition-colors hover:bg-green-700"
-        (click)="reverseGeocodeByAddress()"
-      >
+      <button class="flex w-full items-center justify-center rounded-md bg-green-600 px-4 py-3 text-white transition-colors hover:bg-green-700" (click)="reverseGeocodeByAddress()">
         <svg class="mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-          ></path>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
         </svg>
         By Address
@@ -202,12 +133,7 @@
     </div>
 
     <div class="flex justify-end">
-      <button
-        class="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200"
-        (click)="closeReverseGeocodeDialog()"
-      >
-        Cancel
-      </button>
+      <button class="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200" (click)="closeReverseGeocodeDialog()">Cancel</button>
     </div>
   </div>
 </div>
