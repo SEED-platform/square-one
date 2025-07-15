@@ -4,6 +4,13 @@
   overflow-y: auto;
 }
 
+/* Ensure map takes full width */
+app-mapbox-map {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+}
+
 .ag-unselectable {
   user-select: text !important;
 }

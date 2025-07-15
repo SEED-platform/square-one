@@ -3,7 +3,14 @@
 
 <div class="map-workflow-container mx-auto mt-10 max-w-7xl px-2 sm:px-6 lg:px-8">
   <h1 class="text-4xl font-bold">Map-based Workflow</h1>
-  <p class="mt-5 text-lg">This page will guide you through the map-based workflow for creating a Covered Building List (CBL).</p>
+  <p class="mt-5 text-lg">
+    This page will guide you through the map-based workflow for creating a Covered Building List (CBL). Zoom into the map and draw an area using the polygon tool. Once you have an area selected, you
+    can load the Microsoft (MS) footprints or the Open Street Maps (OSM) footprints within the area. When you are finished, click the Proceed to CBL Table button.
+  </p>
+
+  <div class="status-message" *ngIf="statusMessage" [ngClass]="{ error: isError, success: !isError }">
+    {{ statusMessage }}
+  </div>
 
   <div class="map-controls-layout">
     <div class="map-container" id="map"></div>
@@ -17,10 +24,6 @@
       <button class="clear-btn all-clear" (click)="clearAllFootprints()">Clear All</button>
       <button class="proceed-btn" [disabled]="!hasAnyFootprints" (click)="proceedToCBLTable()">Proceed to CBL Table</button>
     </div>
-  </div>
-
-  <div class="status-message" *ngIf="statusMessage" [ngClass]="{ error: isError, success: !isError }">
-    {{ statusMessage }}
   </div>
 </div>
 

@@ -56,8 +56,8 @@ export class HomeComponent implements OnInit, OnDestroy {
     return !obj || (Object.keys(obj).length === 0 && obj.constructor === Object);
   }
 
-  // create a new page for searching in a map
-  navigateToMapWorkflow() {
-    this.router.navigate(['/map-workflow']);
+  // navigate directly to CBL table
+  navigateToCBLTable() {
+    this.router.navigate(['/cbl-table']);
   }
 }

@@ -70,14 +70,11 @@
 }
 
 .status-message {
-  position: fixed;
-  top: 100px;
-  right: 20px;
   z-index: 1000;
+  margin-top: 10px;
   padding: 10px 15px;
   border-radius: 5px;
   font-weight: bold;
-  max-width: 300px;
   word-wrap: break-word;
 }
 

@@ -1,6 +1,7 @@
 #map {
   height: 90%;
-  width: 45vw; /* Full width */
+  min-height: calc(90% + 150px);
+  width: 100%; /* Full width */
 }
 
 .context-menu {
