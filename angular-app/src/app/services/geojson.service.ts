@@ -130,6 +130,7 @@ export class GeoJsonService implements OnDestroy {
     const features = [...currentGeoJson.features];
 
     // Find the index of the feature to remove
+
     const indexToRemove = features.findIndex((feature: any) => feature.id === id);
     console.log('IndexToRemove', indexToRemove);
     console.log('has been found???', features[indexToRemove]);
@@ -145,7 +146,6 @@ export class GeoJsonService implements OnDestroy {
     };
     // Update the subject with the new GeoJSON
     this.setGeoJson(updatedGeoJson);
-    console.log('Map remove object', updatedGeoJson);
     this.mapCoordinatesSubject.next({ latitude, longitude });
   }
 

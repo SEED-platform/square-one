@@ -1,4 +1,5 @@
 <app-navigation></app-navigation>
+<app-top-menu></app-top-menu>
 
 <div class="home-container mx-auto mt-10 flex max-w-7xl flex-col px-2 sm:px-6 lg:px-8" *ngIf="isObjectEmpty(jsonData)">
   <div class="info-card-container mb-5 flex max-h-[35rem]">
@@ -12,20 +13,12 @@
         The editor provides intuitive features to modify and enhance your CBL data. You can easily edit existing entries, delete records, or add new buildings. Additionally, a dynamic map view
         displays all the buildings from your CBL, allowing for efficient and visual management of your data.
       </p>
-      <div class="flex justify-end space-x-4">
-        <a href="DOE_CBL_Guide.pdf" target="_blank" rel="noopener noreferrer">
-          <button
-            class="bg-nrel-second-dark-blue hover:bg-nrel-dark-blue flex h-12 items-center justify-center rounded-md bg-neutral-950 px-6 font-medium text-neutral-50 text-white shadow-lg shadow-neutral-500/20 transition active:scale-95"
-          >
-            View Additional CBL Resources
-          </button>
-        </a>
-
+      <div class="mt-8 flex justify-center space-x-4">
         <button
-          class="bg-nrel-second-dark-blue hover:bg-nrel-dark-blue flex h-12 items-center justify-center rounded-md bg-neutral-950 px-6 font-medium text-neutral-50 text-white shadow-lg shadow-neutral-500/20 transition active:scale-95"
-          (click)="navigateToMapWorkflow()"
+          class="bg-blue-600 hover:bg-blue-700 flex h-12 items-center justify-center rounded-md px-6 font-medium text-white shadow-lg shadow-neutral-500/20 transition active:scale-95"
+          (click)="navigateToCBLTable()"
         >
-          Map-based Workflow
+          Get Started
         </button>
       </div>
     </div>
@@ -54,8 +47,6 @@
       </div>
     </div>
   </div>
-
-  <app-file-upload></app-file-upload>
 </div>
 
 <app-footer></app-footer>

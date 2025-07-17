@@ -6,6 +6,7 @@ import MapboxGeocoder from '@mapbox/mapbox-gl-geocoder';
 import MapboxDraw from '@mapbox/mapbox-gl-draw';
 import { environment } from '../../environments/environment';
 import { NavigationComponent } from '../shared/navigation/navigation.component';
+import { TopMenuComponent } from '../shared/top-menu/top-menu.component';
 import { FooterComponent } from '../shared/footer/footer.component';
 import { HttpClient } from '@angular/common/http';
 import { GeoJsonService } from '../services/geojson.service';
@@ -13,7 +14,7 @@ import { SessionService, MapLocation } from '../services/session.service';
 
 @Component({
     selector: 'app-map-workflow',
-    imports: [NavigationComponent, FooterComponent, CommonModule],
+    imports: [NavigationComponent, TopMenuComponent, FooterComponent, CommonModule],
     templateUrl: './map-workflow.component.html',
     styleUrl: './map-workflow.component.css'
 })

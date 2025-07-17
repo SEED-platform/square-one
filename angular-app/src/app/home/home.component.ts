@@ -7,6 +7,7 @@ import type { Subscription } from 'rxjs';
 import { FirstTableComponent } from '../first-table/first-table.component';
 import { FileUploadComponent } from './file-upload/file-upload.component';
 import { NavigationComponent } from '../shared/navigation/navigation.component';
+import { TopMenuComponent } from '../shared/top-menu/top-menu.component';
 import { FooterComponent } from '../shared/footer/footer.component';
 import { FileExportService } from '../services/file-export.service';
 import { GeoJsonService } from '../services/geojson.service';
@@ -18,7 +19,7 @@ import LZString from 'lz-string';
     selector: 'app-home',
     templateUrl: './home.component.html',
     styleUrl: './home.component.css',
-    imports: [ReactiveFormsModule, CommonModule, FileUploadComponent, NavigationComponent, FooterComponent]
+    imports: [ReactiveFormsModule, CommonModule, FileUploadComponent, NavigationComponent, TopMenuComponent, FooterComponent]
 })
 export class HomeComponent implements OnInit, OnDestroy {
   userFile: any;
@@ -55,8 +56,8 @@ export class HomeComponent implements OnInit, OnDestroy {
     return !obj || (Object.keys(obj).length === 0 && obj.constructor === Object);
   }
 
-  // create a new page for searching in a map
-  navigateToMapWorkflow() {
-    this.router.navigate(['/map-workflow']);
+  // navigate directly to CBL table
+  navigateToCBLTable() {
+    this.router.navigate(['/cbl-table']);
   }
 }

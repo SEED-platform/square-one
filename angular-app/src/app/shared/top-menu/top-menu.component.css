@@ -1,0 +1,20 @@
+/* Top menu specific styles */
+.active {
+  background-color: #5e6a71 !important;
+  color: #fff !important;
+}
+
+.inactive {
+  color: #333;
+  text-decoration: none;
+}
+
+.inactive:hover {
+  background-color: #d4d4d4;
+}
+
+/* Ensure links extend full height */
+nav a {
+  display: block;
+  height: 100%;
+}

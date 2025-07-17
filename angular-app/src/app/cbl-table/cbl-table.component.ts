@@ -1,4 +1,5 @@
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import type { OnDestroy, OnInit } from '@angular/core';
 import { ChangeDetectorRef, Component, ViewEncapsulation } from '@angular/core';
 import { Router } from '@angular/router';
@@ -9,13 +10,29 @@ import * as XLSX from 'xlsx';
 import type { Subscription } from 'rxjs';
 import { MapboxMapComponent } from '../mapbox-map/mapbox-map.component';
 import { NavigationComponent } from '../shared/navigation/navigation.component';
+import { TopMenuComponent } from '../shared/top-menu/top-menu.component';
+import { FooterComponent } from '../shared/footer/footer.component';
+import { FileUploadDialogComponent } from '../shared/file-upload-dialog/file-upload-dialog.component';
 import { GeoJsonService } from '../services/geojson.service';
 import { FlaskRequests } from '../services/server.service';
 import { SessionService } from '../services/session.service';
 
+interface ColumnStatistic {
+  columnName: string;
+  populatedCount: number;
+  totalCount: number;
+  percentage: number;
+}
+
+interface MergeColumnConfig {
+  targetColumn: string;
+  sourceColumn: string;
+  priorityColumn: string; // 'target' or 'source' - which column takes priority when both have data
+}
+
 @Component({
     selector: 'app-cbl-table',
-    imports: [AgGridAngular, CommonModule, MapboxMapComponent, NavigationComponent],
+    imports: [AgGridAngular, CommonModule, FormsModule, MapboxMapComponent, NavigationComponent, TopMenuComponent, FooterComponent, FileUploadDialogComponent],
     templateUrl: './cbl-table.component.html',
     styleUrl: './cbl-table.component.css',
     encapsulation: ViewEncapsulation.None
@@ -30,6 +47,9 @@ export class CblTableComponent implements OnInit, OnDestroy {
   // Cached values to prevent ExpressionChangedAfterItHasBeenCheckedError
   public cachedDataSourceInfo: string = '';
   public cachedSelectedRowsInfo: string = 'No buildings selected';
+  public cachedCanMergeRecords: boolean = false;
+  public cachedCanDeleteRecords: boolean = false;
+  public cachedCanReverseGeocode: boolean = false;
 
   // for menu
   isOpen = false;
@@ -42,7 +62,7 @@ export class CblTableComponent implements OnInit, OnDestroy {
   defaultColDef = {
     flex: 1,
     minWidth: 127,
-    sortable: false,
+    sortable: true,
     filter: true,
     editable: true,
     enableCellChangeFlash: true
@@ -62,8 +82,44 @@ export class CblTableComponent implements OnInit, OnDestroy {
   selectedRowForReverseGeocode: any = null;
   selectedRowHasFootprint = false;
 
+  // File upload dialog properties
+  showFileUploadDialog = false;
+
+  // Column statistics modal properties
+  showColumnStatsDialog = false;
+  columnStats: ColumnStatistic[] = [];
+
+  // Merge columns properties
+  showMergeDialog = false;
+  mergeConfig: MergeColumnConfig = {
+    targetColumn: '',
+    sourceColumn: '',
+    priorityColumn: 'target'
+  };
+  availableColumnsForMerge: string[] = [];
+
+  // Record merging properties
+  showRecordMergeDialog = false;
+  selectedRecordsForMerge: any[] = [];
+  recordMergePriority: string = 'first'; // 'first' or 'second'
+  private isMergingRecords = false; // Flag to prevent scroll reset during merge
+
+  // Header editing properties
+  private editableHeaders: { [originalKey: string]: string } = {}; // Maps original property names to display names
+  private isEditingHeader = false;
+  showHeaderEditDialog = false;
+  headerEditList: Array<{originalKey: string, displayName: string}> = [];
+
   // Essential columns that should always be present in the table
   private readonly essentialColumns = ['footprint_area_ft2', 'height',];
+
+  // getRowId function for AG-Grid to properly identify rows using index
+  getRowId = (params: any) => {
+    // Use the row's index in the data array as the unique identifier
+    // This ensures each row has a unique ID regardless of data content
+    const index = this.rowData.indexOf(params.data);
+    return index >= 0 ? index.toString() : Math.random().toString();
+  };
 
   // Default properties for new buildings - easier to maintain
   // To add new default fields:
@@ -120,10 +176,14 @@ export class CblTableComponent implements OnInit, OnDestroy {
   updateSelectedRowsInfo(): void {
     if (!this.gridApi) {
       this.cachedSelectedRowsInfo = '';
+      this.cachedCanMergeRecords = false;
+      this.cachedCanDeleteRecords = false;
+      this.cachedCanReverseGeocode = false;
       return;
     }
 
     const selectedRows = this.gridApi.getSelectedRows();
+    const selectedNodes = this.gridApi.getSelectedNodes();
     const selectedCount = selectedRows.length;
 
     if (selectedCount === 0) {
@@ -131,6 +191,11 @@ export class CblTableComponent implements OnInit, OnDestroy {
     } else {
       this.cachedSelectedRowsInfo = `${selectedCount} building${selectedCount === 1 ? '' : 's'} selected`;
     }
+
+    // Cache the button enabled states to prevent ExpressionChangedAfterItHasBeenCheckedError
+    this.cachedCanMergeRecords = selectedRows.length === 2 && selectedNodes.length === 2;
+    this.cachedCanDeleteRecords = selectedRows.length >= 1;
+    this.cachedCanReverseGeocode = selectedRows.length >= 1;
   }
 
   /**
@@ -147,11 +212,22 @@ export class CblTableComponent implements OnInit, OnDestroy {
     this.router.navigate(['/map-workflow']);
   }
 
-  navigateToHome() {
-    // Clear all data when navigating home
-    this.clearTableData();
-    this.router.navigate(['/home']);
-  }  private clearTableData() {
+  uploadFile() {
+    // Open file upload dialog
+    this.showFileUploadDialog = true;
+  }
+
+  closeFileUploadDialog() {
+    this.showFileUploadDialog = false;
+  }
+
+  onFileUploaded(data: any) {
+    console.log('File uploaded successfully:', data);
+    // The FileUploadDialogComponent already handles updating the GeoJSON service
+    // The data will be automatically reflected in the table through the subscription
+  }
+
+  private clearTableData() {
     // Clear the table data
     this.rowData = [];
     this.featuresArray = [];
@@ -205,18 +281,18 @@ export class CblTableComponent implements OnInit, OnDestroy {
           //keeps it from rendering every change..better performance
           if (this.sessionService.getPropertyNames().length === 0) {
             const buildingArray = this.geoJson.features;
-            let ValidBuilding = buildingArray[0];
 
-            // Try to find a building with better quality, but ensure we don't go out of bounds
-            let i = 0;
-            while (i < buildingArray.length - 1 &&
-                   ValidBuilding.properties && ValidBuilding.properties.quality &&
-                   (ValidBuilding.properties.quality === 'Poor' || ValidBuilding.properties.quality === 'Very Poor')) {
-              i++;
-              ValidBuilding = buildingArray[i];
-            }
+            // Collect all unique property names from ALL features, not just one
+            const allPropertyNames = new Set<string>();
 
-            const geoJsonPropertyNames = Object.keys(ValidBuilding.properties);
+            buildingArray.forEach((feature: any) => {
+              if (feature.properties) {
+                Object.keys(feature.properties).forEach(key => allPropertyNames.add(key));
+              }
+            });
+
+            // Convert Set to Array
+            const geoJsonPropertyNames = Array.from(allPropertyNames);
 
             // Ensure essential columns are always included
             this.essentialColumns.forEach(col => {
@@ -237,6 +313,7 @@ export class CblTableComponent implements OnInit, OnDestroy {
           this.initialLoad = false; // Set the flag to false after the initial load
         } else if (!this.isDeletingRows) {
           // Only update table if we're not in the middle of deleting rows
+          // Note: isMergingRecords should still allow table updates
           this.updateTable();
 
           // Defer the cached info update to prevent ExpressionChangedAfterItHasBeenCheckedError
@@ -304,9 +381,7 @@ export class CblTableComponent implements OnInit, OnDestroy {
     if (this.clickEventSubscription) {
       this.clickEventSubscription.unsubscribe();
     }
-  }
-
-  onGridReady(params: any) {
+  }  onGridReady(params: any) {
     this.gridApi = params.api;
     this.gridApi.sizeColumnsToFit();
   }
@@ -319,23 +394,97 @@ export class CblTableComponent implements OnInit, OnDestroy {
     }
 
     this.featuresArray = this.geoJson.features;
-    this.rowData = this.featuresArray;
+    this.rowData = [...this.geoJson.features]; // Create a new array reference
 
     this.setColumnDefs();
 
     if (this.gridApi) {
-      // Only reset zoom/scroll if we're not deleting rows
-      if (!this.isDeletingRows) {
+      // Force AG-Grid to refresh with new data
+      this.gridApi.setGridOption('rowData', this.rowData);
+
+      // Only reset zoom/scroll if we're not deleting rows or merging records
+      if (!this.isDeletingRows && !this.isMergingRecords) {
         this.gridApi.deselectAll();
         this.scrollToTop();
       }
     }
+
+    // Update cached info
+    this.updateDataSourceInfo();
+    this.updateSelectedRowsInfo();
   }
 
   capitalizeFirstLetter = (string: string) => {
     if (string.length === 0) return string;
     return string.charAt(0).toUpperCase() + string.slice(1);
   };
+
+  // Header editing methods
+  getDisplayHeaderName(originalKey: string): string {
+    // Return custom display name if set, otherwise return capitalized original key
+    return this.editableHeaders[originalKey] || this.capitalizeFirstLetter(originalKey);
+  }
+
+  updateHeaderName(originalKey: string, newDisplayName: string): void {
+    if (!newDisplayName || newDisplayName.trim() === '') {
+      // If empty, remove custom mapping (revert to original)
+      delete this.editableHeaders[originalKey];
+    } else {
+      // Store the mapping from original key to display name
+      this.editableHeaders[originalKey] = newDisplayName.trim();
+    }
+
+    // Update the column definitions to reflect the change
+    this.setColumnDefs();
+  }
+
+  // Open header editing dialog
+  openHeaderEditDialog(): void {
+    // Get all column keys from session service
+    const allKeys = this.sessionService.getPropertyNames();
+    allKeys.push('coordinates'); // Add coordinates
+
+    // Build the list for editing
+    this.headerEditList = allKeys.map(key => ({
+      originalKey: key,
+      displayName: this.getDisplayHeaderName(key)
+    }));
+
+    this.showHeaderEditDialog = true;
+  }
+
+  // Close header editing dialog
+  closeHeaderEditDialog(): void {
+    this.showHeaderEditDialog = false;
+    this.headerEditList = [];
+  }
+
+  // Update header from dialog
+  updateHeaderFromDialog(index: number, newDisplayName: string): void {
+    const item = this.headerEditList[index];
+    if (item) {
+      item.displayName = newDisplayName;
+      this.updateHeaderName(item.originalKey, newDisplayName);
+    }
+  }
+
+  // Apply all header changes from dialog
+  applyHeaderChanges(): void {
+    this.headerEditList.forEach(item => {
+      this.updateHeaderName(item.originalKey, item.displayName);
+    });
+    this.closeHeaderEditDialog();
+  }
+
+  // Get export preview with current header names
+  getExportPreview(): string {
+    const customHeaderCount = Object.keys(this.editableHeaders).length;
+    if (customHeaderCount === 0) {
+      return 'Export will use original column names.';
+    } else {
+      return `Export will use ${customHeaderCount} custom header name${customHeaderCount === 1 ? '' : 's'}.`;
+    }
+  }
 
   // Check if building has footprint data
   hasFootprintData(building: any): boolean {
@@ -400,7 +549,29 @@ export class CblTableComponent implements OnInit, OnDestroy {
 
   // Dynamically sets grid for geojson values
   setColumnDefs() {
-    const keys = this.sessionService.getPropertyNames();
+    let keys = this.sessionService.getPropertyNames();
+
+    // Also collect any new properties that might have been added to current features
+    // (e.g., during merges or data updates)
+    if (this.geoJson && this.geoJson.features) {
+      const currentPropertyNames = new Set(keys);
+
+      this.geoJson.features.forEach((feature: any) => {
+        if (feature.properties) {
+          Object.keys(feature.properties).forEach(key => {
+            if (!currentPropertyNames.has(key)) {
+              keys.push(key);
+              currentPropertyNames.add(key);
+            }
+          });
+        }
+      });
+
+      // Update session service if we found new properties
+      if (keys.length !== this.sessionService.getPropertyNames().length) {
+        this.sessionService.setPropertyNames(keys);
+      }
+    }
 
     // Ensure essential columns are always included in the keys array
     this.essentialColumns.forEach(col => {
@@ -448,9 +619,13 @@ export class CblTableComponent implements OnInit, OnDestroy {
       ...keys.map((key: string) => ({
         field: key,
         editable: !nonEditableKeys.includes(key),
-        headerName: this.capitalizeFirstLetter(key),
+        headerName: this.getDisplayHeaderName(key),
+        headerTooltip: `Column: ${key}`,
+        sortable: true,
         cellStyle: key === 'footprint_area_ft2' ? { 'text-align': 'right' } :
                    key === 'height' ? { 'text-align': 'right' } : undefined,
+        suppressHeaderMenuButton: false,
+        headerValueGetter: () => this.getDisplayHeaderName(key),
         valueGetter: (params: ValueGetterParams) => {
           if (this.geoJson.features.length !== 0) {
             if (key === 'coordinates') {
@@ -479,8 +654,7 @@ export class CblTableComponent implements OnInit, OnDestroy {
           }
           return true;
         }
-      }))
-    ];
+      }))    ];
     this.sessionService.setColumnDefinitions(this.colDefs);
   }
 
@@ -566,6 +740,11 @@ export class CblTableComponent implements OnInit, OnDestroy {
   }
 
   onSelectionChanged(event: any) {
+    console.log('onSelectionChanged called:', {
+      isDeletingRows: this.isDeletingRows,
+      selectedRows: this.gridApi?.getSelectedRows()?.length || 0
+    });
+
     // Don't trigger change detection if we're in the middle of deleting rows
     if (!this.isDeletingRows) {
       // Defer the cached selection info update to prevent ExpressionChangedAfterItHasBeenCheckedError
@@ -870,8 +1049,8 @@ export class CblTableComponent implements OnInit, OnDestroy {
     // Stop editing changes data without clicking off cell
     this.gridApi.stopEditing();
 
-    // Get the data as CSV
-    const json = this.jsonConverter();
+    // Get the data with custom header names
+    const json = this.jsonConverterWithCustomHeaders();
 
     // Retrieve the CSV data from the grid API
     const csvUserData = Papa.unparse(json);
@@ -894,7 +1073,7 @@ export class CblTableComponent implements OnInit, OnDestroy {
     // Stop any ongoing editing in the grid
     this.gridApi.stopEditing();
 
-    const json = this.jsonConverter();
+    const json = this.jsonConverterWithCustomHeaders();
     // Retrieve the CSV data from the grid API
     const csvUserData = Papa.unparse(json);
     // Create a Blob with the CSV data
@@ -919,22 +1098,43 @@ export class CblTableComponent implements OnInit, OnDestroy {
     // Stop editing changes data without clicking off cell
     this.gridApi.stopEditing();
 
-    // Get the data as CSV
+    // Get the data with custom header names (but for GeoJSON we need to maintain the GeoJSON structure)
+    const json = this.jsonConverterWithCustomHeaders();
 
-    // Convert CSV to JSON using PapaParse
+    // Convert the flat JSON back to GeoJSON format
+    const geojsonFeatures = this.rowData.map((feature, index) => {
+      const correspondingData = json[index];
 
-    const geojson = { type: 'FeatureCollection', features: this.rowData };
-    // Send JSON data to the API
+      // Create a new feature with updated properties using custom headers
+      const newFeature = {
+        type: 'Feature',
+        id: feature.id,
+        geometry: feature.geometry,
+        properties: {
+          ...correspondingData
+        }
+      };
+
+      // Remove coordinates from properties since it should be in geometry
+      if (newFeature.properties['coordinates']) {
+        delete newFeature.properties['coordinates'];
+      }
+
+      return newFeature;
+    });
+
+    const geojson = {
+      type: 'FeatureCollection',
+      features: geojsonFeatures
+    };
 
     let jsonString: string;
     try {
       jsonString = JSON.stringify(geojson, null, 2);
     } catch (error) {
-      console.error('Error parsing CSV to JSON:', error);
+      console.error('Error creating GeoJSON:', error);
       return; // Exit if parsing fails
     }
-
-    console.log(this.rowData);
 
     const blob = new Blob([jsonString], { type: 'application/geo+json;charset=utf-8;' });
 
@@ -956,7 +1156,7 @@ export class CblTableComponent implements OnInit, OnDestroy {
     event.preventDefault();
     this.gridApi.stopEditing();
 
-    const json = this.jsonConverter();
+    const json = this.jsonConverterWithCustomHeaders();
     console.log(json);
 
     const jsonString = JSON.stringify(json, null, 2);
@@ -977,43 +1177,37 @@ export class CblTableComponent implements OnInit, OnDestroy {
     }
   }
 
-  jsonConverter() {
+
+
+  // New method that uses custom header names for export and matches table column order
+  jsonConverterWithCustomHeaders() {
     const data = this.rowData;
     const jsonArray = [];
 
+    // Get the column definitions but exclude the computed hasFootprint column from exports
+    const columnFields = this.colDefs
+      .map(col => col.field)
+      .filter(field => field !== undefined && field !== 'hasFootprint') as string[];
+
     for (const building of data) {
-      // Create a new object with properties in the desired order
-      let buildingObject;
+      const buildingObject: Record<string, any> = {};
 
-      if (building?.geometry) {
-        buildingObject = {
-          street_address: building.properties.street_address,
-          city: building.properties.city,
-          state: building.properties.state,
-          quality: building.properties.quality,
-          ubid: building.properties.ubid,
-          footprint_area_ft2: building.properties.footprint_area_ft2,
-          ...building.properties, // Spread the remaining properties after the desired ones
-          coordinates: building.geometry?.coordinates || null // Add the coordinates
-        };
-      } else {
-        buildingObject = {
-          street_address: building.properties.street_address,
-          city: building.properties.city,
-          state: building.properties.state,
-          quality: building.properties.quality,
-          ubid: building.properties.ubid,
-          footprint_area_ft2: building.properties.footprint_area_ft2,
-          ...building.properties, // Spread the remaining properties after the desired ones
-          coordinates: null // Add the coordinates
-        };
-      }
+      // Process columns in the same order as they appear in the table (excluding hasFootprint)
+      columnFields.forEach(field => {
+        const displayName = this.getDisplayHeaderName(field);
 
-      // Add the object to the jsonArray
+        if (field === 'coordinates') {
+          // Geometry coordinates
+          buildingObject[displayName] = building?.geometry?.coordinates || null;
+        } else {
+          // Regular property columns
+          buildingObject[displayName] = building.properties?.[field];
+        }
+      });
+
       jsonArray.push(buildingObject);
     }
 
-    // Optionally, return the jsonArray if needed
     return jsonArray;
   }
 
@@ -1045,5 +1239,586 @@ export class CblTableComponent implements OnInit, OnDestroy {
     });
 
     return enhancedDefaults;
+  }
+
+  // Column Statistics Modal Methods
+  showColumnStatsModal() {
+    this.calculateColumnStats();
+    this.showColumnStatsDialog = true;
+  }
+
+  closeColumnStatsModal() {
+    this.showColumnStatsDialog = false;
+    this.columnStats = [];
+  }
+
+  calculateColumnStats() {
+    if (!this.hasValidGeoJsonData) {
+      this.columnStats = [];
+      return;
+    }
+
+    const totalRecords = this.geoJson.features.length;
+    const stats: ColumnStatistic[] = [];
+
+    // Get all unique property names from all features
+    const allPropertyNames = new Set<string>();
+
+    // Add properties from all features
+    this.geoJson.features.forEach((feature: any) => {
+      if (feature.properties) {
+        Object.keys(feature.properties).forEach(key => allPropertyNames.add(key));
+      }
+    });
+
+    // Add the special hasFootprint column
+    allPropertyNames.add('hasFootprint');
+
+    // Calculate statistics for each column
+    allPropertyNames.forEach(propertyName => {
+      let populatedCount = 0;
+
+      this.geoJson.features.forEach((feature: any) => {
+        let hasValue = false;
+
+        if (propertyName === 'hasFootprint') {
+          hasValue = this.hasFootprintData(feature);
+        } else if (feature.properties && feature.properties.hasOwnProperty(propertyName)) {
+          const value = feature.properties[propertyName];
+          // Consider a field populated if it's not null, undefined, empty string, or only whitespace
+          hasValue = value !== null &&
+                     value !== undefined &&
+                     value !== '' &&
+                     (typeof value !== 'string' || value.trim() !== '');
+        }
+
+        if (hasValue) {
+          populatedCount++;
+        }
+      });
+
+      const percentage = totalRecords > 0 ? Math.round((populatedCount / totalRecords) * 100) : 0;
+
+      stats.push({
+        columnName: propertyName,
+        populatedCount,
+        totalCount: totalRecords,
+        percentage
+      });
+    });
+
+    // Sort by percentage (highest first), then by column name
+    stats.sort((a, b) => {
+      if (b.percentage !== a.percentage) {
+        return b.percentage - a.percentage;
+      }
+      return a.columnName.localeCompare(b.columnName);
+    });
+
+    this.columnStats = stats;
+  }
+
+  trackByColumnName(index: number, item: ColumnStatistic): string {
+    return item.columnName;
+  }
+
+  trackByOriginalKey(index: number, item: {originalKey: string, displayName: string}): string {
+    return item.originalKey;
+  }
+
+  getPercentageClass(percentage: number): string {
+    if (percentage >= 90) return 'text-green-600 font-semibold';
+    if (percentage >= 70) return 'text-blue-600 font-medium';
+    if (percentage >= 50) return 'text-yellow-600 font-medium';
+    if (percentage >= 25) return 'text-orange-600 font-medium';
+    return 'text-red-600 font-medium';
+  }
+
+  getProgressBarClass(percentage: number): string {
+    if (percentage >= 90) return 'bg-green-500';
+    if (percentage >= 70) return 'bg-blue-500';
+    if (percentage >= 50) return 'bg-yellow-500';
+    if (percentage >= 25) return 'bg-orange-500';
+    return 'bg-red-500';
+  }
+
+  deleteColumn(columnName: string) {
+    // Prevent deletion of essential columns
+    if (this.essentialColumns.includes(columnName)) {
+      alert(`Cannot delete essential column: ${columnName}`);
+      return;
+    }
+
+    // Prevent deletion of hasFootprint as it's a computed column
+    if (columnName === 'hasFootprint') {
+      alert('Cannot delete the footprint indicator column');
+      return;
+    }
+
+    // Show confirmation dialog
+    const confirmed = confirm(`Are you sure you want to delete the column "${columnName}"? This action cannot be undone.`);
+    if (!confirmed) {
+      return;
+    }
+
+    // Remove column from property names in session service
+    const currentPropertyNames = this.sessionService.getPropertyNames();
+    const updatedPropertyNames = currentPropertyNames.filter(name => name !== columnName);
+    this.sessionService.setPropertyNames(updatedPropertyNames);
+
+    // Remove the property from all features in the geoJson data
+    if (this.geoJson && this.geoJson.features) {
+      this.geoJson.features.forEach((feature: any) => {
+        if (feature.properties && feature.properties.hasOwnProperty(columnName)) {
+          delete feature.properties[columnName];
+        }
+      });
+
+      // Update the service with the modified data
+      this.geoJsonService.setGeoJson(this.geoJson);
+    }
+
+    // Recalculate column statistics to reflect the deletion
+    this.calculateColumnStats();
+
+    // Update the table to remove the column
+    this.updateTable();
+
+    console.log(`Column "${columnName}" deleted successfully`);
+  }
+
+  canDeleteColumn(columnName: string): boolean {
+    // Check if column can be deleted (not essential and not hasFootprint)
+    return !this.essentialColumns.includes(columnName) && columnName !== 'hasFootprint';
+  }
+
+  // Merge Columns Methods
+  openMergeDialog() {
+    // Get available columns for merging (exclude computed columns like hasFootprint)
+    this.availableColumnsForMerge = this.columnStats
+      .filter(stat => stat.columnName !== 'hasFootprint')
+      .map(stat => stat.columnName)
+      .sort();
+
+    // Reset merge configuration
+    this.mergeConfig = {
+      targetColumn: '',
+      sourceColumn: '',
+      priorityColumn: 'target'
+    };
+
+    this.showMergeDialog = true;
+  }
+
+  closeMergeDialog() {
+    this.showMergeDialog = false;
+    this.mergeConfig = {
+      targetColumn: '',
+      sourceColumn: '',
+      priorityColumn: 'target'
+    };
+  }
+
+  mergeColumns() {
+    // Validate inputs
+    if (!this.mergeConfig.targetColumn || !this.mergeConfig.sourceColumn) {
+      alert('Please select both target and source columns');
+      return;
+    }
+
+    if (this.mergeConfig.targetColumn === this.mergeConfig.sourceColumn) {
+      alert('Target and source columns must be different');
+      return;
+    }
+
+    // Show confirmation dialog
+    const priorityText = this.mergeConfig.priorityColumn === 'target'
+      ? `"${this.mergeConfig.targetColumn}" takes priority`
+      : `"${this.mergeConfig.sourceColumn}" takes priority`;
+
+    const confirmed = confirm(
+      `Are you sure you want to merge "${this.mergeConfig.sourceColumn}" into "${this.mergeConfig.targetColumn}"?\n\n` +
+      `When both columns have data, ${priorityText}.\n` +
+      `The source column "${this.mergeConfig.sourceColumn}" will be deleted after merging.\n\n` +
+      `This action cannot be undone.`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    // Perform the merge
+    let mergedCount = 0;
+    let overwrittenCount = 0;
+
+    if (this.geoJson && this.geoJson.features) {
+      this.geoJson.features.forEach((feature: any) => {
+        if (feature.properties) {
+          const targetValue = feature.properties[this.mergeConfig.targetColumn];
+          const sourceValue = feature.properties[this.mergeConfig.sourceColumn];
+
+          // Check if target has a meaningful value
+          const targetHasValue = targetValue !== null &&
+                                targetValue !== undefined &&
+                                targetValue !== '' &&
+                                (typeof targetValue !== 'string' || targetValue.trim() !== '');
+
+          // Check if source has a meaningful value
+          const sourceHasValue = sourceValue !== null &&
+                                sourceValue !== undefined &&
+                                sourceValue !== '' &&
+                                (typeof sourceValue !== 'string' || sourceValue.trim() !== '');
+
+          if (sourceHasValue) {
+            if (!targetHasValue) {
+              // Target is empty, copy from source
+              feature.properties[this.mergeConfig.targetColumn] = sourceValue;
+              mergedCount++;
+            } else if (this.mergeConfig.priorityColumn === 'source') {
+              // Both have values but source takes priority
+              feature.properties[this.mergeConfig.targetColumn] = sourceValue;
+              overwrittenCount++;
+            }
+            // If target has priority and both have values, keep target value (no action needed)
+          }
+        }
+      });
+
+      // Delete the source column after merging
+      this.geoJson.features.forEach((feature: any) => {
+        if (feature.properties && feature.properties.hasOwnProperty(this.mergeConfig.sourceColumn)) {
+          delete feature.properties[this.mergeConfig.sourceColumn];
+        }
+      });
+
+      // Update property names in session service
+      const currentPropertyNames = this.sessionService.getPropertyNames();
+      const updatedPropertyNames = currentPropertyNames.filter(name => name !== this.mergeConfig.sourceColumn);
+      this.sessionService.setPropertyNames(updatedPropertyNames);
+
+      // Update the service with the modified data
+      this.geoJsonService.setGeoJson(this.geoJson);
+    }
+
+    // Close dialog and update UI
+    this.closeMergeDialog();
+
+    // Recalculate column statistics
+    this.calculateColumnStats();
+
+    // Update the table
+    this.updateTable();
+
+    // Show success message
+    const message = `Column merge completed successfully!\n\n` +
+                   `• ${mergedCount} records updated with data from source column\n` +
+                   `• ${overwrittenCount} records overwritten based on priority setting\n` +
+                   `• Source column "${this.mergeConfig.sourceColumn}" has been deleted`;
+    alert(message);
+
+    console.log(`Merged "${this.mergeConfig.sourceColumn}" into "${this.mergeConfig.targetColumn}"`, {
+      mergedCount,
+      overwrittenCount,
+      priorityColumn: this.mergeConfig.priorityColumn
+    });
+  }
+
+  getAvailableSourceColumns(): string[] {
+    // Return columns that are different from the selected target column
+    return this.availableColumnsForMerge.filter(col => col !== this.mergeConfig.targetColumn);
+  }
+
+  getAvailableTargetColumns(): string[] {
+    // Return columns that are different from the selected source column
+    return this.availableColumnsForMerge.filter(col => col !== this.mergeConfig.sourceColumn);
+  }
+
+  getMergePreview(): string {
+    if (!this.mergeConfig.targetColumn || !this.mergeConfig.sourceColumn) {
+      return '';
+    }
+
+    const targetStat = this.columnStats.find(s => s.columnName === this.mergeConfig.targetColumn);
+    const sourceStat = this.columnStats.find(s => s.columnName === this.mergeConfig.sourceColumn);
+
+    if (!targetStat || !sourceStat) {
+      return '';
+    }
+
+    const targetEmpty = targetStat.totalCount - targetStat.populatedCount;
+    const potentialMerges = Math.min(targetEmpty, sourceStat.populatedCount);
+    const priorityText = this.mergeConfig.priorityColumn === 'target' ? 'target' : 'source';
+
+    return `This will fill ${potentialMerges} empty records in "${this.mergeConfig.targetColumn}" ` +
+           `with data from "${this.mergeConfig.sourceColumn}". ` +
+           `When both columns have data, "${priorityText}" column takes priority.`;
+  }
+
+  // Record Merging Methods
+  openRecordMergeDialog() {
+    if (!this.gridApi) {
+      alert('Grid not initialized');
+      return;
+    }
+
+    const selectedRows = this.gridApi.getSelectedRows();
+    const selectedNodes = this.gridApi.getSelectedNodes();
+
+    if (selectedRows.length !== 2) {
+      alert(`Please select exactly 2 records to merge. Currently selected: ${selectedRows.length}`);
+      return;
+    }
+
+    // No need to validate IDs - we allow merging any 2 selected records
+    // even if they have identical data or IDs
+
+    // Create a copy of the selected rows to avoid reference issues
+    this.selectedRecordsForMerge = [
+      JSON.parse(JSON.stringify(selectedRows[0])),
+      JSON.parse(JSON.stringify(selectedRows[1]))
+    ];
+
+    // Store the node indices for later reference during merge
+    const nodeIndex1 = parseInt(selectedNodes[0]?.id || '0');
+    const nodeIndex2 = parseInt(selectedNodes[1]?.id || '1');
+
+    // Add indices to our stored records for identification during merge
+    this.selectedRecordsForMerge[0]._mergeIndex = nodeIndex1;
+    this.selectedRecordsForMerge[1]._mergeIndex = nodeIndex2;
+
+    this.recordMergePriority = 'first';
+    this.showRecordMergeDialog = true;
+  }
+
+  closeRecordMergeDialog() {
+    this.showRecordMergeDialog = false;
+    this.selectedRecordsForMerge = [];
+    this.recordMergePriority = 'first';
+  }
+
+  getFirstRecordPreview(): string {
+    if (this.selectedRecordsForMerge.length < 1) return '';
+    const record = this.selectedRecordsForMerge[0];
+    const address = record.properties?.street_address || 'No address';
+    const city = record.properties?.city || 'No city';
+    return `${address}, ${city}`;
+  }
+
+  getSecondRecordPreview(): string {
+    if (this.selectedRecordsForMerge.length < 2) return '';
+    const record = this.selectedRecordsForMerge[1];
+    const address = record.properties?.street_address || 'No address';
+    const city = record.properties?.city || 'No city';
+    return `${address}, ${city}`;
+  }
+
+  getRecordMergePreview(): string {
+    if (this.selectedRecordsForMerge.length !== 2) return '';
+
+    const priorityRecord = this.recordMergePriority === 'first'
+      ? this.selectedRecordsForMerge[0]
+      : this.selectedRecordsForMerge[1];
+    const secondaryRecord = this.recordMergePriority === 'first'
+      ? this.selectedRecordsForMerge[1]
+      : this.selectedRecordsForMerge[0];
+
+    let fieldsFromSecondary = 0;
+    let fieldsFromPriority = 0;
+
+    // Count fields that would be merged
+    const allPropertyNames = new Set<string>();
+    if (priorityRecord.properties) {
+      Object.keys(priorityRecord.properties).forEach(key => allPropertyNames.add(key));
+    }
+    if (secondaryRecord.properties) {
+      Object.keys(secondaryRecord.properties).forEach(key => allPropertyNames.add(key));
+    }
+
+    allPropertyNames.forEach(propertyName => {
+      const priorityValue = priorityRecord.properties?.[propertyName];
+      const secondaryValue = secondaryRecord.properties?.[propertyName];
+
+      const priorityHasValue = priorityValue !== null &&
+                              priorityValue !== undefined &&
+                              priorityValue !== '' &&
+                              (typeof priorityValue !== 'string' || priorityValue.trim() !== '');
+
+      const secondaryHasValue = secondaryValue !== null &&
+                               secondaryValue !== undefined &&
+                               secondaryValue !== '' &&
+                               (typeof secondaryValue !== 'string' || secondaryValue.trim() !== '');
+
+      if (!priorityHasValue && secondaryHasValue) {
+        fieldsFromSecondary++;
+      } else if (priorityHasValue) {
+        fieldsFromPriority++;
+      }
+    });
+
+    return `The merged record will keep ${fieldsFromPriority} fields from the priority record and ` +
+           `add ${fieldsFromSecondary} fields from the secondary record. The secondary record will be deleted.`;
+  }
+
+  mergeRecords() {
+    // Validation checks
+    if (!this.gridApi) {
+      alert('Grid is not initialized');
+      return;
+    }
+
+    if (this.selectedRecordsForMerge.length !== 2) {
+      alert('Two records must be selected for merging');
+      return;
+    }
+
+    const priorityRecord = this.recordMergePriority === 'first'
+      ? this.selectedRecordsForMerge[0]
+      : this.selectedRecordsForMerge[1];
+    const secondaryRecord = this.recordMergePriority === 'first'
+      ? this.selectedRecordsForMerge[1]
+      : this.selectedRecordsForMerge[0];
+
+    // Get the indices for later use in identifying the records in our data array
+    const priorityIndex = priorityRecord._mergeIndex;
+    const secondaryIndex = secondaryRecord._mergeIndex;
+
+    // Additional validation
+    if (!priorityRecord || !secondaryRecord) {
+      alert('Invalid records selected for merging');
+      return;
+    }
+
+    if (priorityIndex === undefined || secondaryIndex === undefined) {
+      alert('Selected records are missing index information');
+      return;
+    }
+
+    // Show confirmation dialog
+    const confirmed = confirm(
+      'Are you sure you want to merge these records?\n\n' +
+      'The merged record will prioritize data from Record ' + (this.recordMergePriority === 'first' ? '1' : '2') + '.\n' +
+      'Empty fields in the priority record will be filled with data from the other record.\n' +
+      'The secondary record will be deleted after merging.\n\n' +
+      'This action cannot be undone.'
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    // Perform the merge
+    let fieldsUpdated = 0;
+    let fieldsKept = 0;
+
+    // Get all property names to merge
+    const allPropertyNames = new Set<string>();
+    if (priorityRecord.properties) {
+      Object.keys(priorityRecord.properties).forEach(key => allPropertyNames.add(key));
+    }
+    if (secondaryRecord.properties) {
+      Object.keys(secondaryRecord.properties).forEach(key => allPropertyNames.add(key));
+    }
+
+    // Merge properties
+    allPropertyNames.forEach(propertyName => {
+      const priorityValue = priorityRecord.properties?.[propertyName];
+      const secondaryValue = secondaryRecord.properties?.[propertyName];
+
+      // Check if priority record has a meaningful value
+      const priorityHasValue = priorityValue !== null &&
+                              priorityValue !== undefined &&
+                              priorityValue !== '' &&
+                              (typeof priorityValue !== 'string' || priorityValue.trim() !== '');
+
+      // Check if secondary record has a meaningful value
+      const secondaryHasValue = secondaryValue !== null &&
+                               secondaryValue !== undefined &&
+                               secondaryValue !== '' &&
+                               (typeof secondaryValue !== 'string' || secondaryValue.trim() !== '');
+
+      if (!priorityHasValue && secondaryHasValue) {
+        // Priority record is missing this field, copy from secondary
+        priorityRecord.properties[propertyName] = secondaryValue;
+        fieldsUpdated++;
+      } else if (priorityHasValue) {
+        // Priority record has value, keep it
+        fieldsKept++;
+      }
+      // If both are empty or secondary is empty, no action needed
+    });
+
+    // Handle geometry merging (footprint)
+    if (!this.hasFootprintData(priorityRecord) && this.hasFootprintData(secondaryRecord)) {
+      priorityRecord.geometry = JSON.parse(JSON.stringify(secondaryRecord.geometry));
+      console.log('Merged footprint from secondary record to priority record');
+    }
+
+    // Create a fresh copy of the merged record to ensure AG-Grid detects the change
+    const mergedRecord = JSON.parse(JSON.stringify(priorityRecord));
+
+    // Set flag to prevent table reset during merge
+    this.isMergingRecords = true;
+
+    // Update the underlying GeoJSON data first
+    if (this.geoJson && this.geoJson.features) {
+      // Validate indices are within bounds
+      if (priorityIndex < 0 || priorityIndex >= this.geoJson.features.length ||
+          secondaryIndex < 0 || secondaryIndex >= this.geoJson.features.length) {
+        console.error('Invalid indices for merging:', { priorityIndex, secondaryIndex, totalFeatures: this.geoJson.features.length });
+        this.isMergingRecords = false;
+        return;
+      }
+
+      // Update the priority record directly using the index
+      this.geoJson.features[priorityIndex] = mergedRecord;
+
+      // Remove the secondary record from GeoJSON (adjust index if secondary is before priority)
+      if (secondaryIndex < priorityIndex) {
+        this.geoJson.features.splice(secondaryIndex, 1);
+      } else {
+        this.geoJson.features.splice(secondaryIndex, 1);
+      }
+
+      // Update the service with modified GeoJSON
+      this.geoJsonService.setGeoJson(this.geoJson);
+    } else {
+      console.error('No GeoJSON data available for merging');
+      this.isMergingRecords = false;
+      return;
+    }
+
+    // Update the table data
+    this.updateTable();
+
+    // Force AG-Grid to refresh after a slight delay
+    setTimeout(() => {
+      if (this.gridApi) {
+        this.gridApi.refreshCells({ force: true });
+        this.gridApi.redrawRows();
+      }
+    }, 50);
+
+    // Reset merge flag and trigger change detection
+    setTimeout(() => {
+      this.isMergingRecords = false;
+      this.updateSelectedRowsInfo();
+      this.cdr.markForCheck();
+    }, 100);
+
+    // Close dialog
+    this.closeRecordMergeDialog();
+
+    // Show success message
+    alert('Records merged successfully!\n\n' +
+          '• ' + fieldsKept + ' fields kept from priority record\n' +
+          '• ' + fieldsUpdated + ' fields added from secondary record\n' +
+          '• Secondary record has been deleted');
+
+    console.log('Record merge completed', {
+      fieldsKept,
+      fieldsUpdated,
+      priorityIndex,
+      secondaryIndex
+    });
   }
 }
