@@ -44,21 +44,50 @@ st = "^0.0.8"
 requires = ["poetry-core", "setuptools", "wheel"]
 build-backend = "poetry.core.masonry.api"
 
-# Ruff configuration (references flask_app/ruff.toml)
+# Complete Ruff configuration - single source of truth
 [tool.ruff]
-extend = "flask_app/ruff.toml"
-
-# Ensure consistent line length across all tools
+fix = true
 line-length = 140
 
+[tool.ruff.format]
+docstring-code-format = true
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
 [tool.ruff.lint]
-# Include the same rules as flask_app/ruff.toml
+# Enable these rules
 extend-select = [
-    "A", "ARG", "BLE", "C4", "COM", "E", "F", "I", "ICN", "ISC", "N", "PD", "PGH",
-    "PIE", "PLC", "PLE", "PLR", "PLW", "PT", "Q", "RUF", "S", "SIM", "T10", "TID", "UP"
+    "A",   # flake8-builtins
+    "ARG", # flake8-unused-arguments
+    "BLE", # flake8-blind-except
+    "C4",  # flake8-comprehensions
+    "COM", # flake8-commas
+    "E",   # Error
+    "F",   # Pyflakes
+    "I",   # isort
+    "ICN", # flake8-import-conventions
+    "ISC", # flake8-implicit-str-concat
+    "N",   # pep8-naming
+    "PD",  # pandas-vet
+    "PGH", # pygrep-hooks
+    "PIE", # flake8-pie
+    "PLC", # Pylint Convention
+    "PLE", # Pylint Error
+    "PLR", # Pylint Refactor
+    "PLW", # Pylint Warning
+    "PT",  # flake8-pytest-style
+    "Q",   # flake8-quotes
+    "RUF", # Ruff-specific rules
+    "S",   # flake8-bandit
+    "SIM", # flake8-simplify
+    "T10", # flake8-debugger
+    "TID", # flake8-tidy-imports
+    "UP",  # pyupgrade
 ]
 
-# Same ignore rules as flask_app/ruff.toml to avoid conflicts
+# Ignore these specific errors
 ignore = [
     "A001",    # builtin-variable-shadowing
     "ARG001",  # unused-function-argument
@@ -67,6 +96,7 @@ ignore = [
     "BLE001",  # blind-except
     "COM812",  # missing-trailing-comma (conflicts with formatter)
     "COM819",  # prohibited-trailing-comma
+    "E501",    # line-too-long (we use 140 chars, not 79)
     "ISC001",  # single-line-implicit-string-concatenation
     "N806",    # non-lowercase-variable-in-function
     "PLC1901", # compare-to-empty-string
@@ -90,9 +120,23 @@ ignore = [
     "SIM115",  # Use context handler for opening files
 ]
 
-# Black-compatible formatting
-[tool.ruff.format]
-quote-style = "double"
-indent-style = "space"
-skip-magic-trailing-comma = false
-line-ending = "auto"
+[tool.ruff.lint.per-file-ignores]
+"**/tests/test_*" = [
+    "S101", # assert
+    "S105", # hardcoded-password-string
+    "S307", # suspicious-eval-usage
+]
+"**/migrations/*" = [
+    "ARG001", # unused-function-argument
+    "RUF012", # mutable-class-default
+]
+"**/__init__.py" = [
+    "F401", # unused-import
+    "F403", # undefined-local-with-import-star
+    "I001", # unsorted-imports
+]
+
+[tool.ruff.lint.pylint]
+# Raise the allowed limits the least possible amount
+max-statements = 58
+max-branches = 24
