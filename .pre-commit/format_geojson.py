@@ -39,7 +39,7 @@ def format_geojson(filepath):
                         sorted(
                             feature["properties"].items(),
                             key=lambda item: sort_keys_custom(item[0]),
-                        )
+                        ),
                     )
 
                     # Move some items to be first -- name, ID, type
@@ -68,8 +68,20 @@ def format_geojson(filepath):
             # doesn't complain
             f.write("\n")
 
-    except Exception as e:
-        print(f"Failed to format {filepath}: {e}")
+    except FileNotFoundError:
+        print(f"Error: File not found - {filepath}")
+    except PermissionError:
+        print(f"Error: Permission denied when accessing - {filepath}")
+    except json.JSONDecodeError as e:
+        print(f"Error: Invalid JSON in {filepath}: {e}")
+    except UnicodeDecodeError as e:
+        print(f"Error: Encoding issue in {filepath}: {e}")
+    except OSError as e:
+        print(f"Error: OS error when processing {filepath}: {e}")
+    except KeyError as e:
+        print(f"Error: Missing expected GeoJSON key in {filepath}: {e}")
+    except (TypeError, ValueError) as e:
+        print(f"Error: Data type or value error in {filepath}: {e}")
 
 
 if __name__ == "__main__":

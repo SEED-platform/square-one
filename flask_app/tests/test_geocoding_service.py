@@ -7,8 +7,9 @@ import json
 import unittest
 from unittest.mock import Mock, patch
 
-from flask_app.services.geocoding_service import GeocodingService
 from shapely.geometry import Polygon
+
+from flask_app.services.geocoding_service import GeocodingService
 
 
 class TestGeocodingService(unittest.TestCase):

@@ -43,3 +43,56 @@ st = "^0.0.8"
 # Need to provide the build system information for the package to be built
 requires = ["poetry-core", "setuptools", "wheel"]
 build-backend = "poetry.core.masonry.api"
+
+# Ruff configuration (references flask_app/ruff.toml)
+[tool.ruff]
+extend = "flask_app/ruff.toml"
+
+# Ensure consistent line length across all tools
+line-length = 140
+
+[tool.ruff.lint]
+# Include the same rules as flask_app/ruff.toml
+extend-select = [
+    "A", "ARG", "BLE", "C4", "COM", "E", "F", "I", "ICN", "ISC", "N", "PD", "PGH",
+    "PIE", "PLC", "PLE", "PLR", "PLW", "PT", "Q", "RUF", "S", "SIM", "T10", "TID", "UP"
+]
+
+# Same ignore rules as flask_app/ruff.toml to avoid conflicts
+ignore = [
+    "A001",    # builtin-variable-shadowing
+    "ARG001",  # unused-function-argument
+    "ARG002",  # unused-method-argument
+    "ARG003",  # unused-class-method-argument
+    "BLE001",  # blind-except
+    "COM812",  # missing-trailing-comma (conflicts with formatter)
+    "COM819",  # prohibited-trailing-comma
+    "ISC001",  # single-line-implicit-string-concatenation
+    "N806",    # non-lowercase-variable-in-function
+    "PLC1901", # compare-to-empty-string
+    "PLR0402", # manual-from-import
+    "PLR0911", # too-many-return-statements
+    "PLR0912", # too-many-branches
+    "PLR0913", # too-many-arguments
+    "PLR0915", # too-many-statements
+    "PLR2004", # magic-value-comparison
+    "PT009",   # pytest-unittest-assertion
+    "Q000",    # bad-quotes-inline-string
+    "RUF012",  # mutable-class-default
+    "S106",    # hardcoded-password-func-arg
+    "S113",    # Probable use of requests call without timeout
+    "S311",    # suspicious-non-cryptographic-random-usage
+    "S324",    # Probable use of insecure hash functions in `hashlib`: `md5`
+    "S603",    # subprocess-without-shell-equals-true
+    "S607",    # start-process-with-partial-path
+    "S701",    # jinja2-autoescape-false
+    "SIM108",  # if-else-block-instead-of-if-exp
+    "SIM115",  # Use context handler for opening files
+]
+
+# Black-compatible formatting
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
