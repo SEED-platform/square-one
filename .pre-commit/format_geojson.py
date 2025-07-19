@@ -20,8 +20,10 @@ import sys
 
 
 def sort_keys_custom(key):
-    """When sorting, replace underscores with spaces. Also make lowercase, since
-    since apparently, that effects the sort order!"""
+    """
+    When sorting, replace underscores with spaces. Also make lowercase,
+    since apparently, that effects the sort order!
+    """
     return key.replace("_", " ").lower()
 
 
@@ -59,7 +61,11 @@ def format_geojson(filepath):
                             **feature["properties"],
                         }
 
-        sorted_geojson_data = json.dumps(geojson_data, indent=2)  # , sort_keys=True)
+        sorted_geojson_data = json.dumps(
+            geojson_data,
+            indent=2,
+            sort_keys=True,
+        )
 
         # Save the formatted GeoJSON data
         with open(filepath, "w", encoding="utf-8") as f:
