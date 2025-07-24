@@ -10,8 +10,9 @@ from unittest.mock import Mock, patch
 import geopandas as gpd
 import pandas as pd
 import pytest
-from flask_app.services.footprint_service import FootprintService
 from shapely.geometry import Point, Polygon
+
+from flask_app.services.footprint_service import FootprintService
 
 
 class TestFootprintService(unittest.TestCase):

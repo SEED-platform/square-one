@@ -32,4 +32,5 @@ htmlcov/
 # Jupyter Notebook
 .ipynb_checkpoints
 docs/notebooks/data
+docs/notebooks/cache/
 docs/notebooks/samples_golden

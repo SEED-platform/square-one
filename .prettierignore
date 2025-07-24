@@ -1,1 +1,26 @@
 CHANGELOG.md
+
+# Ignore documentation notebooks
+docs/notebooks/
+
+# Common ignore patterns
+node_modules/
+dist/
+build/
+coverage/
+*.min.js
+*.min.css
+
+# Generated files
+*.d.ts
+
+# Cache directories
+.cache/
+.ruff_cache/
+.pytest_cache/
+
+# Environment files
+.env*
+
+# Data directories
+data/

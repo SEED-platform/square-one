@@ -31,7 +31,16 @@ module.exports = tseslint.config(
           argsIgnorePattern: '^_'
         }
       ],
-      quotes: ['error', 'single']
+      quotes: ['error', 'single'],
+      'max-len': [
+        'error',
+        {
+          code: 140,
+          ignoreUrls: true,
+          ignoreStrings: true,
+          ignoreTemplateLiterals: true
+        }
+      ]
     }
   },
   {
