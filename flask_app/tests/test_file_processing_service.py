@@ -8,8 +8,9 @@ from unittest.mock import Mock, patch
 
 import geopandas as gpd
 import pandas as pd
-from flask_app.services.file_processing_service import FileProcessingService
 from shapely.geometry import Point
+
+from flask_app.services.file_processing_service import FileProcessingService
 
 
 class TestFileProcessingService(unittest.TestCase):

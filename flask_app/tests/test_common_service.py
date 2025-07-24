@@ -9,6 +9,8 @@ from unittest.mock import Mock, patch
 
 import geopandas as gpd
 from flask import Flask
+from shapely.geometry import Polygon
+
 from flask_app.services.common_service import (
     create_feature_properties,
     create_geojson_response,
@@ -19,7 +21,6 @@ from flask_app.services.common_service import (
     validate_request_data,
 )
 from flask_app.services.logging_utils import log_error_with_context
-from shapely.geometry import Polygon
 
 
 class TestCommonService(unittest.TestCase):
