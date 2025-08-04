@@ -73,4 +73,12 @@ export class FlaskRequests {
       {apiKey: apiKey}
     );
   }
+
+  assignTargetEUI(requestData: any): Observable<any> {
+    return this.http.post<any>(
+      'http://127.0.0.1:5001/api/assign_target_eui',
+      requestData,
+      { headers: { 'Content-Type': 'application/json' } }
+    );
+  }
 }

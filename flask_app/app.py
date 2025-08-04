@@ -501,6 +501,62 @@ def download_osm_footprints():
         return jsonify({"error": f"Unexpected error: {e}"}), 500
 
 
+@app.route("/api/assign_target_eui", methods=["POST"])
+@handle_service_exceptions("assign_target_eui")
+def assign_target_eui():
+    """
+    Assign target EUI values for selected buildings based on ESPM data.
+    Expected request format:
+    {
+        "buildings": [
+            {
+                "id": "building_id",
+                "properties": {
+                    "building_type": "Office",
+                    "climate_zone": "4A",
+                    "year_built": "1990",
+                    "gross_floor_area": "50000",
+                    "hours_of_operation": "60"
+                }
+            }
+        ]
+    }
+    """
+    try:
+        # Validate request data
+        if not request.json:
+            return jsonify({"error": "No JSON data provided"}), 400
+
+        buildings_data = request.json.get("buildings", [])
+        if not buildings_data:
+            return jsonify({"error": "No buildings data provided"}), 400
+
+        # Extract building properties for EUI lookup
+        building_properties = []
+        for building in buildings_data:
+            if "properties" in building:
+                building_properties.append(building["properties"])
+            else:
+                # Handle case where building data is directly provided
+                building_properties.append(building)
+
+        # Retrieve target EUI data using the service
+        enriched_buildings = data_transformation_service.assign_target_eui(building_properties)
+
+        # Return the enriched building data
+        return jsonify(
+            {
+                "success": True,
+                "message": f"Assigned target EUI data for {len(enriched_buildings)} buildings",
+                "buildings": enriched_buildings,
+            }
+        )
+
+    except Exception as e:
+        log_error_with_context("Error in assign_target_eui endpoint", e)
+        return jsonify({"error": f"Failed to assign target EUI data: {e!s}"}), 500
+
+
 def return_one():
     return 1
 
