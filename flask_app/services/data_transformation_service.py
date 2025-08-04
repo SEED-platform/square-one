@@ -399,22 +399,29 @@ class DataTransformationService:
             log_error_with_context("Error standardizing address fields", e)
             raise
 
-    def _convert_year_to_range(self, year: str) -> str:
+    def _convert_year_to_range(self, year) -> str:
         """
         Convert a single year to the appropriate ESMP year range.
 
         Args:
-            year: Single year as string (e.g., "1995", "2005")
+            year: Single year as string or integer (e.g., "1995", "2005", 1995, 2005)
 
         Returns:
             ESMP year range string (e.g., "1980-1999", "2000-2009") or "All" if invalid
         """
         try:
-            if not year or not year.strip():
+            if not year:
+                return "All"
+
+            # Handle string inputs
+            if isinstance(year, str) and not year.strip():
                 return "All"
 
             # Convert to integer
-            year_int = int(year.strip())
+            if isinstance(year, str):
+                year_int = int(year.strip())
+            else:
+                year_int = int(year)
 
             # Map to appropriate range
             if year_int < 1946:
@@ -436,22 +443,29 @@ class DataTransformationService:
             self.logger.warning(f"Invalid year format '{year}', using 'All'")
             return "All"
 
-    def _convert_weekly_hours_to_range(self, hours: str) -> str:
+    def _convert_weekly_hours_to_range(self, hours) -> str:
         """
         Convert weekly hours to the appropriate ESPM range.
 
         Args:
-            hours: Weekly hours as string (e.g., "45", "60", "168")
+            hours: Weekly hours as string or numeric (e.g., "45", "60", 45, 60)
 
         Returns:
             ESPM weekly hours range string or "All" if invalid
         """
         try:
-            if not hours or not hours.strip():
+            if not hours:
+                return "All"
+
+            # Handle string inputs
+            if isinstance(hours, str) and not hours.strip():
                 return "All"
 
             # Convert to float to handle decimal values
-            hours_float = float(hours.strip())
+            if isinstance(hours, str):
+                hours_float = float(hours.strip())
+            else:
+                hours_float = float(hours)
 
             # Map to appropriate range
             if hours_float < 40:
@@ -473,23 +487,30 @@ class DataTransformationService:
             self.logger.warning(f"Invalid weekly hours format '{hours}', using 'All'")
             return "All"
 
-    def _convert_gfa_to_range(self, gfa: str) -> str:
+    def _convert_gfa_to_range(self, gfa) -> str:
         """
         Convert gross floor area to the appropriate ESPM range.
 
         Args:
-            gfa: Gross floor area as string (e.g., "15000", "250000")
+            gfa: Gross floor area as string or numeric (e.g., "15000", "25000", 15000, 25000)
 
         Returns:
             ESPM GFA range string or "All" if invalid
         """
         try:
-            if not gfa or not gfa.strip():
+            if not gfa:
                 return "All"
 
-            # Remove commas and convert to integer
-            gfa_str = str(gfa).strip().replace(",", "")
-            gfa_int = int(float(gfa_str))  # Use float first to handle decimal inputs, then int
+            # Handle string inputs
+            if isinstance(gfa, str) and not gfa.strip():
+                return "All"
+
+            # Convert to float to handle decimal values
+            if isinstance(gfa, str):
+                gfa_str = gfa.strip().replace(",", "")
+                gfa_int = int(float(gfa_str))  # Use float first to handle decimal inputs, then int
+            else:
+                gfa_int = int(float(gfa))
 
             # Map to appropriate range
             if 1000 <= gfa_int <= 4999:

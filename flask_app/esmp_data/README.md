@@ -106,17 +106,17 @@ Analysis of the two ESPM CSV files to determine what percentage of theoretically
 
 ### Results Summary
 
-| Metric | Category File | Subcategory File |
-|--------|---------------|------------------|
-| **Building Types** | 17 types | 46 subtypes |
-| **Total Possible Combinations** | 133,280 | 360,640 |
-| **Actual Combinations in File** | 36,700 | 56,700 |
-| **Combinations with EUI Data** | 14,712 | 17,935 |
-| | | |
-| **Coverage of Possible Combinations** | **27.5%** | **15.7%** |
-| **EUI Completeness of Possible** | **11.0%** | **5.0%** |
-| **EUI Completeness of Actual** | **40.1%** | **31.6%** |
-| **Row Completeness** | **40.1%** | **31.6%** |
+| Metric                                | Category File | Subcategory File |
+| ------------------------------------- | ------------- | ---------------- |
+| **Building Types**                    | 17 types      | 46 subtypes      |
+| **Total Possible Combinations**       | 133,280       | 360,640          |
+| **Actual Combinations in File**       | 36,700        | 56,700           |
+| **Combinations with EUI Data**        | 14,712        | 17,935           |
+|                                       |               |                  |
+| **Coverage of Possible Combinations** | **27.5%**     | **15.7%**        |
+| **EUI Completeness of Possible**      | **11.0%**     | **5.0%**         |
+| **EUI Completeness of Actual**        | **40.1%**     | **31.6%**        |
+| **Row Completeness**                  | **40.1%**     | **31.6%**        |
 
 ### Key Findings
 
@@ -191,17 +191,18 @@ This analysis validates that the EUI matching system design appropriately handle
 
 ### Field Relaxation Priority (Validated by Data)
 
-| Rank | Field | 'All' Usage | Recommendation | Status |
-|------|-------|-------------|---------------|---------|
-| 1 | `weekly_hours` | 32.5% | **Relax first** | ✅ Tier 2 |
-| 2 | `year_built` | 29.9% | **Relax second** | ✅ Tier 3 |
-| 3 | `gfa` | 28.5% | **Relax third** | ✅ Tier 4 |
-| 4 | `climate_zone` | 25.7% | **⚠️ PRESERVE** | ✅ Critical |
-| 5 | `building_type` | 3.2% | **⚠️ PRESERVE** | ✅ Critical |
+| Rank | Field           | 'All' Usage | Recommendation   | Status      |
+| ---- | --------------- | ----------- | ---------------- | ----------- |
+| 1    | `weekly_hours`  | 32.5%       | **Relax first**  | ✅ Tier 2   |
+| 2    | `year_built`    | 29.9%       | **Relax second** | ✅ Tier 3   |
+| 3    | `gfa`           | 28.5%       | **Relax third**  | ✅ Tier 4   |
+| 4    | `climate_zone`  | 25.7%       | **⚠️ PRESERVE**  | ✅ Critical |
+| 5    | `building_type` | 3.2%        | **⚠️ PRESERVE**  | ✅ Critical |
 
 ### Why Building Type and Climate Zone Must Be Preserved
 
 1. **`building_type` (3.2% 'All' usage)**:
+
    - Only 477 out of 14,712 EUI records use 'All'
    - 96.8% use specific building types
    - **Critical for EUI accuracy** - different building types have vastly different energy patterns
