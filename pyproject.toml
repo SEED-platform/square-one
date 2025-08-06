@@ -14,13 +14,13 @@ python = ">=3.9, <3.13"
 flask = "^3.0.3"
 flask-cors = "^4.0.1"
 openpyxl = "^3.1.5"
-setuptools = "^78.1.0"
+setuptools = "^80.9.0"
 tqdm = "^4.67.1"
 
 # local development dependencies, need to release and
 # pin to pypi versions before using in production.
-cbl-workflow = { path = "../cbl-workflow", develop = true }
-# cbl-workflow = { git = "https://github.com/seed-platform/cbl-workflow.git", rev = "develop" }
+building-data-utilities = { path = "../cbl-workflow", develop = true }
+# building-data-utilities = { git = "https://github.com/seed-platform/building-data-utilities.git", rev = "develop" }
 
 
 [tool.poetry.group.dev.dependencies]
