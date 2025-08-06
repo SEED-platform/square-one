@@ -1,1 +1,35 @@
-<div id="map"></div>
+<div class="relative w-full h-full">
+  <div id="map"></div>
+
+  <!-- Heatmap Legend -->
+  <div class="absolute top-4 right-4 bg-white rounded-lg shadow-lg p-4 min-w-[200px] z-10" *ngIf="showHeatmapLegend">
+    <div class="mb-2">
+      <h4 class="text-sm font-semibold text-gray-800">{{ heatmapConfig?.field || 'Field' }}</h4>
+      <p class="text-xs text-gray-600">{{ heatmapConfig && heatmapConfig.field ? getFieldDisplayName(heatmapConfig.field) : 'Select a field' }}</p>
+    </div>
+
+    <div class="flex flex-col space-y-1">
+      <div class="flex items-center justify-between text-xs" *ngFor="let item of heatmapLegendItems; let i = index">
+        <div class="flex items-center">
+          <div class="w-4 h-4 rounded border border-gray-300 mr-2" [style.background-color]="item.color"></div>
+          <span class="text-gray-700">{{ formatLegendValue(item.value) }}</span>
+        </div>
+      </div>
+
+      <!-- Legend for missing values -->
+      <div class="flex items-center justify-between text-xs border-t border-gray-200 pt-2 mt-2">
+        <div class="flex items-center">
+          <div class="w-4 h-4 rounded border border-gray-300 mr-2 bg-blue-400"></div>
+          <span class="text-gray-700">No data</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-2 pt-2 border-t border-gray-200">
+      <div class="flex justify-between text-xs text-gray-500">
+        <span>Min: {{ formatLegendValue(heatmapMinValue) }}</span>
+        <span>Max: {{ formatLegendValue(heatmapMaxValue) }}</span>
+      </div>
+    </div>
+  </div>
+</div>
