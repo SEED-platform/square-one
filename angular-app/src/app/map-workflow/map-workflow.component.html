@@ -16,6 +16,7 @@
     <div class="map-container" id="map"></div>
     <!-- Control buttons -->
     <div class="controls-container">
+      <button class="find-location-btn" (click)="findLocationBoundingBox()">Find Location</button>
       <button class="load-btn ms-btn" [disabled]="!hasPolygon" (click)="loadMSFootprints()">Load MS Footprints</button>
       <button class="clear-btn ms-clear" (click)="clearMSFootprints()">Clear MS</button>
       <button class="load-btn osm-btn" [disabled]="!hasPolygon" (click)="loadOSMFootprints()">Load OSM Footprints</button>

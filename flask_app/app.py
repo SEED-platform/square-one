@@ -1,3 +1,8 @@
+# ...existing code...
+
+# Place this after app = Flask(__name__) and CORS(app)
+
+
 import gzip
 import json
 import json.scanner
@@ -23,6 +28,7 @@ from flask_cors import CORS
 from shapely.geometry import Point
 
 import flask_app.config as config
+from flask_app.osm_location import get_location_bbox
 from flask_app.services.common_service import (
     create_geojson_response,
     handle_service_exceptions,
@@ -280,6 +286,19 @@ def generate_cbl():
     final_geojson = file_processing_service.geodataframe_to_json(gdf)
 
     return jsonify({"message": "success", "user_data": final_geojson}), 200
+
+
+# Endpoint to get bounding box for a location name using osmnx
+@app.route("/api/location_bbox", methods=["POST"])
+def location_bbbou():
+    data = request.get_json()
+    location_name = data.get("location")
+    if not location_name:
+        return jsonify({"error": True, "message": "Missing location name"}), 400
+    bbox_geojson = get_location_bbox(location_name)
+    if bbox_geojson is None:
+        return jsonify({"error": True, "message": f"Could not find location: {location_name}"}), 404
+    return jsonify({"bbox": bbox_geojson, "message": "success"})
 
 
 @app.route("/api/reverse_geocode", methods=["POST"])
