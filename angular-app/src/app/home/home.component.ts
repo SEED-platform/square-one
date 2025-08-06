@@ -4,8 +4,6 @@ import { Component } from '@angular/core';
 import { ReactiveFormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import type { Subscription } from 'rxjs';
-import { FirstTableComponent } from '../first-table/first-table.component';
-import { FileUploadComponent } from './file-upload/file-upload.component';
 import { NavigationComponent } from '../shared/navigation/navigation.component';
 import { TopMenuComponent } from '../shared/top-menu/top-menu.component';
 import { FooterComponent } from '../shared/footer/footer.component';
@@ -19,7 +17,7 @@ import LZString from 'lz-string';
     selector: 'app-home',
     templateUrl: './home.component.html',
     styleUrl: './home.component.css',
-    imports: [ReactiveFormsModule, CommonModule, FileUploadComponent, NavigationComponent, TopMenuComponent, FooterComponent]
+    imports: [ReactiveFormsModule, CommonModule, NavigationComponent, TopMenuComponent, FooterComponent]
 })
 export class HomeComponent implements OnInit, OnDestroy {
   userFile: any;

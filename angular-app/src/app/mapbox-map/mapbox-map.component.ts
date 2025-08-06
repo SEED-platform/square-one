@@ -2,6 +2,7 @@ import { Component, ChangeDetectorRef, OnInit, OnDestroy, ViewEncapsulation } fr
 import { GeoJsonService } from '../services/geojson.service';
 import { FlaskRequests } from '../services/server.service';
 import { SessionService } from '../services/session.service';
+import { HeatmapService, type HeatmapData, type HeatmapConfig } from '../services/heatmap.service';
 import * as mapboxgl from 'mapbox-gl';
 import MapboxDraw from '@mapbox/mapbox-gl-draw';
 import { CommonModule, JsonPipe } from '@angular/common';
@@ -45,12 +46,83 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
   private globalGeoJsonObject: any;
   private emptyBuildingId = 'none selected';
   private isStreet = true;
+  private heatmapSubscription: Subscription | undefined;
+  private heatmapDataSubscription: Subscription | undefined;
+
+  // Heatmap legend properties
+  showHeatmapLegend = false;
+  heatmapConfig: HeatmapConfig | null = null;
+  heatmapLegendItems: { color: string; value: number }[] = [];
+  heatmapMinValue = 0;
+  heatmapMaxValue = 0;
+
   constructor(
     private cdr: ChangeDetectorRef,
     private geoJsonService: GeoJsonService,
     private apiHandler: FlaskRequests,
-    private sessionService: SessionService
+    private sessionService: SessionService,
+    private heatmapService: HeatmapService
   ) {}
+
+  /**
+   * Extract coordinates from a GeoJSON feature, checking both properties and geometry
+   */
+  private extractCoordinatesFromFeature(feature: Record<string, unknown>): { latitude: number; longitude: number } | null {
+    // First check if coordinates are directly on the feature object (from table selection)
+    if (feature['latitude'] && feature['longitude']) {
+      const lat = Number(feature['latitude']);
+      const lng = Number(feature['longitude']);
+      if (!isNaN(lat) && !isNaN(lng)) {
+        return { latitude: lat, longitude: lng };
+      }
+    }
+
+    // Then try to get coordinates from properties (for CSV-converted data)
+    const properties = feature['properties'] as Record<string, unknown>;
+    if (properties?.['latitude'] && properties?.['longitude']) {
+      const lat = Number(properties['latitude']);
+      const lng = Number(properties['longitude']);
+      if (!isNaN(lat) && !isNaN(lng)) {
+        return { latitude: lat, longitude: lng };
+      }
+    }
+
+    // If not in properties, try to extract from geometry (for native GeoJSON)
+    const geometry = feature['geometry'] as Record<string, unknown>;
+    if (geometry && geometry['coordinates']) {
+      try {
+        let coordinates: number[] = [];
+
+        if (geometry['type'] === 'Point') {
+          coordinates = geometry['coordinates'] as number[];
+        } else if (geometry['type'] === 'Polygon' && Array.isArray(geometry['coordinates'])) {
+          // For polygons, get the centroid of the first coordinate ring
+          const rings = geometry['coordinates'] as number[][][];
+          if (rings[0]?.length > 0) {
+            const coords = rings[0];
+            // Calculate centroid
+            const centroid = coords.reduce(
+              (acc: number[], coord: number[]) => [acc[0] + coord[0], acc[1] + coord[1]],
+              [0, 0]
+            ).map((sum: number) => sum / coords.length);
+            coordinates = centroid;
+          }
+        }
+
+        if (coordinates.length >= 2) {
+          const lng = Number(coordinates[0]);
+          const lat = Number(coordinates[1]);
+          if (!isNaN(lat) && !isNaN(lng)) {
+            return { latitude: lat, longitude: lng };
+          }
+        }
+      } catch (error) {
+        console.warn('Error extracting coordinates from geometry:', error);
+      }
+    }
+
+    return null;
+  }
 
   ngOnInit() {
     this.geoJsonSubscription = this.geoJsonService.getGeoJson().subscribe((geoJsonObject) => {
@@ -59,15 +131,53 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
       this.geoJsonPropertyNames = this.sessionService.getPropertyNames();
     });
 
+    // Subscribe to heatmap data changes
+    this.heatmapDataSubscription = this.heatmapService.heatmapData$.subscribe((heatmapData) => {
+      if (heatmapData && heatmapData.length > 0) {
+        // console.log('Applying heatmap colors to map features');
+        this.applyHeatmapColors(heatmapData);
+        this.generateHeatmapLegend(heatmapData);
+        this.showHeatmapLegend = true;
+      }
+    });
+
+    // Subscribe to heatmap config changes
+    this.heatmapSubscription = this.heatmapService.heatmapConfig$.subscribe((config) => {
+      this.heatmapConfig = config;
+    });
+
+    // Subscribe to heatmap clearing
+    this.heatmapService.isHeatmapActive$.subscribe((isActive) => {
+      if (!isActive) {
+        // console.log('Clearing heatmap colors from map');
+        this.clearHeatmapColors();
+        this.showHeatmapLegend = false;
+        this.heatmapLegendItems = [];
+      }
+    });
+
     this.featureClickSubscription = this.geoJsonService.selectedFeature$.subscribe((feature) => {
       if (feature) {
         const { id } = feature;
 
-        if (id !== undefined && feature.latitude.toString() !== '0' && feature.latitude.toString() !== '0' && feature.quality !== 'Poor' && feature.quality !== 'Very Poor') {
-          this.flyToCoordinatesWithZoom(feature.longitude, feature.latitude);
+        // Extract coordinates using our helper function to handle both CSV and GeoJSON data
+        let coords = this.extractCoordinatesFromFeature(feature);
+
+        // If coordinates are not found on the feature object, look up the full feature from globalGeoJsonObject
+        if (!coords && this.globalGeoJsonObject?.features) {
+          const fullFeature = this.globalGeoJsonObject.features.find((f: any) => f.id === id);
+          if (fullFeature) {
+            coords = this.extractCoordinatesFromFeature(fullFeature);
+          }
+        }
+
+        if (id !== undefined && coords && coords.latitude !== 0 && coords.longitude !== 0) {
+          // Always allow map to zoom and highlight, regardless of quality
+          this.flyToCoordinatesWithZoom(coords.longitude, coords.latitude);
           this.setActivePolygon(id);
           this.draw?.changeMode('simple_select');
         } else {
+          // Only set as empty building if coordinates are invalid (0,0) or missing
           this.emptyBuildingId = id.toString();
           this.clickedBuildingId = id.toString();
         }
@@ -82,15 +192,15 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
     });
 
     this.removedBuildingSubscription = this.geoJsonService.removeBuildingId$.subscribe((feature) => {
-      console.log('removeBuildingId$ subscription received:', feature);
+      // console.log('removeBuildingId$ subscription received:', feature);
 
       // Since we changed to Subject, we won't get null values anymore, but let's keep this as safety
       if (!feature || !feature.id) {
-        console.log('Ignoring null/invalid removal event');
+        // console.log('Ignoring null/invalid removal event');
         return;
       }
 
-      console.log(typeof feature.id);
+      // console.log(typeof feature.id);
 
       // Check if globalGeoJsonObject and its features array exist
       if (!this.globalGeoJsonObject || !this.globalGeoJsonObject.features) {
@@ -100,13 +210,13 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
 
       const clickedFeature = this.globalGeoJsonObject.features.find((f: any) => f.id === feature.id);
       if (clickedFeature) {
-        console.log('this is being deleted', clickedFeature);
+        // console.log('this is being deleted', clickedFeature);
         this.draw?.changeMode('simple_select');
         this.draw?.delete(clickedFeature.id);
         this.geoJsonService.updateGeoJsonFromMap(clickedFeature);
         this.emptyBuildingId = 'none selected';
         this.clickedBuildingId = '';
-        console.log('This is the update geojson after deletion', this.globalGeoJsonObject);
+        // console.log('This is the update geojson after deletion', this.globalGeoJsonObject);
       } else {
         console.error('Something when wrong...check table, map, and geojson datasets');
       }
@@ -114,12 +224,18 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
   }
 
   flyToCoordinatesWithZoom(longitude: number, latitude: number) {
+    // console.log('flyToCoordinatesWithZoom called with:', longitude, latitude);
+    // console.log('Map exists:', !!this.map);
     if (this.map) {
+      // console.log('Executing flyTo with center:', [longitude, latitude]);
       this.map.flyTo({
         center: [longitude, latitude],
         zoom: 18,
         essential: true
       });
+      // console.log('flyTo command sent');
+    } else {
+      console.error('Map is not initialized');
     }
   }
 
@@ -138,6 +254,8 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
     this.featureClickSubscription?.unsubscribe();
     this.mapCoordinatesSubscription?.unsubscribe();
     this.removedBuildingSubscription?.unsubscribe(); // Add this missing unsubscribe
+    this.heatmapSubscription?.unsubscribe();
+    this.heatmapDataSubscription?.unsubscribe();
   }
 
   initializeMapWithGeoJson(geoJsonObject: any) {
@@ -146,7 +264,7 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
       let emptyLong = 0;
 
       if (geoJsonObject.features.length === 0) {
-        console.log('no features found');
+        // console.log('no features found');
 
         const coords = this.geoJsonService.getCurrentCoordinates();
 
@@ -176,16 +294,26 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
 
         if (this.isFirstLoad) {
           let firstBuilding = this.buildingArray[0];
-          console.log(firstBuilding);
+          // console.log(firstBuilding);
           let i = 0;
-          while (firstBuilding.properties.quality === 'Poor' || (firstBuilding.properties.quality === 'Very Poor' && i < this.buildingArray.length)) {
+          let coords = this.extractCoordinatesFromFeature(firstBuilding);
+
+          // Find first building with valid coordinates and good quality
+          while ((!coords || firstBuilding.properties?.quality === 'Poor' || firstBuilding.properties?.quality === 'Very Poor') && i < this.buildingArray.length - 1) {
             i++;
             firstBuilding = this.buildingArray[i];
+            coords = this.extractCoordinatesFromFeature(firstBuilding);
           }
-          firstBuildingLongitude = firstBuilding.properties.longitude;
-          firstBuildingLatitude = firstBuilding.properties.latitude;
-          firstBuildingLongitude = firstBuilding.properties.longitude;
-          firstBuildingLatitude = firstBuilding.properties.latitude;
+
+          if (coords) {
+            firstBuildingLongitude = coords.longitude;
+            firstBuildingLatitude = coords.latitude;
+          } else {
+            // Fallback to default coordinates if no valid coordinates found
+            firstBuildingLongitude = -98.5795; // Default longitude
+            firstBuildingLatitude = 39.8283; // Default latitude
+          }
+
           this.geoJsonService.setMapCoordinates(firstBuildingLatitude, firstBuildingLongitude);
           this.isFirstLoad = false;
         } else {
@@ -258,10 +386,14 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
 
         this.clickedBuildingId = clickedFeature.id;
         this.emptyBuildingId = 'none selected';
-        const { latitude, longitude } = clickedFeature.properties;
 
-        console.log('THIS IS CLICKED ID ON MAP', this.clickedBuildingId, 'Shift pressed:', isShiftClick);
-        console.log('Selected polygon IDs:', this.selectedPolygonIds);
+        // Extract coordinates using our helper function to handle both CSV and GeoJSON data
+        const coords = this.extractCoordinatesFromFeature(clickedFeature);
+        const latitude = coords?.latitude || 0;
+        const longitude = coords?.longitude || 0;
+
+        // console.log('THIS IS CLICKED ID ON MAP', this.clickedBuildingId, 'Shift pressed:', isShiftClick);
+        // console.log('Selected polygon IDs:', this.selectedPolygonIds);
 
         // Emit the click event with the latitude and longitude and shift state
         this.geoJsonService.setIsDataSentFromTable(true);
@@ -510,22 +642,30 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
     map.addControl(addToggleButton, 'bottom-left');
 
     geoJsonObject.features.forEach((feature: any) => {
+      // Extract coordinates to check if they're valid
+      const coords = this.extractCoordinatesFromFeature(feature);
+
       if (
         feature.geometry &&
         feature.geometry.type === 'Polygon' &&
-        feature.properties.latitude !== '0' &&
-        feature.properties.longitude !== '0' &&
-        (feature.properties.ubid !== 0 || feature.properties.ubid !== '0')
+        coords && coords.latitude !== 0 && coords.longitude !== 0
       ) {
-        this.draw?.add({
-          id: feature.id,
-          type: 'Feature',
-          properties: feature.properties,
-          geometry: {
-            type: 'Polygon',
-            coordinates: feature.geometry.coordinates
-          }
-        });
+        // For GeoJSON files, we may not have ubid property, so we should still add the feature
+        // Only skip if ubid exists and is explicitly 0 or '0' (which indicates no footprint)
+        const hasValidUbid = !feature.properties?.ubid ||
+                           (feature.properties.ubid !== 0 && feature.properties.ubid !== '0');
+
+        if (hasValidUbid) {
+          this.draw?.add({
+            id: feature.id,
+            type: 'Feature',
+            properties: feature.properties,
+            geometry: {
+              type: 'Polygon',
+              coordinates: feature.geometry.coordinates
+            }
+          });
+        }
       }
     });
 
@@ -535,7 +675,7 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
   }
 
   handleEditEvent(e: any, draw: any) {
-    console.log('EDIT EVENT BEING CALLED');
+    // console.log('EDIT EVENT BEING CALLED');
     const newBuildingCoordinates = e.features[0].geometry.coordinates[0];
     let newBuildingId = '';
 
@@ -550,7 +690,7 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
 
     this.apiHandler.sendEditedPolygonData(jsonDataString).subscribe(
       (response) => {
-        console.log(response.message);
+        // console.log(response.message);
         this.newGeoJson = JSON.parse(response.user_data);
 
         const newBuildingLongitude = this.newGeoJson.lon;
@@ -568,10 +708,10 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
   }
 
   handleDeleteEvent(e: any, draw: any, geoJsonObject: any) {
-    console.log('DELETE EVENT BEING CALLED');
+    // console.log('DELETE EVENT BEING CALLED');
     const newBuildingCoordinates = e.features[0].geometry.coordinates[0];
     const newBuildingId = e.features[0].id;
-    console.log('in map', e.features[0]);
+    // console.log('in map', e.features[0]);
 
     const newBuildingLongitude = 0;
     const newBuildingLatitude = 0;
@@ -586,7 +726,7 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
   }
 
   createNewBuilding() {
-    console.log(this.draw?.getAll());
+    // console.log(this.draw?.getAll());
     if (this.clickedBuildingId !== '') {
       this.resetPolygonColor(this.clickedBuildingId);
     }
@@ -596,7 +736,7 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
   }
 
   deletePolygon() {
-    console.log('DELETE EVENT BEING CALLED');
+    // console.log('DELETE EVENT BEING CALLED');
 
     const deletePolygonId = this.clickedBuildingId;
 
@@ -606,11 +746,11 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
     }
 
     const clickedFeature = this.globalGeoJsonObject.features.find((feature: any) => feature.id === deletePolygonId);
-    console.log(clickedFeature);
+    // console.log(clickedFeature);
     if (clickedFeature) {
       const newBuildingId = clickedFeature.id;
       this.emptyBuildingId = newBuildingId;
-      console.log('Deleting footprint for building:', clickedFeature);
+      // console.log('Deleting footprint for building:', clickedFeature);
 
       // Clear the footprint data - set coordinates to empty array
       const emptyCoordinates: number[] = [];
@@ -664,11 +804,11 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
         featuresLength: this.globalGeoJsonObject?.features?.length || 0
       };
 
-      console.log('here:', this.geoJsonPropertyNames);
+      // console.log('here:', this.geoJsonPropertyNames);
       const jsonDataString = JSON.stringify(jsonData);
       this.apiHandler.sendReverseGeoCodeData(jsonDataString).subscribe(
         (response) => {
-          console.log(response.message);
+          // console.log(response.message);
           this.newGeoJson = JSON.parse(response.user_data);
           this.newGeoJson.id = uuidv4();
           const newBuildinglongitude = Number(this.newGeoJson.properties.longitude);
@@ -686,7 +826,7 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
         }
       );
     } else {
-      console.log('clicked', this.emptyBuildingId);
+      // console.log('clicked', this.emptyBuildingId);
       const existingBuildingCoordinates = e.features[0].geometry.coordinates[0];
       const existingBuildingId = this.emptyBuildingId;
       const jsonData = {
@@ -698,7 +838,7 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
       const jsonDataString = JSON.stringify(jsonData);
       this.apiHandler.sendReverseGeoCodeData(jsonDataString).subscribe(
         (response) => {
-          console.log(response.message);
+          // console.log(response.message);
           this.newGeoJson = JSON.parse(response.user_data);
           const existingBuildingLongitude = this.newGeoJson.properties.longitude;
           const existingBuildingLatitude = this.newGeoJson.properties.latitude;
@@ -746,7 +886,7 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
           } else {
             this.geoJsonService.modifyBuildingInTable(existingBuildingCoordinates, existingBuildingLatitude, existingBuildingLongitude, existingBuildingUbid, existingBuildingId);
           }
-          console.log('clicked feature', clickedFeature);
+          // console.log('clicked feature', clickedFeature);
         },
         (errorResponse) => {
           console.error(errorResponse.error.message);
@@ -767,11 +907,16 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
   }
 
   setActivePolygon(polygonId: any) {
+    // console.log('setActivePolygon called with ID:', polygonId);
+    // console.log('Draw exists:', !!this.draw);
     if (this.draw) {
       const polygon = this.draw.get(polygonId);
+      // console.log('Found polygon:', !!polygon);
 
       if (polygon?.properties !== undefined) {
+        // console.log('Polygon has properties, current selectedPolygonId:', this.selectedPolygonId);
         if (!(this.selectedPolygonId === '')) {
+          // console.log('Resetting previous polygon color:', this.selectedPolygonId);
           this.resetPolygonColor(this.selectedPolygonId);
         }
 
@@ -782,13 +927,23 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
         this.emptyBuildingId = 'none selected';
 
         if (polygon?.properties !== undefined && polygon?.properties?.['portColor'] !== 'yellow') {
+          // console.log('Setting polygon color to yellow');
           this.draw?.setFeatureProperty(polygonId, 'portColor', 'yellow');
           this.draw?.setFeatureProperty(polygonId, 'portOpacity', 0.3);
 
           const feat = this.draw?.get(polygonId);
-          if (feat !== undefined) this.draw?.add(feat);
+          if (feat !== undefined) {
+            // console.log('Re-adding feature to map');
+            this.draw?.add(feat);
+          }
+        } else {
+          // console.log('Polygon already yellow or no properties');
         }
+      } else {
+        console.log('Polygon has no properties');
       }
+    } else {
+      console.error('Draw is not initialized');
     }
   }
 
@@ -810,5 +965,190 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
         }
       }
     }
+  }
+
+  // ===== HEATMAP METHODS =====
+
+  /**
+   * Apply heatmap colors to map features
+   */
+  applyHeatmapColors(heatmapData: HeatmapData[]): void {
+    if (!this.draw) {
+      console.warn('Draw not initialized, cannot apply heatmap colors');
+      return;
+    }
+
+    // console.log('Applying heatmap colors to', heatmapData.length, 'features');
+
+    // FIRST: Clear all existing heatmap colors to handle features that may no longer have data
+    this.clearHeatmapColors();
+
+    // THEN: Apply new heatmap colors only to features with valid data
+    const featuresToUpdate: GeoJSON.Feature[] = [];
+
+    heatmapData.forEach(data => {
+      try {
+        const feature = this.draw?.get(data.featureId);
+        if (feature) {
+          // Set custom heatmap colors
+          this.draw?.setFeatureProperty(data.featureId, 'portColor', data.color);
+          this.draw?.setFeatureProperty(data.featureId, 'portOpacity', data.opacity);
+
+          // Store the updated feature
+          const updatedFeature = this.draw?.get(data.featureId);
+          if (updatedFeature) {
+            featuresToUpdate.push(updatedFeature);
+          }
+
+          // console.log(`Applied heatmap color ${data.color} to feature ${data.featureId} (value: ${data.value})`);
+        } else {
+          console.warn(`Feature ${data.featureId} not found in draw layer`);
+        }
+      } catch (error) {
+        console.error(`Error applying heatmap color to feature ${data.featureId}:`, error);
+      }
+    });
+
+    // Refresh the draw layer to ensure visual updates
+    if (featuresToUpdate.length > 0) {
+      // Force redraw by removing and re-adding all updated features
+      featuresToUpdate.forEach(feature => {
+        if (feature && feature.id) {
+          this.draw?.delete(String(feature.id));
+          this.draw?.add(feature);
+        }
+      });
+      // console.log('Refreshed', featuresToUpdate.length, 'features with heatmap colors');
+    }
+  }
+
+  /**
+   * Clear heatmap colors and return to normal styling
+   */
+  clearHeatmapColors(): void {
+    if (!this.draw || !this.globalGeoJsonObject?.features) {
+      console.warn('Draw not initialized or no features available');
+      return;
+    }
+
+    // console.log('Clearing heatmap colors from all features');
+
+    const featuresToUpdate: GeoJSON.Feature[] = [];
+
+    this.globalGeoJsonObject.features.forEach((feature: GeoJSON.Feature) => {
+      try {
+        if (feature.id !== undefined) {
+          const featureId = String(feature.id);
+          const drawFeature = this.draw?.get(featureId);
+          if (drawFeature) {
+            // Reset to default colors
+            this.draw?.setFeatureProperty(featureId, 'portColor', '#3bb2d0');
+            this.draw?.setFeatureProperty(featureId, 'portOpacity', 0.1);
+
+            // Store the updated feature
+            const updatedFeature = this.draw?.get(featureId);
+            if (updatedFeature) {
+              featuresToUpdate.push(updatedFeature);
+            }
+          }
+        }
+      } catch (error) {
+        console.error(`Error clearing heatmap color for feature ${feature.id}:`, error);
+      }
+    });
+
+    // Refresh the draw layer to ensure visual updates
+    if (featuresToUpdate.length > 0) {
+      // Force redraw by removing and re-adding all updated features
+      featuresToUpdate.forEach(feature => {
+        if (feature && feature.id) {
+          this.draw?.delete(String(feature.id));
+          this.draw?.add(feature);
+        }
+      });
+      // console.log('Refreshed', featuresToUpdate.length, 'features with default colors');
+    }
+  }
+
+  // ===== HEATMAP LEGEND METHODS =====
+
+  /**
+   * Generate heatmap legend items from heatmap data
+   */
+  generateHeatmapLegend(heatmapData: HeatmapData[]): void {
+    if (!heatmapData || heatmapData.length === 0) {
+      this.heatmapLegendItems = [];
+      return;
+    }
+
+    // Get all valid values and sort them
+    const validData = heatmapData.filter(d => d.value !== null && !isNaN(d.value));
+    if (validData.length === 0) {
+      this.heatmapLegendItems = [];
+      return;
+    }
+
+    const values = validData.map(d => d.value).sort((a, b) => a - b);
+    this.heatmapMinValue = Math.min(...values);
+    this.heatmapMaxValue = Math.max(...values);
+
+    // Create legend items - show a representative sample
+    const numLegendItems = Math.min(5, validData.length);
+    const legendItems: { color: string; value: number }[] = [];
+
+    if (this.heatmapMinValue === this.heatmapMaxValue) {
+      // All values are the same
+      const sampleData = validData[0];
+      legendItems.push({ color: sampleData.color, value: sampleData.value });
+    } else {
+      // Create evenly spaced legend items
+      for (let i = 0; i < numLegendItems; i++) {
+        const ratio = i / (numLegendItems - 1);
+        const targetValue = this.heatmapMinValue + ratio * (this.heatmapMaxValue - this.heatmapMinValue);
+
+        // Find the closest actual data point
+        const closestData = validData.reduce((prev, curr) => {
+          return Math.abs(curr.value - targetValue) < Math.abs(prev.value - targetValue) ? curr : prev;
+        });
+
+        legendItems.push({ color: closestData.color, value: targetValue });
+      }
+    }
+
+    this.heatmapLegendItems = legendItems;
+  }
+
+  /**
+   * Format legend values for display
+   */
+  formatLegendValue(value: number): string {
+    if (value === null || value === undefined || isNaN(value)) {
+      return 'N/A';
+    }
+
+    // Format based on the magnitude of the number
+    if (Math.abs(value) >= 1000000) {
+      return (value / 1000000).toFixed(1) + 'M';
+    } else if (Math.abs(value) >= 1000) {
+      return (value / 1000).toFixed(1) + 'K';
+    } else if (Math.abs(value) >= 1) {
+      return value.toFixed(1);
+    } else {
+      return value.toFixed(3);
+    }
+  }
+
+  /**
+   * Get display name for a field (same logic as in table component)
+   */
+  getFieldDisplayName(field: string): string {
+    if (!field) return '';
+
+    // Convert field name to a more readable format
+    return field
+      .replace(/_/g, ' ')
+      .replace(/([A-Z])/g, ' $1')
+      .replace(/\b\w/g, l => l.toUpperCase())
+      .trim();
   }
 }

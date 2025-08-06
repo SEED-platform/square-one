@@ -12,6 +12,27 @@ interface FileItem {
   data: File;
 }
 
+interface GeoJsonFeature {
+  type: string;
+  id?: string;
+  geometry?: {
+    type: string;
+    coordinates: number[][][] | number[][] | number[];
+  };
+  properties?: Record<string, unknown>;
+}
+
+interface GeoJsonFeatureCollection {
+  type: string;
+  features: GeoJsonFeature[];
+  crs?: {
+    type: string;
+    properties: {
+      name: string;
+    };
+  };
+}
+
 @Component({
   selector: 'app-file-upload-dialog',
   imports: [CommonModule],
@@ -22,7 +43,7 @@ export class FileUploadDialogComponent {
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
   @Input() isOpen = false;
   @Output() dialogClosed = new EventEmitter<void>();
-  @Output() fileUploaded = new EventEmitter<any>();
+  @Output() fileUploaded = new EventEmitter<unknown[] | Record<string, unknown>>();
 
   selectedFile: FileItem | null = null;
   allowedFileTypes: string[] = ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/csv', 'application/json', 'application/geo+json'];
@@ -172,8 +193,8 @@ export class FileUploadDialogComponent {
       (response) => {
         console.log('Upload successful:', response.message);
         const parsedData = JSON.parse(response.user_data);
-
-        if (parsedData && this.selectedFile && parsedData[this.selectedFile.name] && parsedData[this.selectedFile.name].length > 0) {
+        console.log('parsedData:',  parsedData)
+        if (parsedData && this.selectedFile && parsedData[this.selectedFile.name] ) {
           // Process the data for the CBL table
           this.processUploadedData(parsedData[this.selectedFile.name]);
           this.fileUploaded.emit(parsedData[this.selectedFile.name]);
@@ -209,39 +230,101 @@ export class FileUploadDialogComponent {
     );
   }
 
-  private processUploadedData(data: any[]) {
-    // Convert array data to GeoJSON format if needed
-    if (data && Array.isArray(data)) {
-      // Assume this is tabular data that needs to be converted to GeoJSON
-      const geoJsonData = this.convertToGeoJson(data);
+  private processUploadedData(data: unknown[] | Record<string, unknown> | GeoJsonFeatureCollection) {
+    // Convert data to GeoJSON format (handles both CSV and GeoJSON)
+    const geoJsonData = this.convertToGeoJson(data);
 
-      // Update the GeoJSON service with the new data
-      this.geoJsonService.setGeoJson(geoJsonData);
+    // Update the GeoJSON service with the new data
+    this.geoJsonService.setGeoJson(geoJsonData);
 
-      // Update session storage
-      this.sessionService.setGeoJsonData(geoJsonData);
-    }
+    // Update session storage
+    this.sessionService.setGeoJsonData(geoJsonData);
   }
 
-  private convertToGeoJson(data: any[]): any {
-    const features = data.map((item, index) => ({
-      type: 'Feature',
-      id: `uploaded_${Date.now()}_${index}`,
-      geometry: {
-        type: 'Polygon',
-        coordinates: [[]] // Empty coordinates initially
-      },
-      properties: {
-        ...item,
-        latitude: item.latitude || 0,
-        longitude: item.longitude || 0,
-        quality: item.quality || 'Uploaded'
-      }
-    }));
+  private convertToGeoJson(
+    data: unknown[] | Record<string, unknown> | GeoJsonFeatureCollection | GeoJsonFeature
+  ): GeoJsonFeatureCollection {
+    // Check if data is already in GeoJSON format
+    if (data && typeof data === 'object' && (data as GeoJsonFeatureCollection).type === 'FeatureCollection' && Array.isArray((data as GeoJsonFeatureCollection).features)) {
+      const geoJsonData = data as GeoJsonFeatureCollection;
+      // Data is already GeoJSON, ensure each feature has required properties
+      const enhancedFeatures = geoJsonData.features.map((feature: GeoJsonFeature, index: number) => ({
+        ...feature,
+        id: feature.id || `uploaded_${Date.now()}_${index}`,
+        properties: {
+          ...feature.properties,
+          quality: feature.properties?.['quality'] || 'Uploaded'
+        }
+      }));
 
+      // Preserve CRS if it exists in the original GeoJSON
+      const result: GeoJsonFeatureCollection = {
+        ...geoJsonData,
+        features: enhancedFeatures
+      };
+
+      // Only include CRS if it was present in the original data
+      if (geoJsonData.crs) {
+        result.crs = geoJsonData.crs;
+      }
+
+      return result;
+    }
+
+    // Check if data is a single GeoJSON feature
+    if (data && typeof data === 'object' && (data as GeoJsonFeature).type === 'Feature') {
+      const feature = data as GeoJsonFeature;
+      return {
+        type: 'FeatureCollection',
+        features: [{
+          ...feature,
+          id: feature.id || `uploaded_${Date.now()}_0`,
+          properties: {
+            ...feature.properties,
+            quality: feature.properties?.['quality'] || 'Uploaded'
+          }
+        }]
+      };
+    }
+
+    // Handle tabular data (CSV, Excel, JSON array) - convert to GeoJSON
+    if (Array.isArray(data)) {
+      const features = data.map((item, index) => ({
+        type: 'Feature',
+        id: `uploaded_${Date.now()}_${index}`,
+        geometry: {
+          type: 'Polygon',
+          coordinates: [[]] // Empty coordinates initially
+        },
+        properties: {
+          ...(item as Record<string, unknown>),
+          latitude: (item as Record<string, unknown>)['latitude'] || 0,
+          longitude: (item as Record<string, unknown>)['longitude'] || 0,
+          quality: (item as Record<string, unknown>)['quality'] || 'Uploaded'
+        }
+      }));
+
+      return {
+        type: 'FeatureCollection',
+        features: features
+      };
+    }
+
+    // Fallback: wrap single object in FeatureCollection
     return {
       type: 'FeatureCollection',
-      features: features
+      features: [{
+        type: 'Feature',
+        id: `uploaded_${Date.now()}_0`,
+        geometry: {
+          type: 'Polygon',
+          coordinates: [[]]
+        },
+        properties: {
+          ...(data as Record<string, unknown>),
+          quality: 'Uploaded'
+        }
+      }]
     };
   }
 }

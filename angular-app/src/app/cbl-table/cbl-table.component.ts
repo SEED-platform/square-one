@@ -16,6 +16,7 @@ import { FileUploadDialogComponent } from '../shared/file-upload-dialog/file-upl
 import { GeoJsonService } from '../services/geojson.service';
 import { FlaskRequests } from '../services/server.service';
 import { SessionService } from '../services/session.service';
+import { HeatmapService, type HeatmapConfig } from '../services/heatmap.service';
 
 interface ColumnStatistic {
   columnName: string;
@@ -98,11 +99,26 @@ export class CblTableComponent implements OnInit, OnDestroy {
   };
   availableColumnsForMerge: string[] = [];
 
+  // Heatmap properties
+  selectedHeatmapField = '';
+  numericColumns: string[] = [];
+  hasNumericColumns = false;
+  isHeatmapActive = false;
+  private heatmapSubscription?: Subscription;
+
   // Record merging properties
   showRecordMergeDialog = false;
   selectedRecordsForMerge: any[] = [];
   recordMergePriority: string = 'first'; // 'first' or 'second'
   private isMergingRecords = false; // Flag to prevent scroll reset during merge
+
+  // Bulk edit properties
+  showBulkEditDialog = false;
+  bulkEditConfig = {
+    column: '',
+    value: ''
+  };
+  availableColumnsForBulkEdit: string[] = [];
 
   // Header editing properties
   private editableHeaders: { [originalKey: string]: string } = {}; // Maps original property names to display names
@@ -111,7 +127,15 @@ export class CblTableComponent implements OnInit, OnDestroy {
   headerEditList: Array<{originalKey: string, displayName: string}> = [];
 
   // Essential columns that should always be present in the table
-  private readonly essentialColumns = ['footprint_area_ft2', 'height',];
+  private readonly essentialColumns = [
+    'footprint_area_ft2',
+    'height',
+    'building_type',
+    'year_built',
+    'climate_zone',
+    'gross_floor_area',
+    'weekly_hours'
+  ];
 
   // getRowId function for AG-Grid to properly identify rows using index
   getRowId = (params: any) => {
@@ -139,6 +163,12 @@ export class CblTableComponent implements OnInit, OnDestroy {
     footprint_area_m2: 0,
     footprint_area_ft2: 0,
     height: null,
+    // Essential building characteristics
+    building_type: '',
+    year_built: null,
+    climate_zone: '',
+    gross_floor_area: null,
+    weekly_hours: '',
     // Additional common properties
     BUILD_ID: null,
     HEIGHT: null,
@@ -152,7 +182,8 @@ export class CblTableComponent implements OnInit, OnDestroy {
     private router: Router,
     private cdr: ChangeDetectorRef,
     private geoJsonService: GeoJsonService,
-    private sessionService: SessionService
+    private sessionService: SessionService,
+    private heatmapService: HeatmapService
   ) {}
 
   get hasValidGeoJsonData(): boolean {
@@ -270,6 +301,12 @@ export class CblTableComponent implements OnInit, OnDestroy {
       this.geoJsonService.reloadFromSessionStorage();
     }
 
+    // Subscribe to heatmap status changes
+    this.heatmapSubscription = this.heatmapService.isHeatmapActive$.subscribe(isActive => {
+      this.isHeatmapActive = isActive;
+      this.cdr.detectChanges();
+    });
+
     this.geoJsonSubscription = this.geoJsonService.getGeoJson().subscribe((data) => {
       console.log('Table component received data from service:', data);
       this.geoJson = data;
@@ -381,6 +418,9 @@ export class CblTableComponent implements OnInit, OnDestroy {
     if (this.clickEventSubscription) {
       this.clickEventSubscription.unsubscribe();
     }
+    if (this.heatmapSubscription) {
+      this.heatmapSubscription.unsubscribe();
+    }
   }  onGridReady(params: any) {
     this.gridApi = params.api;
     this.gridApi.sizeColumnsToFit();
@@ -397,6 +437,9 @@ export class CblTableComponent implements OnInit, OnDestroy {
     this.rowData = [...this.geoJson.features]; // Create a new array reference
 
     this.setColumnDefs();
+
+    // Update numeric columns for heatmap functionality
+    this.updateNumericColumns();
 
     if (this.gridApi) {
       // Force AG-Grid to refresh with new data
@@ -419,10 +462,19 @@ export class CblTableComponent implements OnInit, OnDestroy {
     return string.charAt(0).toUpperCase() + string.slice(1);
   };
 
+  // Convert snake_case to Title Case
+  toTitleCase = (string: string) => {
+    if (string.length === 0) return string;
+    return string
+      .split('_')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
+  };
+
   // Header editing methods
   getDisplayHeaderName(originalKey: string): string {
-    // Return custom display name if set, otherwise return capitalized original key
-    return this.editableHeaders[originalKey] || this.capitalizeFirstLetter(originalKey);
+    // Return custom display name if set, otherwise return Title Case of original key
+    return this.editableHeaders[originalKey] || this.toTitleCase(originalKey);
   }
 
   updateHeaderName(originalKey: string, newDisplayName: string): void {
@@ -848,6 +900,77 @@ export class CblTableComponent implements OnInit, OnDestroy {
         this.updateSelectedRowsInfo();
       }, 0);
     }, 100);
+  }
+
+  assignTargetEUI() {
+    if (this.rowData.length === 0) {
+      alert('No data available');
+      return;
+    }
+
+    const selectedData = this.gridApi.getSelectedRows();
+    if (selectedData.length === 0) {
+      alert('Please select at least one building to assign target EUI data');
+      return;
+    }
+
+    console.log('Assigning target EUI for', selectedData.length, 'selected buildings');
+
+    // Prepare data for API call
+    const requestData = {
+      buildings: selectedData.map((building: { id: string; properties: Record<string, unknown> }) => ({
+        id: building.id,
+        properties: building.properties
+      }))
+    };
+
+    // Call the Flask API to assign target EUI data
+    this.apiHandler.assignTargetEUI(requestData).subscribe(
+      (response: { success?: boolean; buildings?: Record<string, unknown>[]; message?: string }) => {
+        console.log('Target EUI assignment successful:', response);
+
+        if (response.success && response.buildings) {
+          // Update the selected buildings with the EUI data
+          this.updateBuildingsWithEUIData(response.buildings);
+          alert(`Successfully assigned target EUI data for ${response.buildings.length} buildings!`);
+        } else {
+          alert('Failed to assign target EUI data: ' + (response.message || 'Unknown error'));
+        }
+      },
+      (errorResponse: { error?: { message?: string } }) => {
+        console.error('Target EUI assignment failed:', errorResponse);
+        alert('Failed to assign target EUI data: ' + (errorResponse.error?.message || 'Unknown error'));
+      }
+    );
+  }
+
+  updateBuildingsWithEUIData(euiBuildings: any[]) {
+    // Update the grid data with the EUI information
+    const updatedBuildings: any[] = [];
+
+    euiBuildings.forEach((euiBuilding, index) => {
+      // Find the corresponding building in our current data
+      const originalBuilding = this.gridApi.getSelectedRows()[index];
+
+      if (originalBuilding) {
+        // Update the building properties with EUI data
+        Object.assign(originalBuilding.properties, euiBuilding);
+        updatedBuildings.push(originalBuilding);
+      }
+    });
+
+    if (updatedBuildings.length > 0) {
+      // Apply the updates to the grid
+      this.gridApi.applyTransaction({
+        update: updatedBuildings
+      });
+
+      // Update the GeoJSON service with the enriched data
+      this.geoJsonService.setGeoJson(this.geoJson);
+
+      // Refresh the grid to show new columns if they were added
+      this.updateTable();
+    }
   }
 
   reverseGeocodeSelected() {
@@ -1820,5 +1943,252 @@ export class CblTableComponent implements OnInit, OnDestroy {
       priorityIndex,
       secondaryIndex
     });
+  }
+
+  // Bulk Edit Methods
+  openBulkEditDialog() {
+    if (!this.gridApi) {
+      alert('Grid not initialized');
+      return;
+    }
+
+    const selectedRows = this.gridApi.getSelectedRows();
+    if (selectedRows.length === 0) {
+      alert('Please select at least one row to bulk edit');
+      return;
+    }
+
+    // Get available columns for bulk editing (exclude computed columns and non-editable columns)
+    const nonEditableKeys = ['ubid', 'longitude', 'latitude', 'hasFootprint', 'footprint_area_ft2', 'coordinates'];
+    this.availableColumnsForBulkEdit = this.sessionService.getPropertyNames()
+      .filter(col => !nonEditableKeys.includes(col))
+      .sort();
+
+    // Reset bulk edit configuration
+    this.bulkEditConfig = {
+      column: '',
+      value: ''
+    };
+
+    this.showBulkEditDialog = true;
+  }
+
+  closeBulkEditDialog() {
+    this.showBulkEditDialog = false;
+    this.bulkEditConfig = {
+      column: '',
+      value: ''
+    };
+  }
+
+  getBulkEditPreview(): string {
+    if (!this.gridApi || !this.bulkEditConfig.column) {
+      return '';
+    }
+
+    const selectedRows = this.gridApi.getSelectedRows();
+    const selectedCount = selectedRows.length;
+    const columnDisplayName = this.getDisplayHeaderName(this.bulkEditConfig.column);
+
+    if (selectedCount === 0) {
+      return 'No rows selected';
+    }
+
+    return `This will set "${columnDisplayName}" to "${this.bulkEditConfig.value}" for ${selectedCount} selected record${selectedCount === 1 ? '' : 's'}.`;
+  }
+
+  bulkEditRows() {
+    if (!this.gridApi) {
+      alert('Grid not initialized');
+      return;
+    }
+
+    // Validation
+    if (!this.bulkEditConfig.column) {
+      alert('Please select a column to edit');
+      return;
+    }
+
+    if (this.bulkEditConfig.value === null || this.bulkEditConfig.value === undefined) {
+      alert('Please enter a value');
+      return;
+    }
+
+    const selectedRows = this.gridApi.getSelectedRows();
+    if (selectedRows.length === 0) {
+      alert('Please select at least one row to edit');
+      return;
+    }
+
+    const columnDisplayName = this.getDisplayHeaderName(this.bulkEditConfig.column);
+    const confirmed = confirm(
+      `Are you sure you want to set "${columnDisplayName}" to "${this.bulkEditConfig.value}" for ${selectedRows.length} selected record${selectedRows.length === 1 ? '' : 's'}?\n\n` +
+      'This action cannot be undone.'
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    // Perform bulk edit
+    let updatedCount = 0;
+    const updatedRows: any[] = [];
+
+    selectedRows.forEach((row: any) => {
+      if (row.properties) {
+        // Store the old value for comparison
+        const oldValue = row.properties[this.bulkEditConfig.column];
+
+        // Set the new value
+        row.properties[this.bulkEditConfig.column] = this.bulkEditConfig.value;
+
+        // Track that this row was updated
+        updatedRows.push(row);
+        updatedCount++;
+
+        console.log(`Updated row ${row.id}: ${this.bulkEditConfig.column} from "${oldValue}" to "${this.bulkEditConfig.value}"`);
+      }
+    });
+
+    // Update the grid to reflect changes
+    if (updatedRows.length > 0) {
+      this.gridApi.applyTransaction({
+        update: updatedRows
+      });
+
+      // Update the GeoJSON service with the modified data
+      this.geoJsonService.setGeoJson(this.geoJson);
+
+      // Also update session storage to persist the changes
+      this.sessionService.setGeoJsonData(this.geoJson);
+    }
+
+    // Close dialog
+    this.closeBulkEditDialog();
+
+    // Show success message
+    alert(`Bulk edit completed successfully!\n\n` +
+          `• ${updatedCount} record${updatedCount === 1 ? '' : 's'} updated\n`);
+
+    console.log('Bulk edit completed', {
+      column: this.bulkEditConfig.column,
+      value: this.bulkEditConfig.value,
+      updatedCount: updatedCount
+    });
+  }
+
+  // ===== HEATMAP METHODS =====
+
+  /**
+   * Update numeric columns list when data changes
+   */
+  updateNumericColumns(): void {
+    if (!this.geoJson?.features?.length) {
+      this.numericColumns = [];
+      this.hasNumericColumns = false;
+      return;
+    }
+
+    const allColumns = this.sessionService.getPropertyNames();
+    const numericCols: string[] = [];
+
+    // Sample first few features to determine which columns contain numeric data
+    const sampleSize = Math.min(10, this.geoJson.features.length);
+    const sampleFeatures = this.geoJson.features.slice(0, sampleSize);
+
+    allColumns.forEach(column => {
+      // Skip certain columns that shouldn't be used for heatmaps
+      if (['id', 'geometry', 'coordinates', 'quality'].includes(column.toLowerCase())) {
+        return;
+      }
+
+      let numericCount = 0;
+      let totalCount = 0;
+
+      sampleFeatures.forEach((feature: any) => {
+        const value = feature.properties?.[column];
+        if (value !== null && value !== undefined && value !== '') {
+          totalCount++;
+          const numValue = this.parseNumericValue(value);
+          if (numValue !== null && !isNaN(numValue)) {
+            numericCount++;
+          }
+        }
+      });
+
+      // Consider a column numeric if at least 50% of non-empty values are numeric
+      if (totalCount > 0 && (numericCount / totalCount) >= 0.5) {
+        numericCols.push(column);
+      }
+    });
+
+    this.numericColumns = numericCols;
+    this.hasNumericColumns = numericCols.length > 0;
+  }
+
+  /**
+   * Parse various numeric formats into a number
+   */
+  private parseNumericValue(value: any): number | null {
+    if (value === null || value === undefined || value === '') {
+      return null;
+    }
+
+    // If already a number
+    if (typeof value === 'number') {
+      return value;
+    }
+
+    // If string, try to parse
+    if (typeof value === 'string') {
+      // Remove common non-numeric characters like commas, dollar signs, etc.
+      const cleaned = value.replace(/[$,\s]/g, '');
+      const parsed = parseFloat(cleaned);
+      return isNaN(parsed) ? null : parsed;
+    }
+
+    return null;
+  }
+
+  /**
+   * Get display name for a column (using header mappings if available)
+   */
+  getDisplayName(column: string): string {
+    return this.editableHeaders[column] || column;
+  }
+
+  /**
+   * Handle heatmap field selection change
+   */
+  onHeatmapFieldChange(): void {
+    if (this.selectedHeatmapField && this.isHeatmapActive) {
+      // Auto-apply if heatmap is already active
+      this.applyHeatmap();
+    }
+  }
+
+  /**
+   * Apply heatmap visualization
+   */
+  applyHeatmap(): void {
+    if (!this.selectedHeatmapField || !this.geoJson?.features?.length) {
+      console.warn('Cannot apply heatmap: no field selected or no data available');
+      return;
+    }
+
+    const config: HeatmapConfig = {
+      field: this.selectedHeatmapField
+    };
+
+    console.log('Applying heatmap with config:', config);
+    this.heatmapService.applyHeatmap(this.geoJson.features, config);
+  }
+
+  /**
+   * Clear heatmap and return to normal view
+   */
+  clearHeatmap(): void {
+    this.heatmapService.clearHeatmap();
+    this.selectedHeatmapField = '';
   }
 }
