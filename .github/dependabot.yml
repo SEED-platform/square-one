@@ -31,6 +31,8 @@ updates:
         versions: ["alpha", "beta", "rc"]
       - dependency-name: "tailwindcss"
         update-types: ["version-update:semver-major"]
+      - dependency-name: "typescript"
+        versions: [">=5.9.0"]
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
