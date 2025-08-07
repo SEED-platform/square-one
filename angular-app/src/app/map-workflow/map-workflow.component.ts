@@ -2,7 +2,6 @@ import { Component, AfterViewInit, ChangeDetectorRef } from '@angular/core'
 import { CommonModule } from '@angular/common'
 import { Router } from '@angular/router'
 import * as mapboxgl from 'mapbox-gl'
-import MapboxGeocoder from '@mapbox/mapbox-gl-geocoder'
 import MapboxDraw from '@mapbox/mapbox-gl-draw'
 import { environment } from '../../environments/environment'
 import { NavigationComponent } from '../shared/navigation/navigation.component'
@@ -11,17 +10,17 @@ import { FooterComponent } from '../shared/footer/footer.component'
 import { HttpClient } from '@angular/common/http'
 import { GeoJsonService } from '../services/geojson.service'
 import { SessionService, MapLocation } from '../services/session.service'
+import { MapSearchBoxComponent } from '../map-search-box/map-search-box.component'
 
 @Component({
   selector: 'app-map-workflow',
-  imports: [NavigationComponent, TopMenuComponent, FooterComponent, CommonModule],
+  imports: [NavigationComponent, TopMenuComponent, FooterComponent, CommonModule, MapSearchBoxComponent],
   templateUrl: './map-workflow.component.html',
   styleUrl: './map-workflow.component.css',
 })
 export class MapWorkflowComponent implements AfterViewInit {
   private map!: mapboxgl.Map
   private draw!: MapboxDraw
-  private geocoder!: MapboxGeocoder
 
   // Component state
   hasPolygon = false
@@ -44,6 +43,9 @@ export class MapWorkflowComponent implements AfterViewInit {
   private readonly OSM_FOOTPRINTS_SOURCE_ID = 'osm-footprints'
   private readonly OSM_FOOTPRINTS_LAYER_ID = 'osm-footprints-layer'
 
+  // Last selected location from search box
+  lastSelectedLocation: any = null
+
   constructor(
     private http: HttpClient,
     private cdr: ChangeDetectorRef,
@@ -56,37 +58,28 @@ export class MapWorkflowComponent implements AfterViewInit {
    * Prompt for a location, call backend to get bounding box, and draw it on the map
    */
   findLocationBoundingBox(): void {
-    const location = window.prompt('Enter a location to create bounding box (e.g. Denver, CO):')
-    if (!location) {
-      this.showStatusMessage('No location entered.', true)
+    const location = this.lastSelectedLocation
+    if (!location || !location.place_name) {
+      window.alert('Please select a location in the search box first.')
       return
     }
+
     this.showStatusMessage('Finding bounding box for location...', false)
     this.http.post<any>('http://localhost:5001/api/location_bbox', { location }).subscribe({
       next: (response: any) => {
-        if (response.bbox && Array.isArray(response.bbox)) {
+        console.log('Full backend response:', response)
+        if (response.bbox && response.bbox.type === 'Feature') {
           // Remove any existing drawn polygons
           if (this.draw) {
             this.draw.deleteAll()
           }
-          // Convert [lat, lon] to [lon, lat] for GeoJSON
-          let coordinates = response.bbox
-          // Ensure the polygon is closed
-          if (
-            coordinates.length > 0 &&
-            (coordinates[0][0] !== coordinates[coordinates.length - 1][0] || coordinates[0][1] !== coordinates[coordinates.length - 1][1])
-          ) {
-            coordinates.push([...coordinates[0]])
-          }
-          const polygonGeoJson = {
-            type: 'Feature' as const,
-            geometry: {
-              type: 'Polygon' as const,
-              coordinates: [coordinates],
-            },
-            properties: { source: 'location-bbox' },
-          }
-          this.draw.add(polygonGeoJson)
+          // Log the GeoJSON for debugging
+          console.log('GeoJSON bbox from backend:', response.bbox)
+          // Ensure coordinates are [lon, lat] for MapboxDraw
+          const coords = response.bbox.geometry.coordinates
+          const fixedCoords = coords.map((ring: any) => ring.map((pt: any) => (pt.length === 2 ? [pt[0], pt[1]] : pt)))
+          response.bbox.geometry.coordinates = fixedCoords
+          this.draw.add(response.bbox)
           this.hasPolygon = true
           this.showStatusMessage('Bounding box added to map.', false)
           this.cdr.detectChanges()
@@ -120,40 +113,6 @@ export class MapWorkflowComponent implements AfterViewInit {
       this.map.addControl(new mapboxgl.NavigationControl())
 
       this.map.on('load', () => {
-        this.geocoder = new MapboxGeocoder({
-          accessToken: environment.mapboxToken,
-          mapboxgl: mapboxgl,
-          marker: true,
-          placeholder: 'Search for a location',
-          proximity: { longitude: savedLocation.longitude, latitude: savedLocation.latitude },
-          countries: 'us',
-        })
-
-        // Listen for geocoder result to save the location
-        this.geocoder.on('result', (event: any) => {
-          const result = event.result
-          if (result && result.center) {
-            const newLocation: MapLocation = {
-              longitude: result.center[0],
-              latitude: result.center[1],
-              zoom: this.map.getZoom(),
-            }
-
-            // Save the new location to session storage
-            this.sessionService.saveMapLocation(newLocation)
-
-            // Update proximity for future searches
-            this.geocoder.setProximity({
-              longitude: newLocation.longitude,
-              latitude: newLocation.latitude,
-            })
-
-            console.log('Location saved from search:', newLocation, 'Place:', result.place_name)
-          }
-        })
-
-        this.map.addControl(this.geocoder)
-
         this.draw = new MapboxDraw({
           displayControlsDefault: false,
           controls: {
@@ -589,5 +548,16 @@ export class MapWorkflowComponent implements AfterViewInit {
     }
 
     return 'N/A'
+  }
+
+  /**
+   * Handler for location selection from the search box
+   */
+  onLocationSelected(location: any) {
+    this.lastSelectedLocation = location
+    if (location && location.center) {
+      this.map.flyTo({ center: location.center, zoom: 14 })
+    }
+    // Optionally trigger your "find location" popup logic here
   }
 }

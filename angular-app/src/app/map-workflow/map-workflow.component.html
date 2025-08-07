@@ -8,6 +8,8 @@
     can load the Microsoft (MS) footprints or the Open Street Maps (OSM) footprints within the area. When you are finished, click the Proceed to CBL Table button.
   </p>
 
+  <app-map-search-box (locationSelected)="onLocationSelected($event)"></app-map-search-box>
+
   <div class="status-message" *ngIf="statusMessage" [ngClass]="{ error: isError, success: !isError }">
     {{ statusMessage }}
   </div>
