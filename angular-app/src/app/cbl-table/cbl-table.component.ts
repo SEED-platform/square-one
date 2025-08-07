@@ -502,7 +502,7 @@ export class CblTableComponent implements OnInit, OnDestroy {
   // Open header editing dialog
   openHeaderEditDialog(mode: 'display' | 'column' = 'display'): void {
     this.editMode = mode
-    
+
     // Get all column keys from session service
     const allKeys = this.sessionService.getPropertyNames()
     allKeys.push('coordinates') // Add coordinates
@@ -576,7 +576,7 @@ export class CblTableComponent implements OnInit, OnDestroy {
     }
 
     const changedColumns: { oldName: string; newName: string }[] = []
-    
+
     // Collect all the column name changes
     this.headerEditList.forEach((item) => {
       if (item.newColumnName && item.newColumnName.trim() !== '' && item.newColumnName !== item.originalKey) {
@@ -1502,7 +1502,7 @@ export class CblTableComponent implements OnInit, OnDestroy {
     // Add essential EUI-related columns that might not exist yet but are important to track
     const euiRelatedColumns = [
       'building_type',
-      'climate_zone', 
+      'climate_zone',
       'year_built',
       'gross_floor_area',
       'gfa',
@@ -1582,7 +1582,7 @@ export class CblTableComponent implements OnInit, OnDestroy {
   isEUIRelatedColumn(columnName: string): boolean {
     const euiColumns = [
       'building_type',
-      'climate_zone', 
+      'climate_zone',
       'year_built',
       'gross_floor_area',
       'gfa',
@@ -1598,7 +1598,7 @@ export class CblTableComponent implements OnInit, OnDestroy {
   getEUIColumnDescription(columnName: string): string {
     const descriptions: { [key: string]: string } = {
       'building_type': 'Required for EUI lookup - Primary building category',
-      'climate_zone': 'Required for EUI lookup - Climate zone refinement', 
+      'climate_zone': 'Required for EUI lookup - Climate zone refinement',
       'year_built': 'Required for EUI lookup - Converted to year ranges',
       'gross_floor_area': 'Required for EUI lookup - Building size category',
       'gfa': 'Required for EUI lookup - Building size category (alternative name)',
