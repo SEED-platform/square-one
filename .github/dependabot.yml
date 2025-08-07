@@ -12,8 +12,6 @@ updates:
     open-pull-requests-limit: 5
     commit-message:
       prefix: "deps"
-    labels:
-      - "Maintenance"
   - package-ecosystem: "npm"
     directory: "/angular-app"
     schedule:
@@ -26,8 +24,6 @@ updates:
     open-pull-requests-limit: 5
     commit-message:
       prefix: "deps"
-    labels:
-      - "Maintenance"
     ignore:
       - dependency-name: "prettier"
         update-types: ["version-update:semver-major"]
@@ -35,6 +31,8 @@ updates:
         versions: ["alpha", "beta", "rc"]
       - dependency-name: "tailwindcss"
         update-types: ["version-update:semver-major"]
+      - dependency-name: "typescript"
+        versions: [">=5.9.0"]
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
