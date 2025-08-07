@@ -65,7 +65,7 @@ export class MapWorkflowComponent implements AfterViewInit {
     }
 
     this.showStatusMessage('Finding bounding box for location...', false)
-    this.http.post<any>('http://localhost:5001/api/location_bbox', { location }).subscribe({
+    this.http.post<any>(`${environment.apiBaseUrl}/api/location_bbox`, { location }).subscribe({
       next: (response: any) => {
         console.log('Full backend response:', response)
         if (response.bbox && response.bbox.type === 'Feature') {
