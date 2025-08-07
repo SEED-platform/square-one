@@ -1,84 +1,84 @@
-import { CommonModule } from '@angular/common'; // Import CommonModule
-import type { OnInit } from '@angular/core';
-import { ChangeDetectorRef, Component } from '@angular/core';
-import { FormsModule } from '@angular/forms'; // Import FormsModule
-import { Router } from '@angular/router';
-import { AgGridAngular } from 'ag-grid-angular';
-import type { ColDef, GridApi, GridReadyEvent } from 'ag-grid-community';
-import Papa from 'papaparse';
-import { GeoJsonService } from '../services/geojson.service';
-import { FlaskRequests } from '../services/server.service';
-import { SessionService } from '../services/session.service';
-import { CustomHeaderComponent } from './custom-header/custom-header.component';
-import { NavigationComponent } from '../shared/navigation/navigation.component';
-import { TopMenuComponent } from '../shared/top-menu/top-menu.component';
+import { CommonModule } from '@angular/common' // Import CommonModule
+import type { OnInit } from '@angular/core'
+import { ChangeDetectorRef, Component } from '@angular/core'
+import { FormsModule } from '@angular/forms' // Import FormsModule
+import { Router } from '@angular/router'
+import { AgGridAngular } from 'ag-grid-angular'
+import type { ColDef, GridApi, GridReadyEvent } from 'ag-grid-community'
+import Papa from 'papaparse'
+import { GeoJsonService } from '../services/geojson.service'
+import { FlaskRequests } from '../services/server.service'
+import { SessionService } from '../services/session.service'
+import { CustomHeaderComponent } from './custom-header/custom-header.component'
+import { NavigationComponent } from '../shared/navigation/navigation.component'
+import { TopMenuComponent } from '../shared/top-menu/top-menu.component'
 
 @Component({
-    selector: 'app-first-table',
-    templateUrl: './first-table.component.html',
-    styleUrl: 'first-table.component.css',
-    imports: [AgGridAngular, FormsModule, CommonModule, NavigationComponent, TopMenuComponent]
+  selector: 'app-first-table',
+  templateUrl: './first-table.component.html',
+  styleUrl: 'first-table.component.css',
+  imports: [AgGridAngular, FormsModule, CommonModule, NavigationComponent, TopMenuComponent],
 })
 export class FirstTableComponent implements OnInit {
-  private _userList: any[] = [];
-  colDefs: ColDef[] = [];
-  isDataLoaded = false;
+  private _userList: any[] = []
+  colDefs: ColDef[] = []
+  isDataLoaded = false
 
   get userList(): any[] {
-    return Array.isArray(this._userList) ? this._userList : [];
+    return Array.isArray(this._userList) ? this._userList : []
   }
 
   set userList(value: any) {
     if (Array.isArray(value)) {
-      this._userList = value;
+      this._userList = value
     } else if (value && typeof value === 'object') {
-      this._userList = [value];
+      this._userList = [value]
     } else {
-      this._userList = [];
+      this._userList = []
     }
 
-    this.isDataLoaded = true;
+    this.isDataLoaded = true
   }
 
   get gridData(): any[] {
     if (!this.isDataLoaded) {
-      return [];
+      return []
     }
 
-    const data = this.userList;
+    const data = this.userList
 
     // Check if data is an array and has at least one element
     if (Array.isArray(data) && data.length > 0) {
-      const firstItem = data[0];
+      const firstItem = data[0]
 
       // Check if the first item is an object with filename keys
       if (firstItem && typeof firstItem === 'object' && !Array.isArray(firstItem)) {
-        const keys = Object.keys(firstItem);
+        const keys = Object.keys(firstItem)
 
         if (keys.length > 0) {
           // Get the first key (filename) and extract its array value
-          const firstKey = keys[0];
-          const arrayData = firstItem[firstKey];
+          const firstKey = keys[0]
+          const arrayData = firstItem[firstKey]
 
           if (Array.isArray(arrayData)) {
-            return arrayData;
+            return arrayData
           }
         }
       }
 
       // Fallback: if first item is already an array, use it
       if (Array.isArray(firstItem)) {
-        return firstItem;
+        return firstItem
       }
     }
 
-    return [];
+    return []
   }
 
-  ValidatedJsonString = '';
-  dataValid = false;
-  geoJsonString = '';
-  isLoading = false;
+  ValidatedJsonString = ''
+  dataValid = false
+  geoJsonString = ''
+  isLoading = false
 
   defaultColDef = {
     flex: 1,
@@ -88,183 +88,180 @@ export class FirstTableComponent implements OnInit {
     editable: true,
     suppressHeaderFilterButton: true,
     suppressMovable: true,
-    headerComponent: CustomHeaderComponent //allows editable headers
-  };
-  private gridApi!: GridApi;
+    headerComponent: CustomHeaderComponent, //allows editable headers
+  }
+  private gridApi!: GridApi
 
   constructor(
     private apiHandler: FlaskRequests,
     private router: Router,
     private cdr: ChangeDetectorRef,
     private geoJsonService: GeoJsonService,
-    private sessionService: SessionService
+    private sessionService: SessionService,
   ) {
-    this._userList = [];
-    this.isDataLoaded = false;
+    this._userList = []
+    this.isDataLoaded = false
   }
 
   getUser() {
-    this.isDataLoaded = false;
-    const rawData = this.sessionService.getFirstTableData();
+    this.isDataLoaded = false
+    const rawData = this.sessionService.getFirstTableData()
 
     if (rawData) {
       try {
         // Data is now stored as JSON object, not compressed string
         if (Array.isArray(rawData)) {
           // If it's already an array, use it directly
-          this.userList = rawData;
+          this.userList = rawData
         } else {
           // If it's a string, parse it
-          const parsedData = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
-          this.userList = parsedData;
+          const parsedData = typeof rawData === 'string' ? JSON.parse(rawData) : rawData
+          this.userList = parsedData
         }
       } catch (error) {
-        console.error('Error parsing data:', error);
-        this.userList = [];
+        console.error('Error parsing data:', error)
+        this.userList = []
       }
     } else {
-      this.userList = [];
+      this.userList = []
     }
 
-    this.setColumnDefs();
-    this.cdr.detectChanges();
+    this.setColumnDefs()
+    this.cdr.detectChanges()
   }
 
   onGridReady(event: GridReadyEvent) {
-    this.gridApi = event.api;
-    this.gridApi.sizeColumnsToFit();
-    this.getUser();
+    this.gridApi = event.api
+    this.gridApi.sizeColumnsToFit()
+    this.getUser()
   }
 
   ngOnInit() {
-    this.getUser();
+    this.getUser()
   }
 
   setColumnDefs() {
-    const data = this.gridData;
+    const data = this.gridData
 
     if (data && data.length > 0 && data[0]) {
-      const keys = Object.keys(data[0]);
+      const keys = Object.keys(data[0])
       this.colDefs = keys.map((key) => ({
         field: key,
-        headerName: key
-      }));
+        headerName: key,
+      }))
     } else {
-      this.colDefs = [];
+      this.colDefs = []
     }
 
-    this.sessionService.setColumnDefinitions(this.colDefs);
+    this.sessionService.setColumnDefinitions(this.colDefs)
   }
 
   convertAgGridDataToJson() {
-    const csvUserData = this.gridApi.getDataAsCsv() ?? '';
-    const jsonHeaderData: ColDef[] = this.sessionService.getColumnDefinitions();
-    const { data: parsedCsvData } = Papa.parse(csvUserData, { header: true });
+    const csvUserData = this.gridApi.getDataAsCsv() ?? ''
+    const jsonHeaderData: ColDef[] = this.sessionService.getColumnDefinitions()
+    const { data: parsedCsvData } = Papa.parse(csvUserData, { header: true })
 
     if (!Array.isArray(parsedCsvData)) {
-      console.error('Parsed CSV data is not an array:', parsedCsvData);
-      return JSON.stringify([], null, 2);
+      console.error('Parsed CSV data is not an array:', parsedCsvData)
+      return JSON.stringify([], null, 2)
     }
 
-    const updatedHeaders = jsonHeaderData.map((item) => item.headerName ?? '');
+    const updatedHeaders = jsonHeaderData.map((item) => item.headerName ?? '')
 
     const updatedData = parsedCsvData.map((row: any) => {
-      const updatedRow: any = {};
+      const updatedRow: any = {}
       updatedHeaders.forEach((header: string | number, index: number) => {
-        const rowKeys = Object.keys(row);
-        updatedRow[header] = row[rowKeys[index]] || '';
-      });
-      return updatedRow;
-    });
+        const rowKeys = Object.keys(row)
+        updatedRow[header] = row[rowKeys[index]] || ''
+      })
+      return updatedRow
+    })
 
-    return JSON.stringify(updatedData, null, 2);
+    return JSON.stringify(updatedData, null, 2)
   }
 
   checkData() {
-    this.isLoading = true;
-    const finalUserJson = this.convertAgGridDataToJson();
+    this.isLoading = true
+    const finalUserJson = this.convertAgGridDataToJson()
 
     this.apiHandler.checkData(finalUserJson).subscribe(
       (response) => {
-        console.log(response.message);
-        this.ValidatedJsonString = response.user_data;
-        this.dataValid = true;
-        this.uploadJsonToServer();
+        console.log(response.message)
+        this.ValidatedJsonString = response.user_data
+        this.dataValid = true
+        this.uploadJsonToServer()
       },
       (errorResponse) => {
-        console.log(errorResponse.error.message);
-        alert(errorResponse.error.message);
-        this.isLoading = false;
-        this.cdr.detectChanges();
-      }
-    );
+        console.log(errorResponse.error.message)
+        alert(errorResponse.error.message)
+        this.isLoading = false
+        this.cdr.detectChanges()
+      },
+    )
   }
 
   uploadJsonToServer() {
     this.apiHandler.sendJsonData(this.ValidatedJsonString).subscribe(
       (response) => {
-        console.log(response.message);
-        this.geoJsonString = response.user_data;
-        const geoJson = JSON.parse(this.geoJsonString);
-        this.geoJsonService.enableAutoSave(); // Re-enable auto-save for new data
-        this.geoJsonService.setGeoJson(geoJson);
-        this.sessionService.setGeoJsonData(geoJson); // Store as JSON object, not compressed
-        this.sessionService.setCurrentPage('cbl-table');
-        this.router.navigate(['/cbl-table']);
-        this.isLoading = false;
-        this.cdr.detectChanges();
+        console.log(response.message)
+        this.geoJsonString = response.user_data
+        const geoJson = JSON.parse(this.geoJsonString)
+        this.geoJsonService.enableAutoSave() // Re-enable auto-save for new data
+        this.geoJsonService.setGeoJson(geoJson)
+        this.sessionService.setGeoJsonData(geoJson) // Store as JSON object, not compressed
+        this.sessionService.setCurrentPage('cbl-table')
+        this.router.navigate(['/cbl-table'])
+        this.isLoading = false
+        this.cdr.detectChanges()
       },
       (errorResponse) => {
-        console.error(errorResponse.error.message);
-        alert(errorResponse.error.message);
-        this.isLoading = false;
-        this.cdr.detectChanges();
-      }
-    );
+        console.error(errorResponse.error.message)
+        alert(errorResponse.error.message)
+        this.isLoading = false
+        this.cdr.detectChanges()
+      },
+    )
   }
 
   // Helper method to determine the data structure type
   getDataStructureInfo(): string {
     if (!this.userList || this.userList.length === 0) {
-      return 'Empty or no data';
+      return 'Empty or no data'
     }
 
-    const firstItem = this.userList[0];
+    const firstItem = this.userList[0]
 
     if (Array.isArray(firstItem)) {
-      return `Array containing ${firstItem.length} items (using as grid data)`;
+      return `Array containing ${firstItem.length} items (using as grid data)`
     } else if (typeof firstItem === 'object' && firstItem !== null) {
-      const keys = Object.keys(firstItem);
+      const keys = Object.keys(firstItem)
       if (keys.length > 0) {
-        const firstKey = keys[0];
-        const firstValue = firstItem[firstKey];
+        const firstKey = keys[0]
+        const firstValue = firstItem[firstKey]
         if (Array.isArray(firstValue)) {
-          return `Object with key "${firstKey}" containing array of ${firstValue.length} items`;
+          return `Object with key "${firstKey}" containing array of ${firstValue.length} items`
         } else {
-          return `Object with keys: ${keys.join(', ')}`;
+          return `Object with keys: ${keys.join(', ')}`
         }
       }
-      return 'Empty object';
+      return 'Empty object'
     } else {
-      return `Primitive value: ${typeof firstItem}`;
+      return `Primitive value: ${typeof firstItem}`
     }
   }
 
   // Helper method to get the filename being processed
   getCurrentFileName(): string {
     if (!this.userList || this.userList.length === 0) {
-      return 'No file';
+      return 'No file'
     }
 
-    const firstItem = this.userList[0];
+    const firstItem = this.userList[0]
     if (firstItem && typeof firstItem === 'object' && !Array.isArray(firstItem)) {
-      const keys = Object.keys(firstItem);
-      return keys.length > 0 ? keys[0] : 'No filename found';
+      const keys = Object.keys(firstItem)
+      return keys.length > 0 ? keys[0] : 'No filename found'
     }
 
-    return 'Not a filename object';
+    return 'Not a filename object'
   }
-
-
-
 }

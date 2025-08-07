@@ -105,7 +105,7 @@
 }
 
 .osm-btn {
-  background-color: #0066cc; /* Blue for OpenStreetMap */
+  background-color: #06c; /* Blue for OpenStreetMap */
 }
 
 .osm-btn:hover:not(:disabled) {
@@ -130,7 +130,7 @@
 }
 
 .osm-clear {
-  background-color: #0066cc;
+  background-color: #06c;
 }
 
 .all-clear {
