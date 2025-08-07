@@ -84,7 +84,17 @@ export class MapWorkflowComponent implements AfterViewInit {
           this.showStatusMessage('Bounding box added to map.', false)
           this.cdr.detectChanges()
         } else {
-          this.showStatusMessage('Could not find bounding box for location.', true)
+          // Show a specific message if backend returns no geocode results
+          if (!response.bbox) {
+            const backendMsg =
+              response.message ||
+              'No geocode results found for this location. The address may be too specific or not recognized by OpenStreetMap/Nominatim.'
+            this.showStatusMessage(backendMsg, true)
+            console.warn('No geocode results for location:', this.lastSelectedLocation, backendMsg)
+          } else {
+            this.showStatusMessage('Could not find bounding box for location.', true)
+            console.error('Backend did not return a valid GeoJSON Feature or coordinates array:', response)
+          }
         }
       },
       error: (error: any) => {

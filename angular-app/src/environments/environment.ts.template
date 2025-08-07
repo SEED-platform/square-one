@@ -1,4 +1,5 @@
 export const environment = {
   production: false,
   mapboxToken: 'REPLACE_WITH_YOUR_MAPBOX_TOKEN',
+  apiBaseUrl: 'http://localhost:5001'
  };
