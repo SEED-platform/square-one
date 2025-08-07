@@ -56,22 +56,7 @@ def get_location_bbox(location_name):
         logging.warning(f"Unsupported geometry type for location: {location_query}")
         return None  # Unsupported geometry
 
-    # Ensure [lon, lat] order for all points
-    def swap_latlon(coords):
-        return [[(pt[0], pt[1]) if abs(pt[0]) > abs(pt[1]) else (pt[1], pt[0]) for pt in ring] for ring in coords]
-
-    if geometry_type == "Polygon":
-        # Check if swap needed
-        first = coordinates[0][0]
-        if abs(first[1]) > abs(first[0]):
-            coordinates = swap_latlon(coordinates)
-    elif geometry_type == "MultiPolygon":
-        # Check each polygon
-        for i, poly in enumerate(coordinates):
-            first = poly[0][0]
-            if abs(first[1]) > abs(first[0]):
-                coordinates[i] = swap_latlon(poly)
-
+    # Coordinates from Shapely are already in (lon, lat) order; no swap needed
     geojson = {
         "type": "Feature",
         "properties": {},
