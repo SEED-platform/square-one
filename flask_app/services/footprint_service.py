@@ -14,7 +14,8 @@ import pandas as pd
 from cbl_workflow.utils.ubid import centroid, encode_ubid
 from cbl_workflow.utils.update_dataset_links import update_dataset_links
 from cbl_workflow.utils.update_quadkeys import update_quadkeys
-from shapely.geometry import Polygon
+from shapely.geometry import MultiPolygon, Polygon
+from shapely.ops import unary_union
 
 import flask_app.config as config
 
@@ -369,3 +370,52 @@ class FootprintService:
 
         # Add country field
         osm_gdf["country"] = ""
+
+
+def merge_footprint_geodataframes(gdf_1, gdf_2):
+    """
+    Merge two footprint GeoDataFrames by intersection, dissolve by UBID, and clean geometry.
+    Returns a GeoDataFrame with merged footprints.
+    """
+    # Overlay the two GeoDataFrames to get intersection geometries
+    overlap_gdf = gpd.overlay(gdf_1, gdf_2, how="intersection")
+
+    # Create a mapping for how each column should be aggregated when dissolving
+    # "first" means take the first value found for that column in each group
+    column_mapping = dict.fromkeys(overlap_gdf.columns, "first")
+
+    # For some columns, we want to aggregate differently:
+    # "unique" will collect all unique values in the group (e.g. if multiple heights or UBIDs)
+    for unique_col in ["ubid_2", "height_1", "height_2"]:
+        column_mapping[unique_col] = "unique"
+    # "max" will take the maximum value in the group (e.g. for height_2)
+    for max_col in ["height_2"]:
+        column_mapping[max_col] = "max"
+
+    # Remove columns that are used for grouping or are geometry, since those are handled separately
+    column_mapping.pop("ubid_1", None)
+    column_mapping.pop("geometry", None)
+
+    # Dissolve merges all rows with the same UBID 1 into a single row, combining their geometries
+    # and aggregating the other columns according to column_mapping. This is useful for combining
+    # overlapping/intersecting footprints that share the same UBID into a single, unified footprint.
+    overlap_gdf = overlap_gdf.dissolve(by="ubid_1", aggfunc=column_mapping).reset_index()
+
+    # Merge MultiPolygon into a single Polygon if possible
+    def merge_or_largest(geom):
+        if isinstance(geom, MultiPolygon):
+            merged = unary_union(geom)
+            if isinstance(merged, Polygon):
+                return merged
+            else:
+                largest_polygon = max(geom.geoms, key=lambda p: p.area)
+                return largest_polygon
+        return geom
+
+    overlap_gdf["geometry"] = overlap_gdf["geometry"].apply(merge_or_largest)
+
+    print(f"Number of footprints (updated): {len(overlap_gdf)}")
+    if "osm_url" in overlap_gdf.columns:
+        print(f"Number of unique osm_URL: {len(overlap_gdf['osm_url'].unique())}")
+
+    return overlap_gdf
