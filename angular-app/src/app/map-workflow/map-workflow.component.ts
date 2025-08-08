@@ -11,10 +11,11 @@ import { FooterComponent } from '../shared/footer/footer.component'
 import { HttpClient } from '@angular/common/http'
 import { GeoJsonService } from '../services/geojson.service'
 import { SessionService, MapLocation } from '../services/session.service'
+import { MapSearchBoxComponent } from '../map-search-box/map-search-box.component'
 
 @Component({
   selector: 'app-map-workflow',
-  imports: [NavigationComponent, TopMenuComponent, FooterComponent, CommonModule],
+  imports: [NavigationComponent, TopMenuComponent, FooterComponent, CommonModule, MapSearchBoxComponent],
   templateUrl: './map-workflow.component.html',
   styleUrl: './map-workflow.component.css',
 })
@@ -44,6 +45,9 @@ export class MapWorkflowComponent implements AfterViewInit {
   private readonly OSM_FOOTPRINTS_SOURCE_ID = 'osm-footprints'
   private readonly OSM_FOOTPRINTS_LAYER_ID = 'osm-footprints-layer'
 
+  // Last selected location from search box
+  lastSelectedLocation: any = null
+
   constructor(
     private http: HttpClient,
     private cdr: ChangeDetectorRef,
@@ -51,6 +55,59 @@ export class MapWorkflowComponent implements AfterViewInit {
     private geoJsonService: GeoJsonService,
     private sessionService: SessionService,
   ) {}
+
+  /**
+   * Prompt for a location, call backend to get bounding box, and draw it on the map
+   */
+  findLocationBoundingBox(): void {
+    const location = this.lastSelectedLocation
+    if (!location || !location.place_name) {
+      window.alert('Please select a location in the search box first.')
+      return
+    }
+
+    this.showStatusMessage('Finding bounding box for location...', false)
+    this.http.post<any>(`${environment.apiBaseUrl}/api/location_bbox`, { location }).subscribe({
+      next: (response: any) => {
+        console.log('Full backend response:', response)
+        if (response.bbox && response.bbox.type === 'Feature') {
+          // Remove any existing drawn polygons
+          if (this.draw) {
+            this.draw.deleteAll()
+          }
+          // Log the GeoJSON for debugging
+          console.log('GeoJSON bbox from backend:', response.bbox)
+          // Ensure coordinates are [lon, lat] for MapboxDraw
+          const coords = response.bbox.geometry.coordinates
+          const fixedCoords = coords.map((ring: any) => ring.map((pt: any) => (pt.length === 2 ? [pt[0], pt[1]] : pt)))
+          response.bbox.geometry.coordinates = fixedCoords
+          this.draw.add(response.bbox)
+          this.hasPolygon = true
+          this.showStatusMessage('Bounding box added to map.', false)
+          this.cdr.detectChanges()
+        } else {
+          // Show a specific message if backend returns no geocode results
+          if (!response.bbox) {
+            const backendMsg =
+              response.message ||
+              'No geocode results found for this location. The address may be too specific or not recognized by OpenStreetMap/Nominatim.'
+            this.showStatusMessage(backendMsg, true)
+            console.warn('No geocode results for location:', this.lastSelectedLocation, backendMsg)
+          } else {
+            this.showStatusMessage('Could not find bounding box for location.', true)
+            console.error('Backend did not return a valid GeoJSON Feature or coordinates array:', response)
+          }
+        }
+      },
+      error: (error: any) => {
+        let errorMessage = 'Error finding bounding box for location.'
+        if (error.error?.message) {
+          errorMessage = error.error.message
+        }
+        this.showStatusMessage(errorMessage, true)
+      },
+    })
+  }
 
   ngAfterViewInit(): void {
     try {
@@ -537,5 +594,17 @@ export class MapWorkflowComponent implements AfterViewInit {
     }
 
     return 'N/A'
+
+  }
+
+  /**
+   * Handler for location selection from the search box
+   */
+  onLocationSelected(location: any) {
+    this.lastSelectedLocation = location
+    if (location && location.center) {
+      this.map.flyTo({ center: location.center, zoom: 14 })
+    }
+    // Optionally trigger your "find location" popup logic here
   }
 }

@@ -1,0 +1,8 @@
+<div class="search-box">
+  <input [formControl]="searchControl" type="text" placeholder="Search for a location..." />
+  <ul *ngIf="results.length">
+    <li *ngFor="let result of results" (click)="selectLocation(result)">
+      {{ result.place_name || result.name }}
+    </li>
+  </ul>
+</div>
