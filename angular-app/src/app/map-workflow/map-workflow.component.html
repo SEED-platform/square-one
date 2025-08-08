@@ -4,11 +4,9 @@
 <div class="map-workflow-container mx-auto mt-10 max-w-7xl px-2 sm:px-6 lg:px-8">
   <h1 class="text-4xl font-bold">Map-based Workflow</h1>
   <p class="mt-5 text-lg mb-3">
-    This page will guide you through the map-based workflow for creating a Covered Building List (CBL). Start by typing a location to
-    center the map. Then zoom into the map and draw an area using the polygon tool. Alternatively,
-    you can type in a location such as a county or city and click on the "Find Location" button to automatically retrieve a bounding box
-    around that location. Once you have an area selected, you can load the Microsoft (MS) footprints or the Open Street Maps (OSM)
-    footprints within the area. When you are finished, click the Proceed to CBL Table button.
+    This page will guide you through the map-based workflow for creating a Covered Building List (CBL). Start by typing a location to center the map. Then zoom into the map and draw an area using the
+    polygon tool. Alternatively, you can type in a location such as a county or city and click on the "Find Location" button to automatically retrieve a bounding box around that location. Once you
+    have an area selected, you can load the Microsoft (MS) footprints or the Open Street Maps (OSM) footprints within the area. When you are finished, click the Proceed to CBL Table button.
   </p>
 
   <app-map-search-box (locationSelected)="onLocationSelected($event)"></app-map-search-box>
