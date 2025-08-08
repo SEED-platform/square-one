@@ -334,7 +334,7 @@ export class FileUploadDialogComponent {
 
         // Also remove latitude/longitude case variations to avoid duplicates
         const latLngVariations = ['latitude', 'longitude', 'Latitude', 'Longitude', 'LATITUDE', 'LONGITUDE']
-        latLngVariations.forEach(fieldName => {
+        latLngVariations.forEach((fieldName) => {
           delete cleanedProperties[fieldName]
         })
 
