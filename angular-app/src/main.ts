@@ -7,6 +7,6 @@ import { appConfig } from './app/app.config'
 ModuleRegistry.registerModules([AllCommunityModule])
 
 // Disable Mapbox telemetry -- hopefully this will prevent any telemetry data from being sent
-;(window as any).MapboxGLTelemetryDisabled = true
+(window as any).MapboxGLTelemetryDisabled = true
 
 bootstrapApplication(AppComponent, appConfig).catch((err) => console.error(err))
