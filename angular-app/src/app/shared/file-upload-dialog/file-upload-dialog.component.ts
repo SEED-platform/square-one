@@ -328,7 +328,7 @@ export class FileUploadDialogComponent {
 
         // Clean up properties by removing ID field variations to avoid duplicates
         const cleanedProperties = { ...feature.properties }
-        POSSIBLE_ID_FIELDS.forEach(fieldName => {
+        POSSIBLE_ID_FIELDS.forEach((fieldName) => {
           delete cleanedProperties[fieldName]
         })
 
