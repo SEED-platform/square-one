@@ -6,6 +6,7 @@
 .ruff_cache
 .pytest_cache
 *.code-workspace
+cache
 
 # Environment files
 .env
