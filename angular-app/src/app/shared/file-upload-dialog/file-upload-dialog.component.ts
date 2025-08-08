@@ -562,7 +562,7 @@ export class FileUploadDialogComponent {
         })
 
         // Remove all possible ID field variations to avoid duplicates
-        POSSIBLE_ID_FIELDS.forEach(fieldName => {
+        POSSIBLE_ID_FIELDS.forEach((fieldName) => {
           delete properties[fieldName]
         })
 
