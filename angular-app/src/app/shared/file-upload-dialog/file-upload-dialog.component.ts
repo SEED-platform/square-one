@@ -557,7 +557,7 @@ export class FileUploadDialogComponent {
 
         // Create properties object, excluding any coordinates fields and ID fields to avoid duplicates
         const properties = { ...itemData }
-        COORDINATE_FIELD_NAMES.forEach(fieldName => {
+        COORDINATE_FIELD_NAMES.forEach((fieldName) => {
           delete properties[fieldName]
         })
 
