@@ -1,15 +1,15 @@
-import * as mapboxgl from 'mapbox-gl';
+import * as mapboxgl from 'mapbox-gl'
 
 export class ToggleButton implements mapboxgl.IControl {
-  private container: HTMLDivElement;
-  private callback: () => void;
+  private container: HTMLDivElement
+  private callback: () => void
 
   constructor(callback: () => void) {
-    this.container = document.createElement('div');
-    this.callback = callback;
+    this.container = document.createElement('div')
+    this.callback = callback
 
     // Inline CSS styles
-    const style = document.createElement('style');
+    const style = document.createElement('style')
     style.textContent = `
       .switch {
         --_switch-bg-clr: white;
@@ -120,33 +120,33 @@ export class ToggleButton implements mapboxgl.IControl {
       .switch > input:checked ~ span:last-of-type {
         opacity: 1;
       }
-    `;
+    `
 
     // Append the style to the document's head
-    document.head.appendChild(style);
+    document.head.appendChild(style)
   }
 
   onAdd(map: mapboxgl.Map) {
-    this.container.className = 'mapboxgl-ctrl';
-    this.container.style.cursor = 'pointer'; // Pointer cursor for better UX
+    this.container.className = 'mapboxgl-ctrl'
+    this.container.style.cursor = 'pointer' // Pointer cursor for better UX
 
     this.container.innerHTML = `
       <label for="filter" class="switch" aria-label="Toggle Filter">
         <input type="checkbox" id="filter" title="Toggle Views" />
         <span>Street View</span>
         <span>Satellite View</span>
-      </label>`;
+      </label>`
 
     this.container.addEventListener('click', (e) => {
-      this.callback();
-    });
+      this.callback()
+    })
 
-    return this.container;
+    return this.container
   }
 
   onRemove() {
     if (this.container.parentNode) {
-      this.container.parentNode.removeChild(this.container);
+      this.container.parentNode.removeChild(this.container)
     }
   }
 }

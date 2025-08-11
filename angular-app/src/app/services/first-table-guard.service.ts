@@ -1,13 +1,16 @@
-import { Injectable } from '@angular/core';
-import { CanActivate, Router } from '@angular/router';
-import { SessionService } from './session.service';
+import { Injectable } from '@angular/core'
+import { CanActivate, Router } from '@angular/router'
+import { SessionService } from './session.service'
 
 @Injectable({
-  providedIn: 'root'
+  providedIn: 'root',
 })
 export class FirstTableGuardService implements CanActivate {
-  constructor(private router: Router, private sessionService: SessionService) {
-    this.initializeState();
+  constructor(
+    private router: Router,
+    private sessionService: SessionService,
+  ) {
+    this.initializeState()
   }
 
   private initializeState() {
@@ -15,18 +18,18 @@ export class FirstTableGuardService implements CanActivate {
   }
 
   canActivate(): boolean {
-    return this.getLoadedState();
+    return this.getLoadedState()
   }
 
   deactivate() {
-    this.setLoadedState(false);
+    this.setLoadedState(false)
   }
 
   getLoadedState(): boolean {
-    return this.sessionService.getFirstTableLoaded();
+    return this.sessionService.getFirstTableLoaded()
   }
 
   setLoadedState(loaded: boolean) {
-    this.sessionService.setFirstTableLoaded(loaded);
+    this.sessionService.setFirstTableLoaded(loaded)
   }
 }
