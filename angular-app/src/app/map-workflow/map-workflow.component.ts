@@ -125,39 +125,7 @@ export class MapWorkflowComponent implements AfterViewInit {
       this.map.addControl(new mapboxgl.NavigationControl())
 
       this.map.on('load', () => {
-        this.geocoder = new MapboxGeocoder({
-          accessToken: environment.mapboxToken,
-          mapboxgl: mapboxgl,
-          marker: true,
-          placeholder: 'Search for a location',
-          proximity: { longitude: savedLocation.longitude, latitude: savedLocation.latitude },
-          countries: 'us',
-        })
-
-        // Listen for geocoder result to save the location
-        this.geocoder.on('result', (event: any) => {
-          const result = event.result
-          if (result && result.center) {
-            const newLocation: MapLocation = {
-              longitude: result.center[0],
-              latitude: result.center[1],
-              zoom: this.map.getZoom(),
-            }
-
-            // Save the new location to session storage
-            this.sessionService.saveMapLocation(newLocation)
-
-            // Update proximity for future searches
-            this.geocoder.setProximity({
-              longitude: newLocation.longitude,
-              latitude: newLocation.latitude,
-            })
-
-            console.log('Location saved from search:', newLocation, 'Place:', result.place_name)
-          }
-        })
-
-        this.map.addControl(this.geocoder)
+        // Only add MapboxDraw (polygon drawing), not MapboxGeocoder
 
         this.draw = new MapboxDraw({
           displayControlsDefault: false,
@@ -165,6 +133,47 @@ export class MapWorkflowComponent implements AfterViewInit {
             polygon: true,
             trash: true,
           },
+          styles: [
+            // Polygon fill
+            {
+              id: 'gl-draw-polygon-fill',
+              type: 'fill',
+              filter: ['all', ['==', '$type', 'Polygon'], ['!=', 'mode', 'static']],
+              paint: {
+                'fill-color': '#66ccff', // light blue
+                'fill-opacity': 0.3,
+              },
+            },
+            // Polygon outline
+            {
+              id: 'gl-draw-polygon-stroke-active',
+              type: 'line',
+              filter: ['all', ['==', '$type', 'Polygon'], ['!=', 'mode', 'static']],
+              paint: {
+                'line-color': '#66ccff', // light blue
+                'line-width': 2,
+              },
+            },
+            // Vertex points
+            {
+              id: 'gl-draw-polygon-and-line-vertex-halo-active',
+              type: 'circle',
+              filter: ['all', ['==', 'meta', 'vertex'], ['==', 'mode', 'draw']],
+              paint: {
+                'circle-radius': 7,
+                'circle-color': '#fff',
+              },
+            },
+            {
+              id: 'gl-draw-polygon-and-line-vertex-active',
+              type: 'circle',
+              filter: ['all', ['==', 'meta', 'vertex'], ['==', 'mode', 'draw']],
+              paint: {
+                'circle-radius': 5,
+                'circle-color': '#66ccff', // light blue
+              },
+            },
+          ],
         })
 
         this.map.addControl(this.draw)
@@ -594,7 +603,6 @@ export class MapWorkflowComponent implements AfterViewInit {
     }
 
     return 'N/A'
-
   }
 
   /**
