@@ -20,6 +20,45 @@ import { MapSearchBoxComponent } from '../map-search-box/map-search-box.componen
   styleUrl: './map-workflow.component.css',
 })
 export class MapWorkflowComponent implements AfterViewInit {
+  /**
+   * Combine the footprints using a backend call
+   */
+  mergeFootprints(): void {
+    if (this.msFootprintsData && this.osmFootprintsData) {
+      const mergedGeoJson: GeoJSON.FeatureCollection = {
+        type: 'FeatureCollection',
+        features: [...this.msFootprintsData.features, ...this.osmFootprintsData.features],
+      }
+      try {
+        if (this.map.getLayer('merged-footprints-layer')) {
+          this.map.removeLayer('merged-footprints-layer')
+        }
+        if (this.map.getSource('merged-footprints')) {
+          this.map.removeSource('merged-footprints')
+        }
+        this.map.addSource('merged-footprints', {
+          type: 'geojson',
+          data: mergedGeoJson,
+        })
+        this.map.addLayer({
+          id: 'merged-footprints-layer',
+          type: 'fill',
+          source: 'merged-footprints',
+          paint: {
+            'fill-color': '#4f8cff',
+            'fill-opacity': 0.4,
+            'fill-outline-color': '#4f8cff',
+          },
+        })
+        this.showStatusMessage('Merged MS + OSM footprints visualized on map', false)
+      } catch (error) {
+        console.error('Error merging footprints:', error)
+        this.showStatusMessage('Error merging footprints', true)
+      }
+    } else {
+      this.showStatusMessage('Both MS and OSM footprints must be loaded to merge', true)
+    }
+  }
   private map!: mapboxgl.Map
   private draw!: MapboxDraw
   private geocoder!: MapboxGeocoder

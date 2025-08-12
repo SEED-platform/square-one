@@ -26,6 +26,7 @@
       <button class="clear-btn osm-clear" (click)="clearOSMFootprints()">Clear OSM</button>
       <button class="clear-btn polygon-clear" (click)="clearPolygon()">Clear Polygon</button>
       <button class="clear-btn all-clear" (click)="clearAllFootprints()">Clear All</button>
+      <button class="merge-btn" [disabled]="!(hasMsFootprints && hasOsmFootprints)" (click)="mergeFootprints()">Merge Footprints</button>
       <button class="proceed-btn" [disabled]="!hasAnyFootprints" (click)="proceedToCBLTable()">Proceed to CBL Table</button>
     </div>
   </div>
