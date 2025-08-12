@@ -155,8 +155,8 @@ class FootprintService:
             ms_gdf["ubid_centroid"] = ms_gdf.apply(lambda x: centroid(x["ubid"]), axis=1)
 
             # Decompose the ubid_centroid into lat/long
-            ms_gdf["lon"] = ms_gdf["ubid_centroid"].apply(lambda point: point.x)
-            ms_gdf["lat"] = ms_gdf["ubid_centroid"].apply(lambda point: point.y)
+            ms_gdf["longitude"] = ms_gdf["ubid_centroid"].apply(lambda point: point.x)
+            ms_gdf["latitude"] = ms_gdf["ubid_centroid"].apply(lambda point: point.y)
             ms_gdf = ms_gdf.drop(columns=["ubid_centroid"])
 
             # Calculate footprint area
@@ -169,8 +169,9 @@ class FootprintService:
             ms_gdf["state"] = ""
             ms_gdf["postal_code"] = ""
             ms_gdf["country"] = ""
-            ms_gdf["latitude"] = ms_gdf["lat"]
-            ms_gdf["longitude"] = ms_gdf["lon"]
+
+            # Set the source of the data to "Microsoft Footprints"
+            ms_gdf["source"] = "Microsoft Footprints"
 
             self.logger.info(f"Processed Microsoft footprints: {len(ms_gdf)} final footprints")
             return ms_gdf
@@ -190,15 +191,6 @@ class FootprintService:
             GeoDataFrame containing OSM footprints
         """
         try:
-            # Create GeoDataFrame for the area of interest
-            aoi_gdf = gpd.GeoDataFrame([{"geometry": polygon}], crs="EPSG:4326")
-
-            # Get bounds of the area of interest
-            bounds = aoi_gdf.bounds.iloc[0]
-            minx, miny, maxx, maxy = bounds["minx"], bounds["miny"], bounds["maxx"], bounds["maxy"]
-
-            self.logger.info(f"OSM area of interest bounds: {minx}, {miny}, {maxx}, {maxy}")
-
             # Get OSM footprints
             osm_gdf = ox.features_from_polygon(polygon, tags={"building": True})
 
@@ -258,6 +250,9 @@ class FootprintService:
                 osm_gdf = osm_gdf.set_crs(epsg=4326)
             osm_gdf["footprint_area_m2"] = osm_gdf.to_crs(epsg=3857).area
             osm_gdf["footprint_area_ft2"] = osm_gdf["footprint_area_m2"] * 10.764
+
+            # Set the source of the data to "OpenStreetMap"
+            osm_gdf["source"] = "OpenStreetMap"
 
             # Add OSM URL - handle different possible column names after reset_index
             def create_url_field(row):
@@ -371,51 +366,50 @@ class FootprintService:
         # Add country field
         osm_gdf["country"] = ""
 
+    def merge_footprint_geodataframes(self, gdf_1, gdf_2):
+        """
+        Merge two footprint GeoDataFrames by intersection, dissolve by UBID, and clean geometry.
+        Returns a GeoDataFrame with merged footprints.
+        """
+        # Overlay the two GeoDataFrames to get intersection geometries
+        overlap_gdf = gpd.overlay(gdf_1, gdf_2, how="intersection")
 
-def merge_footprint_geodataframes(gdf_1, gdf_2):
-    """
-    Merge two footprint GeoDataFrames by intersection, dissolve by UBID, and clean geometry.
-    Returns a GeoDataFrame with merged footprints.
-    """
-    # Overlay the two GeoDataFrames to get intersection geometries
-    overlap_gdf = gpd.overlay(gdf_1, gdf_2, how="intersection")
+        # Create a mapping for how each column should be aggregated when dissolving
+        # "first" means take the first value found for that column in each group
+        column_mapping = dict.fromkeys(overlap_gdf.columns, "first")
 
-    # Create a mapping for how each column should be aggregated when dissolving
-    # "first" means take the first value found for that column in each group
-    column_mapping = dict.fromkeys(overlap_gdf.columns, "first")
+        # For some columns, we want to aggregate differently:
+        # "unique" will collect all unique values in the group (e.g. if multiple heights or UBIDs)
+        for unique_col in ["ubid_2", "height_1", "height_2"]:
+            column_mapping[unique_col] = "unique"
+        # "max" will take the maximum value in the group (e.g. for height_2)
+        for max_col in ["height_2"]:
+            column_mapping[max_col] = "max"
 
-    # For some columns, we want to aggregate differently:
-    # "unique" will collect all unique values in the group (e.g. if multiple heights or UBIDs)
-    for unique_col in ["ubid_2", "height_1", "height_2"]:
-        column_mapping[unique_col] = "unique"
-    # "max" will take the maximum value in the group (e.g. for height_2)
-    for max_col in ["height_2"]:
-        column_mapping[max_col] = "max"
+        # Remove columns that are used for grouping or are geometry, since those are handled separately
+        column_mapping.pop("ubid_1", None)
+        column_mapping.pop("geometry", None)
 
-    # Remove columns that are used for grouping or are geometry, since those are handled separately
-    column_mapping.pop("ubid_1", None)
-    column_mapping.pop("geometry", None)
+        # Dissolve merges all rows with the same UBID 1 into a single row, combining their geometries
+        # and aggregating the other columns according to column_mapping. This is useful for combining
+        # overlapping/intersecting footprints that share the same UBID into a single, unified footprint.
+        overlap_gdf = overlap_gdf.dissolve(by="ubid_1", aggfunc=column_mapping).reset_index()
 
-    # Dissolve merges all rows with the same UBID 1 into a single row, combining their geometries
-    # and aggregating the other columns according to column_mapping. This is useful for combining
-    # overlapping/intersecting footprints that share the same UBID into a single, unified footprint.
-    overlap_gdf = overlap_gdf.dissolve(by="ubid_1", aggfunc=column_mapping).reset_index()
+        # Merge MultiPolygon into a single Polygon if possible
+        def merge_or_largest(geom):
+            if isinstance(geom, MultiPolygon):
+                merged = unary_union(geom)
+                if isinstance(merged, Polygon):
+                    return merged
+                else:
+                    largest_polygon = max(geom.geoms, key=lambda p: p.area)
+                    return largest_polygon
+            return geom
 
-    # Merge MultiPolygon into a single Polygon if possible
-    def merge_or_largest(geom):
-        if isinstance(geom, MultiPolygon):
-            merged = unary_union(geom)
-            if isinstance(merged, Polygon):
-                return merged
-            else:
-                largest_polygon = max(geom.geoms, key=lambda p: p.area)
-                return largest_polygon
-        return geom
+        overlap_gdf["geometry"] = overlap_gdf["geometry"].apply(merge_or_largest)
 
-    overlap_gdf["geometry"] = overlap_gdf["geometry"].apply(merge_or_largest)
+        print(f"Number of footprints (updated): {len(overlap_gdf)}")
+        if "osm_url" in overlap_gdf.columns:
+            print(f"Number of unique osm_URL: {len(overlap_gdf['osm_url'].unique())}")
 
-    print(f"Number of footprints (updated): {len(overlap_gdf)}")
-    if "osm_url" in overlap_gdf.columns:
-        print(f"Number of unique osm_URL: {len(overlap_gdf['osm_url'].unique())}")
-
-    return overlap_gdf
+        return overlap_gdf

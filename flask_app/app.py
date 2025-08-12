@@ -38,7 +38,7 @@ from flask_app.services.common_service import (
 )
 from flask_app.services.data_transformation_service import DataTransformationService
 from flask_app.services.file_processing_service import FileProcessingService
-from flask_app.services.footprint_service import FootprintService, merge_footprint_geodataframes
+from flask_app.services.footprint_service import FootprintService
 from flask_app.services.geocoding_service import GeocodingService
 
 warnings.filterwarnings("ignore", category=RuntimeWarning)
@@ -319,7 +319,7 @@ def merge_footprints():
     gdf_1 = gpd.GeoDataFrame.from_features(geojson_1["features"])
     gdf_2 = gpd.GeoDataFrame.from_features(geojson_2["features"])
 
-    merged_gdf = merge_footprint_geodataframes(gdf_1, gdf_2)
+    merged_gdf = footprint_service.merge_footprint_geodataframes(gdf_1, gdf_2)
 
     # Convert back to GeoJSON
     merged_geojson = json.loads(merged_gdf.to_json())
@@ -429,7 +429,7 @@ def edit_footprint():
     except AssertionError:
         return jsonify({"message": "Invalid longitude coordinates"}), 400
 
-    new_polygon_data = {"lat": lat, "lon": lon, "ubid": ubid}
+    new_polygon_data = {"latitude": lat, "longitude": lon, "ubid": ubid}
     return jsonify({"message": "success", "user_data": json.dumps(new_polygon_data)}), 200
 
 

@@ -1,7 +1,9 @@
 import geopandas as gpd
 from shapely.geometry import Polygon
 
-from flask_app.services.footprint_service import merge_footprint_geodataframes
+from flask_app.services.footprint_service import FootprintService
+
+footprint_service = FootprintService()
 
 
 def test_merge_footprint_geodataframes():
@@ -24,7 +26,7 @@ def test_merge_footprint_geodataframes():
         crs="EPSG:4326",
     )
 
-    merged = merge_footprint_geodataframes(gdf_1, gdf_2)
+    merged = footprint_service.merge_footprint_geodataframes(gdf_1, gdf_2)
 
     print(merged)
     assert len(merged) > 0, "Merged GeoDataFrame should not be empty"
