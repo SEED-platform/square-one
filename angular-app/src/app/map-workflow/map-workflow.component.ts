@@ -2,6 +2,7 @@ import { Component, AfterViewInit, ChangeDetectorRef } from '@angular/core'
 import { CommonModule } from '@angular/common'
 import { Router } from '@angular/router'
 import * as mapboxgl from 'mapbox-gl'
+import MapboxGeocoder from '@mapbox/mapbox-gl-geocoder'
 import MapboxDraw from '@mapbox/mapbox-gl-draw'
 import { environment } from '../../environments/environment'
 import { NavigationComponent } from '../shared/navigation/navigation.component'
@@ -21,6 +22,7 @@ import { MapSearchBoxComponent } from '../map-search-box/map-search-box.componen
 export class MapWorkflowComponent implements AfterViewInit {
   private map!: mapboxgl.Map
   private draw!: MapboxDraw
+  private geocoder!: MapboxGeocoder
 
   // Component state
   hasPolygon = false
@@ -123,6 +125,40 @@ export class MapWorkflowComponent implements AfterViewInit {
       this.map.addControl(new mapboxgl.NavigationControl())
 
       this.map.on('load', () => {
+        this.geocoder = new MapboxGeocoder({
+          accessToken: environment.mapboxToken,
+          mapboxgl: mapboxgl,
+          marker: true,
+          placeholder: 'Search for a location',
+          proximity: { longitude: savedLocation.longitude, latitude: savedLocation.latitude },
+          countries: 'us',
+        })
+
+        // Listen for geocoder result to save the location
+        this.geocoder.on('result', (event: any) => {
+          const result = event.result
+          if (result && result.center) {
+            const newLocation: MapLocation = {
+              longitude: result.center[0],
+              latitude: result.center[1],
+              zoom: this.map.getZoom(),
+            }
+
+            // Save the new location to session storage
+            this.sessionService.saveMapLocation(newLocation)
+
+            // Update proximity for future searches
+            this.geocoder.setProximity({
+              longitude: newLocation.longitude,
+              latitude: newLocation.latitude,
+            })
+
+            console.log('Location saved from search:', newLocation, 'Place:', result.place_name)
+          }
+        })
+
+        this.map.addControl(this.geocoder)
+
         this.draw = new MapboxDraw({
           displayControlsDefault: false,
           controls: {
@@ -558,6 +594,7 @@ export class MapWorkflowComponent implements AfterViewInit {
     }
 
     return 'N/A'
+
   }
 
   /**
