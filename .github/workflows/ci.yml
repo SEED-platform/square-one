@@ -7,9 +7,9 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Check out cbl-workflow repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: SEED-platform/cbl-workflow
           path: cbl-workflow
@@ -47,9 +47,9 @@ jobs:
         python-version: ["3.9", "3.12"]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Check out cbl-workflow repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: SEED-platform/cbl-workflow
           path: cbl-workflow
@@ -86,7 +86,7 @@ jobs:
     needs: lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions/setup-node@v4
         with:
           node-version: 22
