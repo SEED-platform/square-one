@@ -59,7 +59,7 @@ export class MapWorkflowComponent implements AfterViewInit {
   /**
    * Prompt for a location, call backend to get bounding box, and draw it on the map
    */
-  findLocationBoundingBox(): void {
+  retrieveBoundingBox(): void {
     const location = this.lastSelectedLocation
     if (!location || !location.place_name) {
       window.alert('Please select a location in the search box first.')
