@@ -503,9 +503,30 @@ export class CblTableComponent implements OnInit, OnDestroy {
   openHeaderEditDialog(mode: 'display' | 'column' = 'display'): void {
     this.editMode = mode
 
-    // Get all column keys from session service
-    const allKeys = this.sessionService.getPropertyNames()
-    allKeys.push('coordinates') // Add coordinates
+    // Get all column keys from session service, with fallback to current data
+    let allKeys = this.sessionService.getPropertyNames()
+
+    // If no property names in session, try to get them from current geoJson data
+    if (allKeys.length === 0 && this.geoJson && this.geoJson.features && this.geoJson.features.length > 0) {
+      const sampleFeature = this.geoJson.features[0]
+      if (sampleFeature.properties) {
+        allKeys = Object.keys(sampleFeature.properties)
+        // Update session service with the discovered keys
+        this.sessionService.setPropertyNames(allKeys)
+      }
+    }
+
+    // If still no keys, try to get them from current column definitions
+    if (allKeys.length === 0 && this.colDefs && this.colDefs.length > 0) {
+      allKeys = this.colDefs
+        .map(col => col.field)
+        .filter(field => field && field !== 'hasFootprint') as string[]
+    }
+
+    // Add coordinates if not already present
+    if (!allKeys.includes('coordinates')) {
+      allKeys.push('coordinates')
+    }
 
     // Build the list for editing
     if (mode === 'display') {
@@ -702,6 +723,59 @@ export class CblTableComponent implements OnInit, OnDestroy {
     }
   }
 
+  /**
+   * Check if a column contains primarily numeric data for filtering purposes
+   */
+  private isColumnNumeric(columnName: string): boolean {
+    if (!this.geoJson?.features?.length) {
+      return false
+    }
+
+    // Define known numeric columns
+    const knownNumericColumns = [
+      'footprint_area_ft2', 'footprint_area_m2', 'height', 'year_built',
+      'gross_floor_area', 'gfa', 'latitude', 'longitude',
+      'P25 target EUI', 'P50 target EUI', 'P75 target EUI'
+    ]
+
+    if (knownNumericColumns.includes(columnName)) {
+      return true
+    }
+
+    // Check if column name suggests numeric data
+    const numericPatterns = [
+      /area/i, /size/i, /sqft/i, /sq_ft/i, /square/i, /feet/i, /ft/i,
+      /height/i, /width/i, /length/i, /depth/i, /year/i, /age/i,
+      /count/i, /number/i, /num/i, /value/i, /amount/i, /price/i,
+      /cost/i, /energy/i, /eui/i, /consumption/i, /usage/i
+    ]
+
+    if (numericPatterns.some(pattern => pattern.test(columnName))) {
+      return true
+    }
+
+    // Sample data to determine if column is numeric
+    const sampleSize = Math.min(10, this.geoJson.features.length)
+    const sampleFeatures = this.geoJson.features.slice(0, sampleSize)
+
+    let numericCount = 0
+    let totalCount = 0
+
+    sampleFeatures.forEach((feature: any) => {
+      const value = feature.properties?.[columnName]
+      if (value !== null && value !== undefined && value !== '') {
+        totalCount++
+        const numValue = this.parseNumericValue(value)
+        if (numValue !== null && !isNaN(numValue)) {
+          numericCount++
+        }
+      }
+    })
+
+    // Consider a column numeric if at least 70% of non-empty values are numeric
+    return totalCount > 0 && numericCount / totalCount >= 0.7
+  }
+
   // Dynamically sets grid for geojson values
   setColumnDefs() {
     let keys = this.sessionService.getPropertyNames()
@@ -771,44 +845,57 @@ export class CblTableComponent implements OnInit, OnDestroy {
           return this.hasFootprintData(params.data) ? 'Yes' : 'No'
         },
       },
-      ...keys.map((key: string) => ({
-        field: key,
-        editable: !nonEditableKeys.includes(key),
-        headerName: this.getDisplayHeaderName(key),
-        headerTooltip: `Column: ${key}`,
-        sortable: true,
-        cellStyle: key === 'footprint_area_ft2' ? { 'text-align': 'right' } : key === 'height' ? { 'text-align': 'right' } : undefined,
-        suppressHeaderMenuButton: false,
-        headerValueGetter: () => this.getDisplayHeaderName(key),
-        valueGetter: (params: ValueGetterParams) => {
-          if (this.geoJson.features.length !== 0) {
-            if (key === 'coordinates') {
-              return params.data.geometry?.coordinates
+      ...keys.map((key: string) => {
+        // Check if this column contains numeric data for filtering
+        const isNumericColumn = this.isColumnNumeric(key)
+
+        return {
+          field: key,
+          editable: !nonEditableKeys.includes(key),
+          headerName: this.getDisplayHeaderName(key),
+          headerTooltip: `Column: ${key}`,
+          sortable: true,
+          // Add number filter for numeric columns
+          filter: isNumericColumn ? 'agNumberColumnFilter' : 'agTextColumnFilter',
+          filterParams: isNumericColumn ? {
+            filterOptions: ['equals', 'notEqual', 'lessThan', 'lessThanOrEqual', 'greaterThan', 'greaterThanOrEqual', 'inRange'],
+            defaultOption: 'greaterThanOrEqual',
+            suppressAndOrCondition: false,
+            allowTyping: true,
+          } : undefined,
+          cellStyle: key === 'footprint_area_ft2' ? { 'text-align': 'right' } : key === 'height' ? { 'text-align': 'right' } : undefined,
+          suppressHeaderMenuButton: false,
+          headerValueGetter: () => this.getDisplayHeaderName(key),
+          valueGetter: (params: ValueGetterParams) => {
+            if (this.geoJson.features.length !== 0) {
+              if (key === 'coordinates') {
+                return params.data.geometry?.coordinates
+              }
+              const value = params.data.properties[key]
+              // Round footprint_area_ft2 to nearest whole number for display
+              if (key === 'footprint_area_ft2' && typeof value === 'number') {
+                return Math.round(value)
+              }
+              // Convert height from meters to feet and round to nearest whole number
+              if (key === 'height' && typeof value === 'number' && value !== null) {
+                return Math.round(value * 3.28084) // Convert meters to feet
+              }
+              return value
             }
-            const value = params.data.properties[key]
-            // Round footprint_area_ft2 to nearest whole number for display
-            if (key === 'footprint_area_ft2' && typeof value === 'number') {
-              return Math.round(value)
+          },
+          valueSetter: (params: ValueSetterParams) => {
+            if (this.geoJson.features.length !== 0) {
+              if (key === 'coordinates') {
+                params.data.geometry = params.data.geometry || {}
+                params.data.geometry.coordinates = params.newValue
+              } else {
+                params.data.properties[key] = params.newValue
+              }
             }
-            // Convert height from meters to feet and round to nearest whole number
-            if (key === 'height' && typeof value === 'number' && value !== null) {
-              return Math.round(value * 3.28084) // Convert meters to feet
-            }
-            return value
-          }
-        },
-        valueSetter: (params: ValueSetterParams) => {
-          if (this.geoJson.features.length !== 0) {
-            if (key === 'coordinates') {
-              params.data.geometry = params.data.geometry || {}
-              params.data.geometry.coordinates = params.newValue
-            } else {
-              params.data.properties[key] = params.newValue
-            }
-          }
-          return true
-        },
-      })),
+            return true
+          },
+        }
+      }),
     ]
     this.sessionService.setColumnDefinitions(this.colDefs)
   }
@@ -1268,10 +1355,37 @@ export class CblTableComponent implements OnInit, OnDestroy {
     }
   }
 
+  /**
+   * Get count of filtered rows for export notifications
+   */
+  private getFilteredRowCount(): number {
+    let count = 0
+    this.gridApi.forEachNodeAfterFilter(() => {
+      count++
+    })
+    return count
+  }
+
+  /**
+   * Show notification about filtered export
+   */
+  private notifyFilteredExport(format: string): void {
+    const filteredCount = this.getFilteredRowCount()
+    const totalCount = this.rowData.length
+
+    if (filteredCount < totalCount) {
+      console.log(`Exporting ${filteredCount} of ${totalCount} filtered records to ${format}`)
+      // You could also show a toast notification here if you have a notification service
+    }
+  }
+
   exportAsExcel(event: Event) {
     event.preventDefault()
     // Stop editing changes data without clicking off cell
     this.gridApi.stopEditing()
+
+    // Notify about filtered export
+    this.notifyFilteredExport('Excel')
 
     // Get the data with custom header names
     const json = this.jsonConverterWithCustomHeaders()
@@ -1296,6 +1410,9 @@ export class CblTableComponent implements OnInit, OnDestroy {
 
     // Stop any ongoing editing in the grid
     this.gridApi.stopEditing()
+
+    // Notify about filtered export
+    this.notifyFilteredExport('CSV')
 
     const json = this.jsonConverterWithCustomHeaders()
     // Retrieve the CSV data from the grid API
@@ -1322,11 +1439,20 @@ export class CblTableComponent implements OnInit, OnDestroy {
     // Stop editing changes data without clicking off cell
     this.gridApi.stopEditing()
 
+    // Notify about filtered export
+    this.notifyFilteredExport('GeoJSON')
+
+    // Get only the filtered/visible data from AG Grid
+    const filteredData: any[] = []
+    this.gridApi.forEachNodeAfterFilter((node: any) => {
+      filteredData.push(node.data)
+    })
+
     // Get the data with custom header names (but for GeoJSON we need to maintain the GeoJSON structure)
     const json = this.jsonConverterWithCustomHeaders()
 
-    // Convert the flat JSON back to GeoJSON format
-    const geojsonFeatures = this.rowData.map((feature, index) => {
+    // Convert the flat JSON back to GeoJSON format using only filtered data
+    const geojsonFeatures = filteredData.map((feature, index) => {
       const correspondingData = json[index]
 
       // Create a new feature with updated properties using custom headers
@@ -1384,6 +1510,9 @@ export class CblTableComponent implements OnInit, OnDestroy {
     event.preventDefault()
     this.gridApi.stopEditing()
 
+    // Notify about filtered export
+    this.notifyFilteredExport('JSON')
+
     const json = this.jsonConverterWithCustomHeaders()
     console.log(json)
 
@@ -1407,13 +1536,18 @@ export class CblTableComponent implements OnInit, OnDestroy {
 
   // New method that uses custom header names for export and matches table column order
   jsonConverterWithCustomHeaders() {
-    const data = this.rowData
+    // Get only the filtered/visible data from AG Grid instead of all data
+    const filteredData: any[] = []
+    this.gridApi.forEachNodeAfterFilter((node: any) => {
+      filteredData.push(node.data)
+    })
+
     const jsonArray = []
 
     // Get the column definitions but exclude the computed hasFootprint column from exports
     const columnFields = this.colDefs.map((col) => col.field).filter((field) => field !== undefined && field !== 'hasFootprint') as string[]
 
-    for (const building of data) {
+    for (const building of filteredData) {
       const buildingObject: Record<string, any> = {}
 
       // Process columns in the same order as they appear in the table (excluding hasFootprint)
