@@ -316,7 +316,6 @@ def merge_footprints():
         return jsonify({"error": True, "message": "Missing geojson_1 or geojson_2 in request"}), 400
 
     # Convert GeoJSON to GeoDataFrames
-    gdf_1 = gpd.GeoDataFrame.from_features(geojson_1["features"])
     gdf_1 = gpd.GeoDataFrame.from_features(geojson_1["features"], crs="EPSG:4326")
     gdf_2 = gpd.GeoDataFrame.from_features(geojson_2["features"], crs="EPSG:4326")
 

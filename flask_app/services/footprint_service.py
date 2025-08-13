@@ -387,10 +387,13 @@ class FootprintService:
         # For some columns, we want to aggregate differently:
         # "unique" will collect all unique values in the group (e.g. if multiple heights or UBIDs)
         for unique_col in ["ubid_2", "height_1", "height_2"]:
-            column_mapping[unique_col] = "unique"
+            if unique_col in overlap_gdf.columns:
+                column_mapping[unique_col] = "unique"
+
         # "max" will take the maximum value in the group (e.g. for height_2)
         for max_col in ["height_2"]:
-            column_mapping[max_col] = "max"
+            if max_col in overlap_gdf.columns:
+                column_mapping[max_col] = "max"
 
         # Remove columns that are used for grouping or are geometry, since those are handled separately
         column_mapping.pop("ubid_1", None)
@@ -414,8 +417,8 @@ class FootprintService:
 
         overlap_gdf["geometry"] = overlap_gdf["geometry"].apply(merge_or_largest)
 
-        print(f"Number of footprints (updated): {len(overlap_gdf)}")
+        self.logger.info(f"Number of footprints (updated): {len(overlap_gdf)}")
         if "osm_url" in overlap_gdf.columns:
-            print(f"Number of unique osm_URL: {len(overlap_gdf['osm_url'].unique())}")
+            self.logger.info(f"Number of unique osm_URL: {len(overlap_gdf['osm_url'].unique())}")
 
         return overlap_gdf
