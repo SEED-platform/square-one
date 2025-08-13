@@ -109,10 +109,46 @@
       tabindex="-1"
     >
       <div class="py-1" role="none">
-        <a class="block border-b border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" id="menu-item-0" (click)="exportAsExcel($event)" href="" role="menuitem" tabindex="-1" title="Export filtered data to Excel">Excel</a>
-        <a class="block border-b border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" id="menu-item-1" (click)="exportAsCsv($event)" href="" role="menuitem" tabindex="-1" title="Export filtered data to CSV">CSV</a>
-        <a class="block border-b border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" id="menu-item-2" (click)="exportAsJson($event)" href="" role="menuitem" tabindex="-1" title="Export filtered data to JSON">JSON</a>
-        <a class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" id="menu-item-3" (click)="exportAsGeoJson($event)" href="" role="menuitem" tabindex="-1" title="Export filtered data to GeoJSON">GeoJSON</a>
+        <a
+          class="block border-b border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+          id="menu-item-0"
+          (click)="exportAsExcel($event)"
+          href=""
+          role="menuitem"
+          tabindex="-1"
+          title="Export filtered data to Excel"
+          >Excel</a
+        >
+        <a
+          class="block border-b border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+          id="menu-item-1"
+          (click)="exportAsCsv($event)"
+          href=""
+          role="menuitem"
+          tabindex="-1"
+          title="Export filtered data to CSV"
+          >CSV</a
+        >
+        <a
+          class="block border-b border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+          id="menu-item-2"
+          (click)="exportAsJson($event)"
+          href=""
+          role="menuitem"
+          tabindex="-1"
+          title="Export filtered data to JSON"
+          >JSON</a
+        >
+        <a
+          class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+          id="menu-item-3"
+          (click)="exportAsGeoJson($event)"
+          href=""
+          role="menuitem"
+          tabindex="-1"
+          title="Export filtered data to GeoJSON"
+          >GeoJSON</a
+        >
       </div>
     </div>
 
@@ -599,23 +635,11 @@
       <div class="block text-sm font-medium text-gray-700 mb-2">Edit Mode</div>
       <div class="flex space-x-4">
         <label class="flex items-center">
-          <input
-            type="radio"
-            class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
-            [(ngModel)]="editMode"
-            value="display"
-            (change)="openHeaderEditDialog('display')"
-          />
+          <input class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500" [(ngModel)]="editMode" (change)="openHeaderEditDialog('display')" type="radio" value="display" />
           <span class="ml-2 text-sm text-gray-700">Edit Display Names</span>
         </label>
         <label class="flex items-center">
-          <input
-            type="radio"
-            class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
-            [(ngModel)]="editMode"
-            value="column"
-            (change)="openHeaderEditDialog('column')"
-          />
+          <input class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500" [(ngModel)]="editMode" (change)="openHeaderEditDialog('column')" type="radio" value="column" />
           <span class="ml-2 text-sm text-gray-700">Rename Column Keys</span>
         </label>
       </div>
@@ -630,9 +654,14 @@
 
     <div class="overflow-auto max-h-[50vh] mb-6">
       <!-- Empty state when no columns are available -->
-      <div *ngIf="headerEditList.length === 0" class="text-center py-8">
+      <div class="text-center py-8" *ngIf="headerEditList.length === 0">
         <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+          ></path>
         </svg>
         <h3 class="mt-2 text-sm font-medium text-gray-900">No columns available</h3>
         <p class="mt-1 text-sm text-gray-500">Load some data first to edit column headers.</p>
