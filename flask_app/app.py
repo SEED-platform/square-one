@@ -317,7 +317,8 @@ def merge_footprints():
 
     # Convert GeoJSON to GeoDataFrames
     gdf_1 = gpd.GeoDataFrame.from_features(geojson_1["features"])
-    gdf_2 = gpd.GeoDataFrame.from_features(geojson_2["features"])
+    gdf_1 = gpd.GeoDataFrame.from_features(geojson_1["features"], crs="EPSG:4326")
+    gdf_2 = gpd.GeoDataFrame.from_features(geojson_2["features"], crs="EPSG:4326")
 
     merged_gdf = footprint_service.merge_footprint_geodataframes(gdf_1, gdf_2)
 
