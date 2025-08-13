@@ -107,6 +107,26 @@ git clone git@github.com:SEED-platform/cbl-workflow.git
    - The user can reverse geocode/add a new building using the building icon on the map and drawing a new footprint at the desired location. This will add a new entry to the table.
    - The user can also delete data entirely from the map and the table by selecting the row on the table and clicking the `Delete Selected Row` button.
 
+### Features
+
+- **Export** - exports table data to XLSX, CSV, JSON, or GeoJSON formats. Exports only the **filtered/visible rows** from the table instead of all data. This provides a much more useful workflow when working with numerical filters and other data filtering tools.
+- **Filtering** - comprehensive filtering on table columns including numerical filtering (>=, <=, etc) with full operator support for mathematical comparisons
+- **Column Stats** - provides statistics about % populated for each column, allows user to delete columns and merge columns together
+- **Edit Headers** - allows user to update the names of each column, either the display names or the underlying machine names
+- **Merge Records** - merges 2 rows together, specify which data to prefer when conflicts arise
+- **Bulk Edit** - allows user to set a column to a specific value across multiple selected records
+- **Assign Target EUI** - given a few populated fields in the table (in order of importance: building type, climate zone, gross floor area, year built, and weekly hours of operation), a lookup is made on the ESPM data explorer data to retrieve an estimate P25 EUI. See the [ESPM data readme](flask_app/esmp_data/README.md) for more information.
+- **Heat Map** - allows user to select a numerical field in the table and use it to apply a heat map to the footprints on the map
+- **Interactive Map & Table Integration** - click on table rows to fly to buildings on the map, click on map footprints to select corresponding table rows
+- **Footprint Editing** - manually edit/redraw building footprints by double-clicking and dragging polygon vertices on the map
+- **Map Drawing Tools** - add new building footprints using the building icon, delete footprints using the trash icon, edit footprints using the pencil icon
+- **Reverse Geocoding** - convert building footprints or addresses back to address information using MapQuest API
+- **Row Management** - add new rows manually, delete selected rows, with full table-map synchronization
+- **Data Validation** - check uploaded data format and requirements before processing
+- **Session Persistence** - maintains map location, data, and user preferences across browser sessions
+- **Multi-Data Source Support** - load and combine Microsoft Building Footprints and OpenStreetMap building data
+- **Map Workflow** - location-based workflow to draw polygons and fetch building footprints from external data sources
+
 ### Future Ideas
 
 - supporting multiple files
