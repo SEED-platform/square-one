@@ -259,14 +259,13 @@ class TestFootprintService(unittest.TestCase):
             self.assertEqual(result.loc[0, "osm_url"], "https://www.openstreetmap.org/")
 
     def test_process_osm_footprint(self):
-        """Test that the OSM service returns at least 10 buildings for Denver."""
+        """Test that the OSM service returns buildings for Denver."""
         # Approximate polygon for Denver
-        denver_polygon = Polygon([(-104.985, 39.735), (-104.984, 39.735), (-104.984, 39.736), (-104.985, 39.736), (-104.985, 39.735)])
+        denver_polygon = Polygon([(-104.984860, 39.736826), (-104.984852, 39.735269), (-104.983598, 39.735283), (-104.983596, 39.736865)])
 
         service = FootprintService()
         # Load real OSM footprints
         osm_gdf = service.load_osm_footprints(denver_polygon)
         processed_gdf = service.process_osm_footprints(osm_gdf)
         print(f"Found {len(processed_gdf)} OSM buildings in Denver")
-        # Check that there are at least 10
-        self.assertGreaterEqual(len(processed_gdf), 5)
+        self.assertEqual(len(processed_gdf), 8)

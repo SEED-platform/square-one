@@ -225,6 +225,7 @@ class FootprintService:
 
             # Reset index to add unique IDs
             osm_gdf = osm_gdf.reset_index()
+            osm_gdf["osm_id"] = osm_gdf["id"]
             osm_gdf["id"] = range(len(osm_gdf))
 
             # Log the columns to help debug
@@ -258,8 +259,8 @@ class FootprintService:
             def create_url_field(row):
                 try:
                     # Common patterns after reset_index with OSMnx data
-                    if "element_type" in row and "osmid" in row:
-                        return f"https://www.openstreetmap.org/{row['element_type']}/{row['osmid']}"
+                    if "element" in row and "osm_id" in row:
+                        return f"https://www.openstreetmap.org/{row['element']}/{row['osm_id']}"
                     elif "level_0" in row and "level_1" in row:
                         return f"https://www.openstreetmap.org/{row['level_0']}/{row['level_1']}"
                     # Try direct index access if available
@@ -285,6 +286,11 @@ class FootprintService:
 
                 # Map "yes" buildings to "Unknown"
                 osm_gdf.loc[osm_gdf["building"] == "yes", "building"] = "Unknown"
+
+                # save building to building_type
+                osm_gdf["building_type"] = osm_gdf["building"]
+                # remove building
+                osm_gdf = osm_gdf.drop(columns=["building"])
 
             # Handle height and levels
             if "height" not in osm_gdf.columns:
