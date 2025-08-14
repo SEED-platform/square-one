@@ -250,7 +250,7 @@ class TestFootprintService(unittest.TestCase):
 
     def test_process_osm_footprint(self):
         """Test that the OSM service returns buildings for Denver."""
-        # Approximate polygon for Denver
+        # Approximate polygon for Denver block
         denver_polygon = Polygon([(-104.984860, 39.736826), (-104.984852, 39.735269), (-104.983598, 39.735283), (-104.983596, 39.736865)])
 
         service = FootprintService()
@@ -260,9 +260,14 @@ class TestFootprintService(unittest.TestCase):
         print(f"Found {len(processed_gdf)} OSM buildings in Denver")
         self.assertEqual(len(processed_gdf), 8)
 
+        # save the file to a geojson in an output directory for inspection
+        output_dir = Path("flask_app/tests/output")
+        output_dir.mkdir(parents=True, exist_ok=True)
+        processed_gdf.to_file(output_dir / "denver_osm_footprints.geojson", driver="GeoJSON")
+
     def test_process_ms_footprint(self):
         """Test that the MS service returns buildings for Denver."""
-        # Approximate polygon for Denver
+        # Approximate polygon for Denver block
         denver_polygon = Polygon([(-104.984860, 39.736826), (-104.984852, 39.735269), (-104.983598, 39.735283), (-104.983596, 39.736865)])
 
         service = FootprintService()
@@ -271,7 +276,38 @@ class TestFootprintService(unittest.TestCase):
         service.update_datasets(quadkeys)
 
         # Load real MS footprints
-        osm_gdf = service.load_ms_footprints(denver_polygon, quadkeys)
-        processed_gdf = service.process_ms_footprints(osm_gdf)
+        ms_gdf = service.load_ms_footprints(denver_polygon, quadkeys)
+        processed_gdf = service.process_ms_footprints(ms_gdf)
         print(f"Found {len(processed_gdf)} MS buildings in Denver")
         self.assertEqual(len(processed_gdf), 8)
+
+        # save the file to a geojson in an output directory for inspection
+        output_dir = Path("flask_app/tests/output")
+        output_dir.mkdir(parents=True, exist_ok=True)
+        processed_gdf.to_file(output_dir / "denver_ms_footprints.geojson", driver="GeoJSON")
+
+    def test_merge_ms_osm_footprints(self):
+        """Test loading and merging denver footprints (8 buildings +/-)"""
+        # Approximate polygon for Denver block
+        denver_polygon = Polygon([(-104.984860, 39.736826), (-104.984852, 39.735269), (-104.983598, 39.735283), (-104.983596, 39.736865)])
+
+        service = FootprintService()
+        # grab the quadkeys
+        quadkeys = service.get_quadkeys_for_polygon(denver_polygon)
+        service.update_datasets(quadkeys)
+
+        # Load real OSM footprints
+        osm_gdf = service.load_osm_footprints(denver_polygon)
+        osm_gdf = service.process_osm_footprints(osm_gdf)
+
+        # Load real MS footprints
+        ms_gdf = service.load_ms_footprints(denver_polygon, quadkeys)
+        ms_gdf = service.process_ms_footprints(ms_gdf)
+
+        merged_gdf = service.merge_footprint_geodataframes(osm_gdf, ms_gdf)
+
+        # save the file to a geojson in an output directory for inspection
+        output_dir = Path("flask_app/tests/output")
+        output_dir.mkdir(parents=True, exist_ok=True)
+        merged_gdf.to_file(output_dir / "denver_merged_footprints.geojson", driver="GeoJSON")
+        self.assertEqual(len(merged_gdf), 8)
