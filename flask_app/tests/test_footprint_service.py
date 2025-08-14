@@ -249,7 +249,7 @@ class TestFootprintService(unittest.TestCase):
             self.assertEqual(result.loc[0, "osm_url"], "https://www.openstreetmap.org/way/12345")
 
     def test_process_osm_footprint(self):
-        """Test that the OSM service returns at least 10 buildings for Denver."""
+        """Test that the OSM service returns buildings for Denver."""
         # Approximate polygon for Denver
         denver_polygon = Polygon([(-104.984860, 39.736826), (-104.984852, 39.735269), (-104.983598, 39.735283), (-104.983596, 39.736865)])
 
@@ -258,4 +258,20 @@ class TestFootprintService(unittest.TestCase):
         osm_gdf = service.load_osm_footprints(denver_polygon)
         processed_gdf = service.process_osm_footprints(osm_gdf)
         print(f"Found {len(processed_gdf)} OSM buildings in Denver")
+        self.assertEqual(len(processed_gdf), 8)
+
+    def test_process_ms_footprint(self):
+        """Test that the MS service returns buildings for Denver."""
+        # Approximate polygon for Denver
+        denver_polygon = Polygon([(-104.984860, 39.736826), (-104.984852, 39.735269), (-104.983598, 39.735283), (-104.983596, 39.736865)])
+
+        service = FootprintService()
+        # grab the correct quadkeys
+        quadkeys = service.get_quadkeys_for_polygon(denver_polygon)
+        service.update_datasets(quadkeys)
+
+        # Load real MS footprints
+        osm_gdf = service.load_ms_footprints(denver_polygon, quadkeys)
+        processed_gdf = service.process_ms_footprints(osm_gdf)
+        print(f"Found {len(processed_gdf)} MS buildings in Denver")
         self.assertEqual(len(processed_gdf), 8)

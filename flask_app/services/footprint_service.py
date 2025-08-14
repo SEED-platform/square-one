@@ -21,6 +21,28 @@ import flask_app.config as config
 
 
 class FootprintService:
+    def _get_best_area_crs(self, gdf):
+        """
+        Select the best CRS for area calculation based on centroid location.
+        Returns an EPSG code.
+        """
+        centroid = gdf.geometry.union_all().centroid
+        lon, lat = centroid.x, centroid.y
+        # Alaska
+        if lat > 50 and lon < -130:
+            return 3338  # Alaska Albers Equal Area
+        # Hawaii
+        if 18 <= lat <= 23 and -162 <= lon <= -154:
+            return 3563  # Hawaii Albers Equal Area
+        # Contiguous US
+        if 24 <= lat <= 50 and -125 <= lon <= -66:
+            return 5070  # USA Contiguous Albers Equal Area
+        # Fallback: UTM zone based on longitude
+        utm_zone = int((lon + 180) / 6) + 1
+        is_northern = lat >= 0
+        epsg = 32600 + utm_zone if is_northern else 32700 + utm_zone
+        return epsg
+
     """Service class for handling footprint operations."""
 
     def __init__(self):
@@ -159,9 +181,15 @@ class FootprintService:
             ms_gdf["latitude"] = ms_gdf["ubid_centroid"].apply(lambda point: point.y)
             ms_gdf = ms_gdf.drop(columns=["ubid_centroid"])
 
-            # Calculate footprint area
-            ms_gdf["footprint_area_m2"] = ms_gdf.to_crs(epsg=3857).area
+            # Calculate footprint area using best CRS for the region
+            if ms_gdf.crs is None:
+                ms_gdf = ms_gdf.set_crs(epsg=4326)
+            best_crs = self._get_best_area_crs(ms_gdf)
+            ms_gdf_proj = ms_gdf.to_crs(epsg=best_crs)
+            ms_gdf["footprint_area_m2"] = ms_gdf_proj.area
             ms_gdf["footprint_area_ft2"] = ms_gdf["footprint_area_m2"] * 10.764
+            # Return to 4326 for further processing
+            ms_gdf = ms_gdf.to_crs(epsg=4326)
 
             # Add address fields in the format expected by the frontend
             ms_gdf["street_address"] = ""
@@ -246,11 +274,15 @@ class FootprintService:
             osm_gdf["latitude"] = osm_gdf["ubid_centroid"].apply(lambda point: point.y)
             osm_gdf = osm_gdf.drop(columns=["ubid_centroid"])
 
-            # Calculate footprint area (set CRS if not already set)
+            # Calculate footprint area using best CRS for the region
             if osm_gdf.crs is None:
                 osm_gdf = osm_gdf.set_crs(epsg=4326)
-            osm_gdf["footprint_area_m2"] = osm_gdf.to_crs(epsg=3857).area
+            best_crs = self._get_best_area_crs(osm_gdf)
+            osm_gdf_proj = osm_gdf.to_crs(epsg=best_crs)
+            osm_gdf["footprint_area_m2"] = osm_gdf_proj.area
             osm_gdf["footprint_area_ft2"] = osm_gdf["footprint_area_m2"] * 10.764
+            # Return to 4326 for further processing
+            osm_gdf = osm_gdf.to_crs(epsg=4326)
 
             # Set the source of the data to "OpenStreetMap"
             osm_gdf["source"] = "OpenStreetMap"

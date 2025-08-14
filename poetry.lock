@@ -2402,7 +2402,7 @@ testing = ["coverage", "pytest", "pytest-benchmark"]
 
 [[package]]
 name = "pnnl-buildingid"
-version = "2.1.2"
+version = "2.1.3"
 description = "Unique Building Identifier (UBID)"
 optional = false
 python-versions = ">=3"
@@ -2426,7 +2426,7 @@ dev = ["check-manifest", "coverage", "pre-commit", "pytest", "pytest-cov"]
 type = "git"
 url = "https://github.com/seed-platform/buildingid.git"
 reference = "main"
-resolved_reference = "3cb82c9366c02fee162f5854d019710e6d706138"
+resolved_reference = "1073675e90c9c75f3317c2de8b990beb7b8e611f"
 
 [[package]]
 name = "pre-commit"
