@@ -21,6 +21,68 @@ import { MapSearchBoxComponent } from '../map-search-box/map-search-box.componen
 })
 export class MapWorkflowComponent implements AfterViewInit {
   /**
+   * Download the drawn polygon as a GeoJSON file
+   */
+  downloadAreaOfInterest(): void {
+    const data = this.draw.getAll()
+    if (!data.features || data.features.length === 0) {
+      this.showStatusMessage('Draw a polygon first to download', true)
+      return
+    }
+    // Save only the first polygon as a FeatureCollection
+    const featureCollection = {
+      type: 'FeatureCollection',
+      features: [data.features[0]],
+    }
+    const blob = new Blob([JSON.stringify(featureCollection, null, 2)], { type: 'application/geo+json' })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'area_of_interest.geojson'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    window.URL.revokeObjectURL(url)
+    this.showStatusMessage('Area of interest downloaded!', false)
+  }
+
+  /**
+   * Upload a GeoJSON file and draw it as the area of interest
+   */
+  uploadAreaOfInterest(event: Event): void {
+    const input = event.target as HTMLInputElement
+    if (!input.files || input.files.length === 0) {
+      this.showStatusMessage('No file selected', true)
+      return
+    }
+    const file = input.files[0]
+    const reader = new FileReader()
+    reader.onload = () => {
+      try {
+        const geojson = JSON.parse(reader.result as string)
+        let feature = null
+        if (geojson.type === 'FeatureCollection' && geojson.features && geojson.features.length > 0) {
+          feature = geojson.features[0]
+        } else if (geojson.type === 'Feature') {
+          feature = geojson
+        } else {
+          this.showStatusMessage('Invalid GeoJSON file', true)
+          return
+        }
+        if (this.draw) {
+          this.draw.deleteAll()
+          this.draw.add(feature)
+          this.hasPolygon = true
+          this.showStatusMessage('Area of interest loaded from file!', false)
+          this.cdr.detectChanges()
+        }
+      } catch (e) {
+        this.showStatusMessage('Error reading GeoJSON file', true)
+      }
+    }
+    reader.readAsText(file)
+  }
+  /**
    * Combine the footprints using a backend call
    */
   mergeFootprints(): void {
