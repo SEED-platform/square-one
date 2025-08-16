@@ -492,7 +492,10 @@ class FootprintService:
 
         # look up building type, if it isn't found then just use "All"
         # rename old building_type to OSM first
-        overlap_gdf = overlap_gdf.rename(columns={"building_type": "building_type_osm"})
+        if "building_type" in overlap_gdf.columns:
+            overlap_gdf = overlap_gdf.rename(columns={"building_type": "building_type_osm"})
+        else:
+            overlap_gdf["building_type_osm"] = "All"
         overlap_gdf["building_type"] = overlap_gdf["building_type_osm"].map(espm_building_types_enum).fillna("All")
 
         # Prepend all fields with the source_1, source_2
