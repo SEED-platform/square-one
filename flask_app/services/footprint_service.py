@@ -9,6 +9,7 @@ from pathlib import Path
 
 import geopandas as gpd
 import mercantile
+import numpy as np
 import osmnx as ox
 import pandas as pd
 from cbl_workflow.utils.ubid import centroid, encode_ubid
@@ -406,7 +407,12 @@ class FootprintService:
 
     def merge_footprint_geodataframes(self, gdf_1, gdf_2):
         """
-        Merge two footprint GeoDataFrames by intersection, dissolve by UBID, and clean geometry.
+        Merge two footprint GeoDataFrames first by intersection and then dissolve by UBID.
+
+        This method makes assumptions on fields coming from Microsoft Footprint and OpenStreetMap.
+        The assumptions probably need to be relaxed in the future and as we support different
+        formats of data.
+
         Returns a GeoDataFrame with merged footprints.
         """
         # Overlay the two GeoDataFrames to get intersection geometries
@@ -417,15 +423,10 @@ class FootprintService:
         column_mapping = dict.fromkeys(overlap_gdf.columns, "first")
 
         # For some columns, we want to aggregate differently:
-        # "unique" will collect all unique values in the group (e.g. if multiple heights or UBIDs)
+        # "unique" will collect all unique values in the group (e.g., if multiple heights or UBIDs)
         for unique_col in ["ubid_2", "height_1", "height_2"]:
             if unique_col in overlap_gdf.columns:
                 column_mapping[unique_col] = "unique"
-
-        # "max" will take the maximum value in the group (e.g. for height_2)
-        for max_col in ["height_2"]:
-            if max_col in overlap_gdf.columns:
-                column_mapping[max_col] = "max"
 
         # Remove columns that are used for grouping or are geometry, since those are handled separately
         column_mapping.pop("ubid_1", None)
@@ -435,6 +436,16 @@ class FootprintService:
         # and aggregating the other columns according to column_mapping. This is useful for combining
         # overlapping/intersecting footprints that share the same UBID into a single, unified footprint.
         overlap_gdf = overlap_gdf.dissolve(by="ubid_1", aggfunc=column_mapping).reset_index()
+
+        # Now for the unique column_mapping names, rename to make it clear that they
+        # are now lists for posterity sake
+        for col in column_mapping:
+            overlap_gdf = overlap_gdf.rename(columns={col: f"{col}_list" if column_mapping[col] == "unique" else col})
+
+        # For height, merge the height_1 and height_2 lists
+        overlap_gdf["height_list"] = overlap_gdf[["height_1_list", "height_2_list"]].apply(lambda x: list(set(x.dropna().sum())), axis=1)
+        # grab the largest height and set to height
+        overlap_gdf["height"] = overlap_gdf["height_list"].apply(lambda x: max(x) if x else None)
 
         # Merge MultiPolygon into a single Polygon if possible
         def merge_or_largest(geom):
@@ -449,8 +460,71 @@ class FootprintService:
 
         overlap_gdf["geometry"] = overlap_gdf["geometry"].apply(merge_or_largest)
 
-        self.logger.info(f"Number of footprints (updated): {len(overlap_gdf)}")
-        if "osm_url" in overlap_gdf.columns:
-            self.logger.info(f"Number of unique osm_URL: {len(overlap_gdf['osm_url'].unique())}")
+        # If height_1 is an array, then use the second
+
+        # map the building_type to the values in ESPM. X : Y, X = OSM value, Y = ESPM
+        # OpenStreetMap values can be found here: https://wiki.openstreetmap.org/wiki/Key:building
+        # The "building" values reported in OSM can be spotty and these assumptions can
+        # be improved. We also know that many building types are not what we think they
+        # are based on community surveys (e.g., libraries are used for more than reading--they
+        # are shelters, internet, offices, etc)
+        espm_building_types_enum = {
+            "civic": "Public services",
+            "apartments": "Lodging/residential",
+            # placeholders
+            "unknown_1": "Banking/financial services",
+            "unknown_2": "Education",
+            "unknown_3": "Entertainment/public assembly",
+            "unknown_4": "Food sales and service",
+            "unknown_5": "Healthcare",
+            "unknown_6": "Lodging/residential",
+            "unknown_7": "Manufacturing/industrial",
+            "unknown_8": "Office",
+            "unknown_9": "Other",
+            "unknown_10": "Public services",
+            "unknown_11": "Religious worship",
+            "unknown_12": "Retail",
+            "unknown_13": "Services",
+            "unknown_14": "Technology/science",
+            "unknown_15": "Utility",
+            "unknown_16": "Warehouse/storage",
+        }
+
+        # look up building type, if it isn't found then just use "All"
+        # rename old building_type to OSM first
+        overlap_gdf = overlap_gdf.rename(columns={"building_type": "building_type_osm"})
+        overlap_gdf["building_type"] = overlap_gdf["building_type_osm"].map(espm_building_types_enum).fillna("All")
+
+        # Prepend all fields with the source_1, source_2
+
+        # overlap_gdf = overlap_gdf.rename(columns=lambda x: f"source_1_{x}" if x in gdf_1.columns else f"source_2_{x}" for x in overlap_gdf.columns)
+
+        # now recalculate the UBID, floor area, centroid, etc
+        overlap_gdf["ubid"] = overlap_gdf.apply(lambda x: encode_ubid(x["geometry"]), axis=1)
+        overlap_gdf["ubid_centroid"] = overlap_gdf.apply(lambda x: centroid(x["ubid"]), axis=1)
+
+        # Convert all float columns to native Python float to avoid numpy float64 serialization issues
+        for col in overlap_gdf.select_dtypes(include=["float", "float64"]).columns:
+            overlap_gdf[col] = overlap_gdf[col].apply(lambda v: float(v) if v is not None else None)
+
+        # Decompose the ubid_centroid into lat/long
+        overlap_gdf["longitude"] = overlap_gdf["ubid_centroid"].apply(lambda point: point.x)
+        overlap_gdf["latitude"] = overlap_gdf["ubid_centroid"].apply(lambda point: point.y)
+        overlap_gdf = overlap_gdf.drop(columns=["ubid_centroid"])
+
+        # Calculate footprint area using best CRS for the region
+        if overlap_gdf.crs is None:
+            overlap_gdf = overlap_gdf.set_crs(epsg=4326)
+        best_crs = self._get_best_area_crs(overlap_gdf)
+        overlap_gdf_proj = overlap_gdf.to_crs(epsg=best_crs)
+        overlap_gdf["footprint_area_m2"] = overlap_gdf_proj.area
+        overlap_gdf["footprint_area_ft2"] = overlap_gdf["footprint_area_m2"] * 10.764
+        # Return to 4326 for further processing
+        overlap_gdf = overlap_gdf.to_crs(epsg=4326)
+
+        # calculate the number of stories and gross floor area based on a 3.5 meter height
+        overlap_gdf["number_of_stories"] = (overlap_gdf["height"] / 3.5).apply(np.ceil).astype(int)
+        overlap_gdf["gross_floor_area_m2"] = overlap_gdf["footprint_area_m2"] * overlap_gdf["number_of_stories"]
+        overlap_gdf["gross_floor_area_ft2"] = overlap_gdf["gross_floor_area_m2"] * 10.764
 
         return overlap_gdf
