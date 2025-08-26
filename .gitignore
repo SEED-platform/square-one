@@ -24,6 +24,7 @@ flask_app/.pytest_cache
 flask_app/ms_footprints_debug.csv
 flask_app/osm_footprints_debug.csv
 flask_app/cache/
+flask_app/tests/output/
 
 # tests
 coverage.xml
