@@ -20,6 +20,107 @@ import { MapSearchBoxComponent } from '../map-search-box/map-search-box.componen
   styleUrl: './map-workflow.component.css',
 })
 export class MapWorkflowComponent implements AfterViewInit {
+  /**
+   * Download the drawn polygon as a GeoJSON file
+   */
+  downloadAreaOfInterest(): void {
+    const data = this.draw.getAll()
+    if (!data.features || data.features.length === 0) {
+      this.showStatusMessage('Draw a polygon first to download', true)
+      return
+    }
+    // Save only the first polygon as a FeatureCollection
+    const featureCollection = {
+      type: 'FeatureCollection',
+      features: [data.features[0]],
+    }
+    const blob = new Blob([JSON.stringify(featureCollection, null, 2)], { type: 'application/geo+json' })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'area_of_interest.geojson'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    window.URL.revokeObjectURL(url)
+    this.showStatusMessage('Area of interest downloaded!', false)
+  }
+
+  /**
+   * Upload a GeoJSON file and draw it as the area of interest
+   */
+  uploadAreaOfInterest(event: Event): void {
+    const input = event.target as HTMLInputElement
+    if (!input.files || input.files.length === 0) {
+      this.showStatusMessage('No file selected', true)
+      return
+    }
+    const file = input.files[0]
+    const reader = new FileReader()
+    reader.onload = () => {
+      try {
+        const geojson = JSON.parse(reader.result as string)
+        let feature = null
+        if (geojson.type === 'FeatureCollection' && geojson.features && geojson.features.length > 0) {
+          feature = geojson.features[0]
+        } else if (geojson.type === 'Feature') {
+          feature = geojson
+        } else {
+          this.showStatusMessage('Invalid GeoJSON file', true)
+          return
+        }
+        if (this.draw) {
+          this.draw.deleteAll()
+          this.draw.add(feature)
+          this.hasPolygon = true
+          this.showStatusMessage('Area of interest loaded from file!', false)
+          this.cdr.detectChanges()
+        }
+      } catch (e) {
+        this.showStatusMessage('Error reading GeoJSON file', true)
+      }
+    }
+    reader.readAsText(file)
+  }
+  /**
+   * Combine the footprints using a backend call
+   */
+  mergeFootprints(): void {
+    if (this.msFootprintsData && this.osmFootprintsData) {
+      const mergedGeoJson: GeoJSON.FeatureCollection = {
+        type: 'FeatureCollection',
+        features: [...this.msFootprintsData.features, ...this.osmFootprintsData.features],
+      }
+      try {
+        if (this.map.getLayer('merged-footprints-layer')) {
+          this.map.removeLayer('merged-footprints-layer')
+        }
+        if (this.map.getSource('merged-footprints')) {
+          this.map.removeSource('merged-footprints')
+        }
+        this.map.addSource('merged-footprints', {
+          type: 'geojson',
+          data: mergedGeoJson,
+        })
+        this.map.addLayer({
+          id: 'merged-footprints-layer',
+          type: 'fill',
+          source: 'merged-footprints',
+          paint: {
+            'fill-color': '#4f8cff',
+            'fill-opacity': 0.4,
+            'fill-outline-color': '#4f8cff',
+          },
+        })
+        this.showStatusMessage('Merged MS + OSM footprints visualized on map', false)
+      } catch (error) {
+        console.error('Error merging footprints:', error)
+        this.showStatusMessage('Error merging footprints', true)
+      }
+    } else {
+      this.showStatusMessage('Both MS and OSM footprints must be loaded to merge', true)
+    }
+  }
   private map!: mapboxgl.Map
   private draw!: MapboxDraw
   private geocoder!: MapboxGeocoder
@@ -59,7 +160,7 @@ export class MapWorkflowComponent implements AfterViewInit {
   /**
    * Prompt for a location, call backend to get bounding box, and draw it on the map
    */
-  findLocationBoundingBox(): void {
+  retrieveBoundingBox(): void {
     const location = this.lastSelectedLocation
     if (!location || !location.place_name) {
       window.alert('Please select a location in the search box first.')
@@ -125,39 +226,7 @@ export class MapWorkflowComponent implements AfterViewInit {
       this.map.addControl(new mapboxgl.NavigationControl())
 
       this.map.on('load', () => {
-        this.geocoder = new MapboxGeocoder({
-          accessToken: environment.mapboxToken,
-          mapboxgl: mapboxgl,
-          marker: true,
-          placeholder: 'Search for a location',
-          proximity: { longitude: savedLocation.longitude, latitude: savedLocation.latitude },
-          countries: 'us',
-        })
-
-        // Listen for geocoder result to save the location
-        this.geocoder.on('result', (event: any) => {
-          const result = event.result
-          if (result && result.center) {
-            const newLocation: MapLocation = {
-              longitude: result.center[0],
-              latitude: result.center[1],
-              zoom: this.map.getZoom(),
-            }
-
-            // Save the new location to session storage
-            this.sessionService.saveMapLocation(newLocation)
-
-            // Update proximity for future searches
-            this.geocoder.setProximity({
-              longitude: newLocation.longitude,
-              latitude: newLocation.latitude,
-            })
-
-            console.log('Location saved from search:', newLocation, 'Place:', result.place_name)
-          }
-        })
-
-        this.map.addControl(this.geocoder)
+        // Only add MapboxDraw (polygon drawing), not MapboxGeocoder
 
         this.draw = new MapboxDraw({
           displayControlsDefault: false,
@@ -165,6 +234,47 @@ export class MapWorkflowComponent implements AfterViewInit {
             polygon: true,
             trash: true,
           },
+          styles: [
+            // Polygon fill
+            {
+              id: 'gl-draw-polygon-fill',
+              type: 'fill',
+              filter: ['all', ['==', '$type', 'Polygon'], ['!=', 'mode', 'static']],
+              paint: {
+                'fill-color': '#66ccff', // light blue
+                'fill-opacity': 0.3,
+              },
+            },
+            // Polygon outline
+            {
+              id: 'gl-draw-polygon-stroke-active',
+              type: 'line',
+              filter: ['all', ['==', '$type', 'Polygon'], ['!=', 'mode', 'static']],
+              paint: {
+                'line-color': '#66ccff', // light blue
+                'line-width': 2,
+              },
+            },
+            // Vertex points
+            {
+              id: 'gl-draw-polygon-and-line-vertex-halo-active',
+              type: 'circle',
+              filter: ['all', ['==', 'meta', 'vertex'], ['==', 'mode', 'draw']],
+              paint: {
+                'circle-radius': 7,
+                'circle-color': '#fff',
+              },
+            },
+            {
+              id: 'gl-draw-polygon-and-line-vertex-active',
+              type: 'circle',
+              filter: ['all', ['==', 'meta', 'vertex'], ['==', 'mode', 'draw']],
+              paint: {
+                'circle-radius': 5,
+                'circle-color': '#66ccff', // light blue
+              },
+            },
+          ],
         })
 
         this.map.addControl(this.draw)
@@ -594,7 +704,6 @@ export class MapWorkflowComponent implements AfterViewInit {
     }
 
     return 'N/A'
-
   }
 
   /**

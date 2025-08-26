@@ -16,8 +16,6 @@ from flask_app.services.footprint_service import FootprintService
 
 
 class TestFootprintService(unittest.TestCase):
-    """Test cases for FootprintService."""
-
     def setUp(self):
         """Set up test fixtures before each test method."""
         self.service = FootprintService()
@@ -34,7 +32,7 @@ class TestFootprintService(unittest.TestCase):
         self.sample_ms_gdf = gpd.GeoDataFrame(self.sample_ms_data, crs="EPSG:4326")
 
         # Create sample OSM footprint data with multi-index
-        index = pd.MultiIndex.from_tuples([("way", 12345)], names=["element_type", "osmid"])
+        index = pd.MultiIndex.from_tuples([("way", 12345)], names=["element", "id"])
         self.sample_osm_data = {
             "geometry": [Polygon([(-104.985, 39.735), (-104.984, 39.735), (-104.984, 39.736), (-104.985, 39.736), (-104.985, 39.735)])],
             "building": ["yes"],
@@ -131,13 +129,11 @@ class TestFootprintService(unittest.TestCase):
         result = self.service.process_ms_footprints(self.sample_ms_gdf.copy())
 
         self.assertIn("ubid", result.columns)
-        self.assertIn("lat", result.columns)
-        self.assertIn("lon", result.columns)
+        self.assertIn("latitude", result.columns)
+        self.assertIn("longitude", result.columns)
         self.assertIn("footprint_area_m2", result.columns)
         self.assertIn("footprint_area_ft2", result.columns)
         self.assertIn("street_address", result.columns)
-        self.assertIn("latitude", result.columns)
-        self.assertIn("longitude", result.columns)
 
         # Check that height -1 is handled
         test_gdf = self.sample_ms_gdf.copy()
@@ -183,10 +179,10 @@ class TestFootprintService(unittest.TestCase):
         self.assertIn("footprint_area_m2", result.columns)
         self.assertIn("footprint_area_ft2", result.columns)
         self.assertIn("osm_url", result.columns)
-        self.assertIn("id", result.columns)
+        self.assertIn("osm_id", result.columns)
 
         # Check that building types are processed
-        self.assertEqual(result.loc[0, "building"], "Unknown")  # 'yes' -> 'Unknown'
+        self.assertEqual(result.loc[0, "building_type"], "Unknown")  # 'yes' -> 'Unknown'
 
     def test_process_osm_footprints_building_types(self):
         """Test OSM building type processing."""
@@ -195,7 +191,7 @@ class TestFootprintService(unittest.TestCase):
         test_data["building"] = ["residential", "yes", "roof", "commercial"]
         test_data["geometry"] = [self.sample_osm_data["geometry"][0]] * 4
 
-        index = pd.MultiIndex.from_tuples([("way", 1), ("way", 2), ("way", 3), ("way", 4)], names=["element_type", "osmid"])
+        index = pd.MultiIndex.from_tuples([("way", 1), ("way", 2), ("way", 3), ("way", 4)], names=["element", "id"])
 
         test_gdf = gpd.GeoDataFrame(test_data, index=index, crs="EPSG:4326")
 
@@ -206,7 +202,7 @@ class TestFootprintService(unittest.TestCase):
         self.assertEqual(len(result), 3)
 
         # Check building type mapping
-        building_types = result["building"].tolist()
+        building_types = result["building_type"].tolist()
         self.assertIn("Unknown", building_types)  # yes -> Unknown
         self.assertIn("commercial", building_types)  # commercial stays commercial
 
@@ -243,8 +239,8 @@ class TestFootprintService(unittest.TestCase):
 
     def test_osm_url_creation(self):
         """Test OSM URL creation with different index formats."""
-        # Test with element_type and osmid columns
-        test_gdf = pd.DataFrame({"element_type": ["way"], "osmid": [12345], "geometry": [self.test_polygon]})
+        # Test with element and osm_id columns
+        test_gdf = pd.DataFrame({"element": ["way"], "id": [12345], "geometry": [self.test_polygon]})
 
         with patch("flask_app.services.footprint_service.encode_ubid"), patch("flask_app.services.footprint_service.centroid"):
             test_gdf = gpd.GeoDataFrame(test_gdf)
@@ -252,16 +248,40 @@ class TestFootprintService(unittest.TestCase):
 
             self.assertEqual(result.loc[0, "osm_url"], "https://www.openstreetmap.org/way/12345")
 
-    def test_osm_url_creation_fallback(self):
-        """Test OSM URL creation fallback when index data is missing."""
-        # Test with no proper index data
-        test_gdf = gpd.GeoDataFrame({"geometry": [self.test_polygon], "building": ["yes"]})
+    def test_process_osm_footprint(self):
+        """Test that the OSM service returns buildings for Denver."""
+        # Approximate polygon for Denver block
+        denver_polygon = Polygon([(-104.984860, 39.736826), (-104.984852, 39.735269), (-104.983598, 39.735283), (-104.983596, 39.736865)])
 
-        with patch("flask_app.services.footprint_service.encode_ubid"), patch("flask_app.services.footprint_service.centroid"):
-            result = self.service.process_osm_footprints(test_gdf)
+        service = FootprintService()
+        # Load real OSM footprints
+        osm_gdf = service.load_osm_footprints(denver_polygon)
+        processed_gdf = service.process_osm_footprints(osm_gdf)
+        print(f"Found {len(processed_gdf)} OSM buildings in Denver")
+        self.assertEqual(len(processed_gdf), 8)
 
-            self.assertEqual(result.loc[0, "osm_url"], "https://www.openstreetmap.org/")
+        # save the file to a geojson in an output directory for inspection
+        output_dir = Path("flask_app/tests/output")
+        output_dir.mkdir(parents=True, exist_ok=True)
+        processed_gdf.to_file(output_dir / "denver_osm_footprints.geojson", driver="GeoJSON")
 
+    def test_process_ms_footprint(self):
+        """Test that the MS service returns buildings for Denver."""
+        # Approximate polygon for Denver block
+        denver_polygon = Polygon([(-104.984860, 39.736826), (-104.984852, 39.735269), (-104.983598, 39.735283), (-104.983596, 39.736865)])
 
-if __name__ == "__main__":
-    unittest.main()
+        service = FootprintService()
+        # grab the correct quadkeys
+        quadkeys = service.get_quadkeys_for_polygon(denver_polygon)
+        service.update_datasets(quadkeys)
+
+        # Load real MS footprints
+        ms_gdf = service.load_ms_footprints(denver_polygon, quadkeys)
+        processed_gdf = service.process_ms_footprints(ms_gdf)
+        print(f"Found {len(processed_gdf)} MS buildings in Denver")
+        self.assertEqual(len(processed_gdf), 8)
+
+        # save the file to a geojson in an output directory for inspection
+        output_dir = Path("flask_app/tests/output")
+        output_dir.mkdir(parents=True, exist_ok=True)
+        processed_gdf.to_file(output_dir / "denver_ms_footprints.geojson", driver="GeoJSON")

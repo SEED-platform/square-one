@@ -1,7 +1,7 @@
-# ...existing code...
-
-# Place this after app = Flask(__name__) and CORS(app)
-
+"""
+SEED Platform (TM), Copyright (c) Alliance for Sustainable Energy, LLC, and other contributors.
+See also https://github.com/SEED-platform/cbl-web-tool/blob/main/LICENSE.md
+"""
 
 import gzip
 import json
@@ -301,6 +301,31 @@ def location_bbbou():
     return jsonify({"bbox": bbox_geojson, "message": "success"})
 
 
+@app.route("/api/merge_footprints", methods=["POST"])
+def merge_footprints():
+    """
+    Merge two sets of building footprints (GeoJSON) and return the merged result.
+    Expects JSON with keys 'geojson_1' and 'geojson_2'.
+    """
+    app.logger.info("function: merge_footprints")
+
+    data = request.get_json()
+    geojson_1 = data.get("geojson_1")
+    geojson_2 = data.get("geojson_2")
+    if not geojson_1 or not geojson_2:
+        return jsonify({"error": True, "message": "Missing geojson_1 or geojson_2 in request"}), 400
+
+    # Convert GeoJSON to GeoDataFrames
+    gdf_1 = gpd.GeoDataFrame.from_features(geojson_1["features"], crs="EPSG:4326")
+    gdf_2 = gpd.GeoDataFrame.from_features(geojson_2["features"], crs="EPSG:4326")
+
+    merged_gdf = footprint_service.merge_footprint_geodataframes(gdf_1, gdf_2)
+
+    # Convert back to GeoJSON
+    merged_geojson = json.loads(merged_gdf.to_json())
+    return jsonify({"message": "success", "merged_geojson": merged_geojson})
+
+
 @app.route("/api/reverse_geocode", methods=["POST"])
 @handle_service_exceptions("reverse_geocode")
 def reverse_geocode():
@@ -404,7 +429,7 @@ def edit_footprint():
     except AssertionError:
         return jsonify({"message": "Invalid longitude coordinates"}), 400
 
-    new_polygon_data = {"lat": lat, "lon": lon, "ubid": ubid}
+    new_polygon_data = {"latitude": lat, "longitude": lon, "ubid": ubid}
     return jsonify({"message": "success", "user_data": json.dumps(new_polygon_data)}), 200
 
 

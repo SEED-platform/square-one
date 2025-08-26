@@ -5,8 +5,8 @@
   <h1 class="text-4xl font-bold">Map-based Workflow</h1>
   <p class="mt-5 text-lg mb-3">
     This page will guide you through the map-based workflow for creating a Covered Building List (CBL). Start by typing a location to center the map. Then zoom into the map and draw an area using the
-    polygon tool. Alternatively, you can type in a location such as a county or city and click on the "Find Location" button to automatically retrieve a bounding box around that location. Once you
-    have an area selected, you can load the Microsoft (MS) footprints or the Open Street Maps (OSM) footprints within the area. When you are finished, click the Proceed to CBL Table button.
+    polygon tool. Alternatively, you can type in a location such as a county or city and click on the "Retrieve Bounding Box" button to automatically retrieve a bounding box around that location. Once
+    you have an area selected, you can load the Microsoft (MS) footprints or the Open Street Maps (OSM) footprints within the area. When you are finished, click the Proceed to CBL Table button.
   </p>
 
   <app-map-search-box (locationSelected)="onLocationSelected($event)"></app-map-search-box>
@@ -19,13 +19,19 @@
     <div class="map-container" id="map"></div>
     <!-- Control buttons -->
     <div class="controls-container">
-      <button class="find-location-btn" (click)="findLocationBoundingBox()">Find Location</button>
+      <button class="find-location-btn" (click)="retrieveBoundingBox()">Retrieve Bounding Box</button>
       <button class="load-btn ms-btn" [disabled]="!hasPolygon" (click)="loadMSFootprints()">Load MS Footprints</button>
       <button class="clear-btn ms-clear" (click)="clearMSFootprints()">Clear MS</button>
       <button class="load-btn osm-btn" [disabled]="!hasPolygon" (click)="loadOSMFootprints()">Load OSM Footprints</button>
       <button class="clear-btn osm-clear" (click)="clearOSMFootprints()">Clear OSM</button>
       <button class="clear-btn polygon-clear" (click)="clearPolygon()">Clear Polygon</button>
+      <button class="load-btn" (click)="downloadAreaOfInterest()">Download Area of Interest</button>
+      <label class="load-btn" style="display: block; cursor: pointer; margin-bottom: 5px">
+        Upload Area of Interest
+        <input (change)="uploadAreaOfInterest($event)" type="file" accept=".geojson,application/geo+json,application/json" style="display: none" />
+      </label>
       <button class="clear-btn all-clear" (click)="clearAllFootprints()">Clear All</button>
+      <button class="merge-btn" [disabled]="!(hasMsFootprints && hasOsmFootprints)" (click)="mergeFootprints()">Merge Footprints</button>
       <button class="proceed-btn" [disabled]="!hasAnyFootprints" (click)="proceedToCBLTable()">Proceed to CBL Table</button>
     </div>
   </div>

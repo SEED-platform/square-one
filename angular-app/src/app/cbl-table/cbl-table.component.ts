@@ -518,9 +518,7 @@ export class CblTableComponent implements OnInit, OnDestroy {
 
     // If still no keys, try to get them from current column definitions
     if (allKeys.length === 0 && this.colDefs && this.colDefs.length > 0) {
-      allKeys = this.colDefs
-        .map(col => col.field)
-        .filter(field => field && field !== 'hasFootprint') as string[]
+      allKeys = this.colDefs.map((col) => col.field).filter((field) => field && field !== 'hasFootprint') as string[]
     }
 
     // Add coordinates if not already present
@@ -733,9 +731,17 @@ export class CblTableComponent implements OnInit, OnDestroy {
 
     // Define known numeric columns
     const knownNumericColumns = [
-      'footprint_area_ft2', 'footprint_area_m2', 'height', 'year_built',
-      'gross_floor_area', 'gfa', 'latitude', 'longitude',
-      'P25 target EUI', 'P50 target EUI', 'P75 target EUI'
+      'footprint_area_ft2',
+      'footprint_area_m2',
+      'height',
+      'year_built',
+      'gross_floor_area',
+      'gfa',
+      'latitude',
+      'longitude',
+      'P25 target EUI',
+      'P50 target EUI',
+      'P75 target EUI',
     ]
 
     if (knownNumericColumns.includes(columnName)) {
@@ -744,13 +750,33 @@ export class CblTableComponent implements OnInit, OnDestroy {
 
     // Check if column name suggests numeric data
     const numericPatterns = [
-      /area/i, /size/i, /sqft/i, /sq_ft/i, /square/i, /feet/i, /ft/i,
-      /height/i, /width/i, /length/i, /depth/i, /year/i, /age/i,
-      /count/i, /number/i, /num/i, /value/i, /amount/i, /price/i,
-      /cost/i, /energy/i, /eui/i, /consumption/i, /usage/i
+      /area/i,
+      /size/i,
+      /sqft/i,
+      /sq_ft/i,
+      /square/i,
+      /feet/i,
+      /ft/i,
+      /height/i,
+      /width/i,
+      /length/i,
+      /depth/i,
+      /year/i,
+      /age/i,
+      /count/i,
+      /number/i,
+      /num/i,
+      /value/i,
+      /amount/i,
+      /price/i,
+      /cost/i,
+      /energy/i,
+      /eui/i,
+      /consumption/i,
+      /usage/i,
     ]
 
-    if (numericPatterns.some(pattern => pattern.test(columnName))) {
+    if (numericPatterns.some((pattern) => pattern.test(columnName))) {
       return true
     }
 
@@ -857,12 +883,14 @@ export class CblTableComponent implements OnInit, OnDestroy {
           sortable: true,
           // Add number filter for numeric columns
           filter: isNumericColumn ? 'agNumberColumnFilter' : 'agTextColumnFilter',
-          filterParams: isNumericColumn ? {
-            filterOptions: ['equals', 'notEqual', 'lessThan', 'lessThanOrEqual', 'greaterThan', 'greaterThanOrEqual', 'inRange'],
-            defaultOption: 'greaterThanOrEqual',
-            suppressAndOrCondition: false,
-            allowTyping: true,
-          } : undefined,
+          filterParams: isNumericColumn
+            ? {
+                filterOptions: ['equals', 'notEqual', 'lessThan', 'lessThanOrEqual', 'greaterThan', 'greaterThanOrEqual', 'inRange'],
+                defaultOption: 'greaterThanOrEqual',
+                suppressAndOrCondition: false,
+                allowTyping: true,
+              }
+            : undefined,
           cellStyle: key === 'footprint_area_ft2' ? { 'text-align': 'right' } : key === 'height' ? { 'text-align': 'right' } : undefined,
           suppressHeaderMenuButton: false,
           headerValueGetter: () => this.getDisplayHeaderName(key),
@@ -1468,7 +1496,7 @@ export class CblTableComponent implements OnInit, OnDestroy {
       // Remove coordinates from properties since it should be in geometry
       // Handle different possible coordinate field names (original and display names)
       const coordinateFieldNames = ['coordinates', 'Coordinates', 'COORDINATES', 'coordinate', 'Coordinate']
-      coordinateFieldNames.forEach(fieldName => {
+      coordinateFieldNames.forEach((fieldName) => {
         if (newFeature.properties[fieldName]) {
           delete newFeature.properties[fieldName]
         }
@@ -1643,9 +1671,9 @@ export class CblTableComponent implements OnInit, OnDestroy {
       'hours_of_operation',
       'weekly_hours',
       'P25 target EUI',
-      'eui_message'
+      'eui_message',
     ]
-    euiRelatedColumns.forEach(col => allPropertyNames.add(col))
+    euiRelatedColumns.forEach((col) => allPropertyNames.add(col))
 
     // Calculate statistics for each column
     allPropertyNames.forEach((propertyName) => {
@@ -1723,7 +1751,7 @@ export class CblTableComponent implements OnInit, OnDestroy {
       'hours_of_operation',
       'weekly_hours',
       'P25 target EUI',
-      'eui_message'
+      'eui_message',
     ]
     return euiColumns.includes(columnName)
   }
@@ -1731,15 +1759,15 @@ export class CblTableComponent implements OnInit, OnDestroy {
   // Get the role/purpose of an EUI-related column
   getEUIColumnDescription(columnName: string): string {
     const descriptions: { [key: string]: string } = {
-      'building_type': 'Required for EUI lookup - Primary building category',
-      'climate_zone': 'Required for EUI lookup - Climate zone refinement',
-      'year_built': 'Required for EUI lookup - Converted to year ranges',
-      'gross_floor_area': 'Required for EUI lookup - Building size category',
-      'gfa': 'Required for EUI lookup - Building size category (alternative name)',
-      'hours_of_operation': 'Required for EUI lookup - Operating hours category',
-      'weekly_hours': 'Required for EUI lookup - Operating hours category (alternative name)',
+      building_type: 'Required for EUI lookup - Primary building category',
+      climate_zone: 'Required for EUI lookup - Climate zone refinement',
+      year_built: 'Required for EUI lookup - Converted to year ranges',
+      gross_floor_area: 'Required for EUI lookup - Building size category',
+      gfa: 'Required for EUI lookup - Building size category (alternative name)',
+      hours_of_operation: 'Required for EUI lookup - Operating hours category',
+      weekly_hours: 'Required for EUI lookup - Operating hours category (alternative name)',
       'P25 target EUI': 'EUI Result - 25th percentile target EUI value',
-      'eui_message': 'EUI Result - Description of how EUI was calculated'
+      eui_message: 'EUI Result - Description of how EUI was calculated',
     }
     return descriptions[columnName] || ''
   }
