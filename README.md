@@ -123,7 +123,6 @@ git clone git@github.com:SEED-platform/cbl-workflow.git
 - **Reverse Geocoding** - convert building footprints or addresses back to address information using MapQuest API
 - **Row Management** - add new rows manually, delete selected rows, with full table-map synchronization
 - **Data Validation** - check uploaded data format and requirements before processing
-- **Session Persistence** - maintains map location, data, and user preferences across browser sessions
 - **Multi-Data Source Support** - load and combine Microsoft Building Footprints and OpenStreetMap building data
 - **Map Workflow** - location-based workflow to draw polygons and fetch building footprints from external data sources
 
