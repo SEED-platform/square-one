@@ -44,13 +44,13 @@ git clone git@github.com:SEED-platform/building-data-utilities.git
 
 6. Change to the **flask_app** directory
 
-7. Create a .env file with your Amazon Location Services API key in the following format. You will also need to specify the Amazon base url. If none is specified, the following will be used: https://places.geo.us-east-2.api.aws/v2. For NREL gateway, you will also need to specify an APP ID.  For NREL users using the rate-limited key, use the following as the AMAZON_BASE_URL: https://developer.nrel.gov/api/tada/amazon-location-service/places/v2. Due to the nature of this application, we are passing IntendedUse=Storage to the Amazon Location Services API. This results in a slightly higher rate per transaction, but allows us to store the results.
-  
-  ```dotenv
-    AMAZON_API_KEY=XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-    AMAZON_BASE_URL=XXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-    AMAZON_APP_ID=XXXXXXXXX
-  ```
+7. Create a .env file with your Amazon Location Services API key in the following format. You will also need to specify the Amazon base url. If none is specified, the following will be used: https://places.geo.us-east-2.api.aws/v2. For NREL gateway, you will also need to specify an APP ID. For NREL users using the rate-limited key, use the following as the AMAZON_BASE_URL: https://developer.nrel.gov/api/tada/amazon-location-service/places/v2. Due to the nature of this application, we are passing IntendedUse=Storage to the Amazon Location Services API. This results in a slightly higher rate per transaction, but allows us to store the results.
+
+```dotenv
+  AMAZON_API_KEY=XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  AMAZON_BASE_URL=XXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  AMAZON_APP_ID=XXXXXXXXX
+```
 
 Note that if an environment key for AMAZON_API_KEY, AMAZON_BASE_URL, and AMAZON_APP_ID exists in your profile, then it will use your environment's key over the .env file. AMAZON_APP_ID can be omitted if you are using the default Amazon URL (it is only needed when using the NREL Gateway).
 

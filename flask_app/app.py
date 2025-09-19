@@ -453,7 +453,7 @@ def update_api_key():
 
     if api_key:
         os.environ["AMAZON_API_KEY"] = api_key
-        if base_url: 
+        if base_url:
             os.environ["AMAZON_BASE_URL"] = base_url
         if app_id:
             os.environ["AMAZON_APP_ID"] = app_id
