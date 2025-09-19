@@ -8,15 +8,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - name: Check out cbl-workflow repository
+      - name: Check out building-data-utilities repository
         uses: actions/checkout@v5
         with:
-          repository: SEED-platform/cbl-workflow
-          path: cbl-workflow
-      - name: Move cbl-workflow to expected location
+          repository: SEED-platform/building-data-utilities
+          path: building-data-utilities
+      - name: Move building-data-utilities to expected location
         run: |
           mkdir -p ../
-          mv cbl-workflow ../cbl-workflow
+          mv building-data-utilities ../building-data-utilities
       - name: Set up Python 3.12
         uses: actions/setup-python@v6.0.0
         with:
@@ -48,15 +48,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - name: Check out cbl-workflow repository
+      - name: Check out building-data-utilities repository
         uses: actions/checkout@v5
         with:
-          repository: SEED-platform/cbl-workflow
-          path: cbl-workflow
-      - name: Move cbl-workflow to expected location
+          repository: SEED-platform/building-data-utilities
+          path: building-data-utilities
+      - name: Move building-data-utilities to expected location
         run: |
           mkdir -p ../
-          mv cbl-workflow ../cbl-workflow
+          mv building-data-utilities ../building-data-utilities
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v6.0.0
         with:

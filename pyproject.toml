@@ -2,7 +2,7 @@
 name = "cbl_web_tool"
 version = "0.1.0"
 description = ""
-authors = ["Devin Brady <devin.brady@nrel.gov>", "Alex Swindler <axelstudios>", "Nicholas Long <nllong>", "Roger Braun <roger.braun@nrel.gov>", "Rahman Mian <rahman.mian@nrel.gov>"]
+authors = ["Alex Swindler <axelstudios>", "Nicholas Long <nllong>", "Katherine Fleming <kflemin>", "Roger Braun <roger.braun@nrel.gov>", "Rahman Mian <rahman.mian@nrel.gov>", "Devin Brady <devin.brady@nrel.gov>"]
 readme = "README.md"
 packages = [
     { include = "flask_app" }
@@ -18,8 +18,8 @@ tqdm = "^4.67.1"
 
 # local development dependencies, need to release and
 # pin to pypi versions before using in production.
-cbl-workflow = { path = "../cbl-workflow", develop = true }
-# cbl-workflow = { git = "https://github.com/seed-platform/cbl-workflow.git", rev = "develop" }
+building-data-utilities = { path = "../building-data-utilities", develop = true }
+# building-data-utilities = { git = "https://github.com/seed-platform/building-data-utilities.git", rev = "develop" }
 
 
 [tool.poetry.group.dev.dependencies]

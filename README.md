@@ -24,10 +24,10 @@ There are multiple workflows for generating or validating a covered buildings li
 
 ### CBL Workflow package
 
-The CBL Web Tool depends on a general [CBL workflow package](https://github.com/SEED-platform/cbl-workflow). For development, it is recommended to checkout this dependency locally at the same directory level as the cbl-web-tool. The package will be automatically installed when running poetry update in the CBL web tool.
+The CBL Web Tool depends on a general [Building Data Utilities package](https://github.com/SEED-platform/building-data-utilities). For development, it is recommended to checkout this dependency locally at the same directory level as the cbl-web-tool. The package will be automatically installed when running poetry update in the CBL web tool.
 
 ```bash
-git clone git@github.com:SEED-platform/cbl-workflow.git
+git clone git@github.com:SEED-platform/building-data-utilities.git
 ```
 
 #### flask_app
@@ -147,7 +147,7 @@ git clone git@github.com:SEED-platform/cbl-workflow.git
 
 - These instructions are not yet complete
 - Release CBL workflow
-- Update this repo's `pyproject.toml` to point to the cbl-workflow version on PyPi
+- Update this repo's `pyproject.toml` to point to the building-data-utilities version on PyPi
 - Update CHANGELOG by running auto generation on GitHub.
 - Tag on GitHub
 

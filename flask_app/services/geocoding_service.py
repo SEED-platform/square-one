@@ -9,7 +9,7 @@ import os
 from typing import Optional
 
 import requests
-from cbl_workflow.utils.ubid import encode_ubid
+from building_data_utilities.ubid import encode_ubid
 from shapely.geometry import Polygon
 
 from flask_app.services.logging_utils import log_error_with_context

@@ -12,9 +12,9 @@ import mercantile
 import numpy as np
 import osmnx as ox
 import pandas as pd
-from cbl_workflow.utils.ubid import centroid, encode_ubid
-from cbl_workflow.utils.update_dataset_links import update_dataset_links
-from cbl_workflow.utils.update_quadkeys import update_quadkeys
+from building_data_utilities.ubid import centroid, encode_ubid
+from building_data_utilities.update_dataset_links import update_dataset_links
+from building_data_utilities.update_quadkeys import update_quadkeys
 from shapely.geometry import MultiPolygon, Polygon
 from shapely.ops import unary_union
 
