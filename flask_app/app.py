@@ -182,23 +182,29 @@ def generate_cbl():
 
     locations = data_transformation_service.generate_locations_list(file_data)
 
-    MAPQUEST_API_KEY = os.getenv("MAPQUEST_API_KEY")
+    AMAZON_API_KEY = os.getenv("AMAZON_API_KEY")
+    AMAZON_BASE_URL = os.getenv("AMAZON_BASE_URL")
+    AMAZON_APP_ID = os.getenv("AMAZON_APP_ID")
 
-    if not MAPQUEST_API_KEY:
-        app.logger.warning("Missing MapQuest API key")
+    if not AMAZON_API_KEY:
+        app.logger.warning("Missing Amazon API key")
+
+    if not AMAZON_BASE_URL:
+        app.logger.warning("Missing Amazon base URL. Using default: https://places.geo.us-east-2.api.aws/v2")
+        AMAZON_BASE_URL = "https://places.geo.us-east-2.api.aws/v2"
 
     for loc in locations:
         loc["street"] = normalize_address(loc["street"])
 
     try:
-        data = geocode_addresses(locations, MAPQUEST_API_KEY)
+        data = geocode_addresses(locations, AMAZON_API_KEY, AMAZON_BASE_URL, AMAZON_APP_ID)
 
     except Exception:
         return jsonify(
-            {"message": "Failed geocoding property states due to MapQuest error. Your MapQuest API Key is either invalid or at its limit."}
+            {"message": "Failed geocoding property states due to Amazon error. Your Amazon API Key is either invalid or at its limit."}
         ), 400
 
-    poorQualityCodes = ["Ambiguous", "P1CAA", "B1CAA", "B1ACA", "A5XAX", "L1CAA", "B1AAA", "L1BCA", "L1CBA"]
+    poorQualityCodes = ["Ambiguous", "No results found", "Less Than 0.90 Confidence"]
 
     # Find all quadkeys that the coordinates fall within
     # TODO: this is redundant with the quadkey generation in the download_ms_footprints function, resolve
@@ -259,19 +265,17 @@ def generate_cbl():
             datum["ubid"] = 0
         index = index + 1
 
-    # since the data dict contains information only from mapquest, need to merge original
+    # since the data dict contains information only from Amazon, need to merge original
     # dict and the data dict to display all information
     merged_data = []
     for i in range(len(data)):
         file_dict = file_data[i]
         data_dict = data[i]
 
-        if "P1A" in data_dict["quality"] or "P1B" in data_dict["quality"]:
-            data_dict["quality"] = "Very Good"
-        elif "L1A" in data_dict["quality"] or "L1B" in data_dict["quality"]:
-            data_dict["quality"] = "Good"
-        elif data_dict["quality"] in poorQualityCodes:
+        if data_dict["quality"] in poorQualityCodes:
             data_dict["quality"] = "Poor"
+        else:
+            data_dict["quality"] = "Good"
 
         merged_dict = data_transformation_service.merge_dicts(file_dict, data_dict)
         merged_data.append(merged_dict)
@@ -436,7 +440,7 @@ def edit_footprint():
 @app.route("/api/update_api_key", methods=["POST"])
 def update_api_key():
     """
-    Receive a new API key for Mapquest in the request and save it
+    Receive a new API key for Amazon Location Services in the request and save it
 
     todo: generalize for other services
     """
@@ -444,9 +448,16 @@ def update_api_key():
 
     data = request.get_json()
     api_key = data["apiKey"]
+    base_url = data["baseUrl"]
+    app_id = data["app_id"]
 
     if api_key:
-        os.environ["MAPQUEST_API_KEY"] = api_key
+        os.environ["AMAZON_API_KEY"] = api_key
+        if base_url: 
+            os.environ["AMAZON_BASE_URL"] = base_url
+        if app_id:
+            os.environ["AMAZON_APP_ID"] = app_id
+
         return jsonify({"message": "API key updated successfully!"}), 200
     else:
         return jsonify({"message": "No API key provided!"}), 400

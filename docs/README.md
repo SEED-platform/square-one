@@ -19,7 +19,7 @@ Data can be uploaded into the CBL Web Tool in these formats.
 
 All data will be shown on a map. This means that data must have mappable component. One of the following is required:
 
-1. Street Address. You will have the option of geocoding these street addresses. For the Mapquest geocoder, these fields are required:
+1. Street Address. You will have the option of geocoding these street addresses. For the Amazon Location Services geocoder, these fields are required:
    1. street_address
    1. city
    1. state

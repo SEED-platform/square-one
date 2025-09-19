@@ -5,7 +5,7 @@
 Given a list of addresses, this workflow will automatically:
 
 - Normalize each address
-- Geocode each address via MapQuest to a lat/long coordinate
+- Geocode each address via Amazon Location Services to a lat/long coordinate
 - Download the [Microsoft Building Footprints](https://github.com/microsoft/GlobalMLBuildingFootprints/) for all areas encompassed by the geocoded coordinates
 - Find the footprint that intersects (or is closest to) each geocoded coordinate
 - Generate the UBID for each footprint
@@ -16,11 +16,13 @@ Given a list of addresses, this workflow will automatically:
 1. Optionally create a Virtualenv Environment
 2. Dependencies are managed through Poetry, install with `pip install poetry`
 3. Install dependencies with `poetry install`
-4. Create a `.env` file in the root with your MapQuest API key in the format:
+4. Create a `.env` file in the root with your Amazon Location Services API key in the format:
    ```dotenv
-   MAPQUEST_API_KEY=XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+    AMAZON_API_KEY=XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+    AMAZON_BASE_URL=XXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+    AMAZON_APP_ID=XXXXXXXXX
    ```
-   Note that if an env key for MAPQUEST_API_KEY exists in your profile, then it use that over the .env file.
+   Note that if an env key for AMAZON_API_KEY exists in your profile, then it use that over the .env file.
 5. Create a `locations.json` file in the root containing a list of addresses to process in the format:
    ```json
    [

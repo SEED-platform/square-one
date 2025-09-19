@@ -12,7 +12,7 @@ There are multiple workflows for generating or validating a covered buildings li
 ## Geocoding Workflow
 
 - Normalize each address
-- Geocode each address via MapQuest to a lat/long coordinate
+- Geocode each address via Amazon Location Services to a lat/long coordinate
 - Download the [Microsoft Building Footprints](https://github.com/microsoft/GlobalMLBuildingFootprints/) for all areas encompassed by the geocoded coordinates
 - Find the footprint that intersects (or is closest to) each geocoded coordinate
 - Generate the UBID for each footprint
@@ -34,7 +34,7 @@ git clone git@github.com:SEED-platform/building-data-utilities.git
 
 1. Create a MapBox account and create new key, a free tier should suffice <https://www.mapbox.com/>
 
-2. Create a MapQuest account and create a new key, a free tier should suffice <https://www.mapquest.com/>
+2. Create an Amazon Location Services account and create a new key, a free tier should suffice <https://aws.amazon.com/location/>
 
 3. A virtual environment is recommended. create a Virtual Environment in the root directory. Run either `python -m venv myenv` or `pyenv virtualenv 3.12.7 venv-name` or `source myenv/bin/activate` (macOS/Linux) or `myenv\Scripts\activate` (Windows) to enter your virtual environment.
 
@@ -44,13 +44,15 @@ git clone git@github.com:SEED-platform/building-data-utilities.git
 
 6. Change to the **flask_app** directory
 
-7. Create a `.env` file in your MapQuest API key in the format:
+7. Create a .env file with your Amazon Location Services API key in the following format. You will also need to specify the Amazon base url. If none is specified, the following will be used: https://places.geo.us-east-2.api.aws/v2. For NREL gateway, you will also need to specify an APP ID.  For NREL users using the rate-limited key, use the following as the AMAZON_BASE_URL: https://developer.nrel.gov/api/tada/amazon-location-service/places/v2. Due to the nature of this application, we are passing IntendedUse=Storage to the Amazon Location Services API. This results in a slightly higher rate per transaction, but allows us to store the results.
+  
+  ```dotenv
+    AMAZON_API_KEY=XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+    AMAZON_BASE_URL=XXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+    AMAZON_APP_ID=XXXXXXXXX
+  ```
 
-   ```dotenv
-   MAPQUEST_API_KEY=XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-   ```
-
-   Note that if an environment key for MAPQUEST_API_KEY exists in your profile, then it will use your environment's key over the .env file.
+Note that if an environment key for AMAZON_API_KEY, AMAZON_BASE_URL, and AMAZON_APP_ID exists in your profile, then it will use your environment's key over the .env file. AMAZON_APP_ID can be omitted if you are using the default Amazon URL (it is only needed when using the NREL Gateway).
 
 #### angular-app
 
@@ -120,7 +122,7 @@ git clone git@github.com:SEED-platform/building-data-utilities.git
 - **Interactive Map & Table Integration** - click on table rows to fly to buildings on the map, click on map footprints to select corresponding table rows
 - **Footprint Editing** - manually edit/redraw building footprints by double-clicking and dragging polygon vertices on the map
 - **Map Drawing Tools** - add new building footprints using the building icon, delete footprints using the trash icon, edit footprints using the pencil icon
-- **Reverse Geocoding** - convert building footprints or addresses back to address information using MapQuest API
+- **Reverse Geocoding** - convert building footprints or addresses back to address information using Amazon Location Services API
 - **Row Management** - add new rows manually, delete selected rows, with full table-map synchronization
 - **Data Validation** - check uploaded data format and requirements before processing
 - **Multi-Data Source Support** - load and combine Microsoft Building Footprints and OpenStreetMap building data
@@ -153,4 +155,4 @@ git clone git@github.com:SEED-platform/building-data-utilities.git
 
 ## Disclaimer
 
-When using this tool with the MapQuest geocoding API (or any other geocoder) always confirm that the terms of service allow for using and storing geocoding results (as with the MapQuest Enterprise license).
+When using this tool with the Amazon Location Services geocoding API (or any other geocoder) always confirm that the terms of service allow for using and storing geocoding results (as with the Amazon Location Services).
