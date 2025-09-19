@@ -1,6 +1,6 @@
 /* Merge Footprints button styling (uguale a .proceed-btn) */
 .merge-btn {
-  background-color: #28a745;
+  background-color: #ea580c;
   color: white;
   padding: 12px 20px;
   border: none;
@@ -14,7 +14,7 @@
 }
 
 .merge-btn:hover:not(:disabled) {
-  background-color: #218838;
+  background-color: #ea580c;
 }
 
 .merge-btn:disabled {
