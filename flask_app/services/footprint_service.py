@@ -4,6 +4,7 @@ See also https://github.com/SEED-platform/cbl-web-tool/blob/main/LICENSE.md
 """
 
 import gzip
+import json
 import logging
 from pathlib import Path
 
@@ -407,16 +408,57 @@ class FootprintService:
 
     def merge_footprint_geodataframes(self, gdf_1, gdf_2):
         """
-        Merge two footprint GeoDataFrames first by intersection and then dissolve by UBID.
+        Merge two footprint GeoDataFrames, preserving unique footprints and merging overlapping ones.
 
-        This method makes assumptions on fields coming from Microsoft Footprint and OpenStreetMap.
-        The assumptions probably need to be relaxed in the future and as we support different
-        formats of data.
+        This method:
+        1. Identifies overlapping footprints between the two datasets
+        2. Merges the overlapping footprints into combined features
+        3. Preserves non-overlapping footprints from both datasets
+        4. Returns a combined GeoDataFrame with all unique and merged footprints
 
-        Returns a GeoDataFrame with merged footprints.
+        Returns a GeoDataFrame with unique + merged footprints.
         """
-        # Overlay the two GeoDataFrames to get intersection geometries
+        print(f"Starting merge: gdf_1 has {len(gdf_1)} features, gdf_2 has {len(gdf_2)} features")
+        
+        # Step 1: Find overlapping footprints
         overlap_gdf = gpd.overlay(gdf_1, gdf_2, how="intersection")
+        print(f"Found {len(overlap_gdf)} overlapping footprint pairs")
+        
+        if len(overlap_gdf) == 0:
+            # No overlaps, just combine all footprints
+            print("No overlaps found, combining all footprints as-is")
+            
+            # Add source column to identify origin
+            gdf_1_copy = gdf_1.copy()
+            gdf_2_copy = gdf_2.copy()
+            gdf_1_copy['source'] = 'Microsoft'
+            gdf_2_copy['source'] = 'OpenStreetMap'
+            
+            # Combine all footprints
+            combined_gdf = pd.concat([gdf_1_copy, gdf_2_copy], ignore_index=True)
+            print(f"Combined result: {len(combined_gdf)} total footprints")
+            return self._finalize_footprints(combined_gdf)
+        
+        # Step 2: Identify which footprints from each dataset were involved in overlaps
+        overlapping_indices_1 = set()
+        overlapping_indices_2 = set()
+        
+        # Get the original indices that were involved in overlaps
+        for idx, row in overlap_gdf.iterrows():
+            # The overlay operation preserves indices, but we need to be careful about how to track them
+            # For now, we'll use spatial joins to identify which original footprints overlap
+            pass
+        
+        # Alternative approach: Use spatial joins to identify overlapping footprints
+        # This is more reliable than trying to track indices through overlay
+        spatial_join = gpd.sjoin(gdf_1, gdf_2, how='inner', predicate='intersects')
+        overlapping_indices_1 = set(spatial_join.index)
+        overlapping_indices_2 = set(spatial_join['index_right'])
+        
+        print(f"Overlapping footprints: {len(overlapping_indices_1)} from MS, {len(overlapping_indices_2)} from OSM")
+        
+        # Step 3: Process the overlapping footprints (existing merge logic)
+        # Continue with the existing overlap processing logic...
 
         # Create a mapping for how each column should be aggregated when dissolving
         # "first" means take the first value found for that column in each group
@@ -443,9 +485,13 @@ class FootprintService:
             overlap_gdf = overlap_gdf.rename(columns={col: f"{col}_list" if column_mapping[col] == "unique" else col})
 
         # For height, merge the height_1 and height_2 lists
-        overlap_gdf["height_list"] = overlap_gdf[["height_1_list", "height_2_list"]].apply(lambda x: list(set(x.dropna().sum())), axis=1)
+        overlap_gdf["height_list"] = overlap_gdf[["height_1_list", "height_2_list"]].apply(
+            lambda x: [float(val) if val is not None else None for val in list(set(x.dropna().sum()))], axis=1
+        )
         # grab the largest height and set to height
-        overlap_gdf["height"] = overlap_gdf["height_list"].apply(lambda x: max(x) if x else None)
+        overlap_gdf["height"] = overlap_gdf["height_list"].apply(
+            lambda x: float(max(x)) if x and any(val is not None for val in x) else None
+        )
 
         # Merge MultiPolygon into a single Polygon if possible
         def merge_or_largest(geom):
@@ -526,8 +572,117 @@ class FootprintService:
         overlap_gdf = overlap_gdf.to_crs(epsg=4326)
 
         # calculate the number of stories and gross floor area based on a 3.5 meter height
-        overlap_gdf["number_of_stories"] = (overlap_gdf["height"] / 3.5).apply(np.ceil).astype(int)
+        overlap_gdf["number_of_stories"] = (overlap_gdf["height"] / 3.5).apply(
+            lambda x: int(np.ceil(x)) if x is not None else 1
+        )
         overlap_gdf["gross_floor_area_m2"] = overlap_gdf["footprint_area_m2"] * overlap_gdf["number_of_stories"]
         overlap_gdf["gross_floor_area_ft2"] = overlap_gdf["gross_floor_area_m2"] * 10.764
 
-        return overlap_gdf
+        # Mark merged footprints as 'Merged' source
+        overlap_gdf['source'] = 'Merged'
+        print(f"Processed {len(overlap_gdf)} merged footprints")
+        
+        # Step 4: Get non-overlapping footprints from each dataset
+        non_overlapping_1 = gdf_1.loc[~gdf_1.index.isin(overlapping_indices_1)].copy()
+        non_overlapping_2 = gdf_2.loc[~gdf_2.index.isin(overlapping_indices_2)].copy()
+        
+        # Add source labels
+        non_overlapping_1['source'] = 'Microsoft'
+        non_overlapping_2['source'] = 'OpenStreetMap'
+        
+        print(f"Non-overlapping: {len(non_overlapping_1)} from MS, {len(non_overlapping_2)} from OSM")
+        
+        # Step 5: Combine all footprints (merged + unique from both datasets)
+        all_parts = []
+        
+        if len(overlap_gdf) > 0:
+            all_parts.append(overlap_gdf)
+        if len(non_overlapping_1) > 0:
+            all_parts.append(non_overlapping_1)
+        if len(non_overlapping_2) > 0:
+            all_parts.append(non_overlapping_2)
+        
+        if not all_parts:
+            # Edge case: no footprints at all
+            print("No footprints to return")
+            return gpd.GeoDataFrame()
+        
+        # Combine all parts
+        combined_gdf = pd.concat(all_parts, ignore_index=True, sort=False)
+        print(f"Final result: {len(combined_gdf)} total footprints ({len(overlap_gdf)} merged + {len(non_overlapping_1)} MS unique + {len(non_overlapping_2)} OSM unique)")
+        
+        return self._finalize_footprints(combined_gdf)
+
+    def _finalize_footprints(self, gdf):
+        """
+        Apply final processing to footprints for JSON serialization.
+        """
+        if len(gdf) == 0:
+            return gdf
+            
+        # Convert all remaining NumPy types to native Python types for JSON serialization
+        for col in gdf.columns:
+            if col != 'geometry':  # Skip geometry column
+                gdf[col] = gdf[col].apply(self._convert_to_json_serializable)
+        
+        # Additional cleanup: ensure all numeric columns are properly converted
+        for col in gdf.select_dtypes(include=[np.number]).columns:
+            if col != 'geometry':
+                gdf[col] = gdf[col].astype(float).astype(object)
+        
+        # Final check: convert any remaining problematic types
+        for col in gdf.columns:
+            if col != 'geometry':
+                try:
+                    # Test if the column can be JSON serialized
+                    json.dumps(gdf[col].iloc[0] if len(gdf) > 0 else None)
+                except TypeError:
+                    # Force conversion of problematic values
+                    gdf[col] = gdf[col].apply(lambda x: str(x) if x is not None else None)
+
+        return gdf
+
+    def _convert_to_json_serializable(self, value):
+        """Convert NumPy types and other non-JSON-serializable types to native Python types."""
+        # Handle None first
+        if value is None:
+            return None
+        # Handle numpy arrays first (before pd.isna check which fails on arrays)
+        elif isinstance(value, np.ndarray):
+            return value.tolist()
+        elif isinstance(value, pd.Series):
+            return value.tolist()
+        elif isinstance(value, list):
+            return [self._convert_to_json_serializable(item) for item in value]
+        # Check for pandas NA values safely
+        else:
+            # First try pd.isna check, but handle arrays gracefully
+            try:
+                if pd.isna(value):
+                    return None
+            except (ValueError, TypeError):
+                # If pd.isna fails (e.g., on complex types), continue to other checks
+                pass
+            
+            # Handle numpy scalar types
+            if isinstance(value, (np.integer, np.int64, np.int32, np.int16, np.int8)):
+                return int(value)
+            elif isinstance(value, (np.floating, np.float64, np.float32, np.float16)):
+                return float(value)
+            elif isinstance(value, np.bool_):
+                return bool(value)
+            elif hasattr(value, 'item'):  # Handle numpy scalars
+                return value.item()
+            else:
+                # Force conversion of any remaining pandas/numpy types
+                try:
+                    if hasattr(value, 'dtype'):
+                        if 'int' in str(value.dtype):
+                            return int(value)
+                        elif 'float' in str(value.dtype):
+                            return float(value)
+                        elif 'bool' in str(value.dtype):
+                            return bool(value)
+                except:
+                    pass
+                return value
