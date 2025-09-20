@@ -46,6 +46,7 @@ from flask_app.services.geocoding_service import GeocodingService
 
 class NumpyEncoder(json.JSONEncoder):
     """Custom JSON encoder that handles NumPy data types."""
+
     def default(self, obj):
         if isinstance(obj, np.ndarray):
             return obj.tolist()
@@ -333,37 +334,43 @@ def merge_footprints():
     try:
         app.logger.info("Getting JSON data from request")
         data = request.get_json()
-        
+
         if data is None:
             app.logger.error("No JSON data received")
             return jsonify({"error": True, "message": "No JSON data received"}), 400
-            
+
         app.logger.info(f"Received data keys: {list(data.keys()) if data else 'None'}")
         app.logger.info(f"Request content type: {request.content_type}")
         app.logger.info(f"Request data size: {len(request.data) if request.data else 0} bytes")
-        
+
         geojson_1 = data.get("geojson_1")
         geojson_2 = data.get("geojson_2")
-        
-        app.logger.info(f"geojson_1 type: {type(geojson_1)}, has features: {geojson_1 is not None and 'features' in geojson_1 if geojson_1 else False}")
-        app.logger.info(f"geojson_2 type: {type(geojson_2)}, has features: {geojson_2 is not None and 'features' in geojson_2 if geojson_2 else False}")
-        
+
+        app.logger.info(
+            f"geojson_1 type: {type(geojson_1)}, has features: {geojson_1 is not None and 'features' in geojson_1 if geojson_1 else False}"
+        )
+        app.logger.info(
+            f"geojson_2 type: {type(geojson_2)}, has features: {geojson_2 is not None and 'features' in geojson_2 if geojson_2 else False}"
+        )
+
         if not geojson_1 or not geojson_2:
             return jsonify({"error": True, "message": "Missing geojson_1 or geojson_2 in request"}), 400
-        
+
         # Validate GeoJSON structure
         if not isinstance(geojson_1, dict) or "features" not in geojson_1:
             app.logger.error(f"Invalid geojson_1 structure: {geojson_1}")
             return jsonify({"error": True, "message": "geojson_1 must be a valid GeoJSON with features"}), 400
-            
+
         if not isinstance(geojson_2, dict) or "features" not in geojson_2:
             app.logger.error(f"Invalid geojson_2 structure: {geojson_2}")
             return jsonify({"error": True, "message": "geojson_2 must be a valid GeoJSON with features"}), 400
-        
+
         if not geojson_1["features"] or not geojson_2["features"]:
             return jsonify({"error": True, "message": "Both datasets must have at least one feature"}), 400
 
-        app.logger.info(f"Merging {len(geojson_1.get('features', []))} MS footprints with {len(geojson_2.get('features', []))} OSM footprints")
+        app.logger.info(
+            f"Merging {len(geojson_1.get('features', []))} MS footprints with {len(geojson_2.get('features', []))} OSM footprints"
+        )
 
         # Clean and validate GeoJSON features before processing
         def clean_geojson_features(features):
@@ -373,24 +380,20 @@ def merge_footprints():
                 if not isinstance(feature, dict):
                     app.logger.warning(f"Skipping non-dict feature: {type(feature)}")
                     continue
-                    
+
                 if "geometry" not in feature or "properties" not in feature:
                     app.logger.warning(f"Skipping feature missing geometry or properties: {feature.keys()}")
                     continue
-                
+
                 # Create a clean copy with only the essential parts
-                clean_feature = {
-                    "type": "Feature",
-                    "geometry": feature["geometry"],
-                    "properties": feature["properties"]
-                }
-                
+                clean_feature = {"type": "Feature", "geometry": feature["geometry"], "properties": feature["properties"]}
+
                 # Add id if present
                 if "id" in feature:
                     clean_feature["id"] = feature["id"]
-                    
+
                 cleaned_features.append(clean_feature)
-                
+
             return cleaned_features
 
         # Convert GeoJSON to GeoDataFrames
@@ -405,10 +408,12 @@ def merge_footprints():
             # Log a sample feature to debug
             if geojson_1.get("features"):
                 sample_feature = geojson_1["features"][0]
-                app.logger.error(f"Sample geojson_1 feature keys: {list(sample_feature.keys()) if isinstance(sample_feature, dict) else 'Not a dict'}")
+                app.logger.error(
+                    f"Sample geojson_1 feature keys: {list(sample_feature.keys()) if isinstance(sample_feature, dict) else 'Not a dict'}"
+                )
                 app.logger.error(f"Sample geojson_1 feature: {str(sample_feature)[:500]}...")
             raise
-        
+
         app.logger.info("Cleaning and converting geojson_2 to GeoDataFrame")
         try:
             cleaned_features_2 = clean_geojson_features(geojson_2["features"])
@@ -420,18 +425,20 @@ def merge_footprints():
             # Log a sample feature to debug
             if geojson_2.get("features"):
                 sample_feature = geojson_2["features"][0]
-                app.logger.error(f"Sample geojson_2 feature keys: {list(sample_feature.keys()) if isinstance(sample_feature, dict) else 'Not a dict'}")
+                app.logger.error(
+                    f"Sample geojson_2 feature keys: {list(sample_feature.keys()) if isinstance(sample_feature, dict) else 'Not a dict'}"
+                )
                 app.logger.error(f"Sample geojson_2 feature: {str(sample_feature)[:500]}...")
             raise
 
         app.logger.info("Calling merge_footprint_geodataframes")
         app.logger.info(f"Input datasets: gdf_1={len(gdf_1)} footprints, gdf_2={len(gdf_2)} footprints")
-        
+
         merged_gdf = footprint_service.merge_footprint_geodataframes(gdf_1, gdf_2)
-        
+
         app.logger.info(f"Merge completed, resulted in {len(merged_gdf)} total footprints")
-        if 'source' in merged_gdf.columns:
-            source_counts = merged_gdf['source'].value_counts()
+        if "source" in merged_gdf.columns:
+            source_counts = merged_gdf["source"].value_counts()
             app.logger.info(f"Source breakdown: {dict(source_counts)}")
 
         # Convert back to GeoJSON with error handling for serialization
@@ -443,10 +450,10 @@ def merge_footprints():
             app.logger.error(f"JSON serialization error: {e}")
             # Log the problematic columns
             for col in merged_gdf.columns:
-                if col != 'geometry':
+                if col != "geometry":
                     sample_value = merged_gdf[col].iloc[0] if len(merged_gdf) > 0 else None
                     app.logger.error(f"Column {col}: type={type(sample_value)}, value={sample_value}")
-            
+
             # Try manual conversion with our custom encoder
             try:
                 app.logger.info("Attempting manual JSON conversion with NumpyEncoder")
@@ -456,42 +463,43 @@ def merge_footprints():
             except Exception as e2:
                 app.logger.error(f"Manual conversion also failed: {e2}")
                 raise e
-        
+
         app.logger.info(f"Preparing response with {len(merged_geojson.get('features', []))} merged features")
-        
+
         # Check response size
         response_data = {"message": "success", "merged_geojson": merged_geojson}
-        
+
         # Try to calculate response size safely
         try:
             response_size = len(json.dumps(response_data, cls=NumpyEncoder))
             app.logger.info(f"Response size: {response_size} bytes ({response_size / 1024 / 1024:.2f} MB)")
-            
+
             if response_size > 50 * 1024 * 1024:  # 50MB limit
                 app.logger.warning("Response is very large, this might cause timeout issues")
                 # Consider reducing the response size
-                feature_count = len(merged_geojson.get('features', []))
+                feature_count = len(merged_geojson.get("features", []))
                 app.logger.warning(f"Large response has {feature_count} features")
-                
+
         except Exception as e:
             app.logger.error(f"Could not calculate response size: {e}")
-        
+
         app.logger.info("Creating Flask response...")
         flask_response = jsonify(response_data)
-        
+
         # Add response headers for debugging
-        flask_response.headers['X-Feature-Count'] = str(len(merged_geojson.get('features', [])))
-        flask_response.headers['X-Response-Time'] = str(int(time.time() * 1000))
-        
+        flask_response.headers["X-Feature-Count"] = str(len(merged_geojson.get("features", [])))
+        flask_response.headers["X-Response-Time"] = str(int(time.time() * 1000))
+
         app.logger.info("Sending successful merge response")
         return flask_response
-    
+
     except Exception as e:
-        app.logger.error(f"Error in merge_footprints: {str(e)}")
+        app.logger.error(f"Error in merge_footprints: {e!s}")
         app.logger.error(f"Exception type: {type(e).__name__}")
         import traceback
+
         app.logger.error(f"Traceback: {traceback.format_exc()}")
-        return jsonify({"error": True, "message": f"Error merging footprints: {str(e)}"}), 500
+        return jsonify({"error": True, "message": f"Error merging footprints: {e!s}"}), 500
 
 
 @app.route("/api/reverse_geocode", methods=["POST"])
