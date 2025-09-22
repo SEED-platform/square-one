@@ -648,7 +648,7 @@ class FootprintService:
         if value is None:
             return None
         # Handle numpy arrays first (before pd.isna check which fails on arrays)
-        elif isinstance(value, np.ndarray) or isinstance(value, pd.Series):
+        elif isinstance(value, (pd.Series, np.ndarray)):
             return value.tolist()
         elif isinstance(value, list):
             return [self._convert_to_json_serializable(item) for item in value]
@@ -681,6 +681,7 @@ class FootprintService:
                             return float(value)
                         elif "bool" in str(value.dtype):
                             return bool(value)
-                except:
-                    pass
+                except Exception as e:
+                    # return value as is
+                    self.logger.error(f"Exception during conversion to json serializable. logging error: {e}")
                 return value

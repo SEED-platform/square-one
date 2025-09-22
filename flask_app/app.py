@@ -496,7 +496,6 @@ def merge_footprints():
     except Exception as e:
         app.logger.error(f"Error in merge_footprints: {e!s}")
         app.logger.error(f"Exception type: {type(e).__name__}")
-        import traceback
 
         app.logger.error(f"Traceback: {traceback.format_exc()}")
         return jsonify({"error": True, "message": f"Error merging footprints: {e!s}"}), 500
