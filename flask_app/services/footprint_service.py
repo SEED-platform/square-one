@@ -797,6 +797,6 @@ class FootprintService:
                         elif "bool" in str(value.dtype):
                             return bool(value)
                 except Exception as e:
-                    # return value as is
                     self.logger.error(f"Exception during conversion to json serializable. logging error: {e}")
+                # return value as is
                 return value

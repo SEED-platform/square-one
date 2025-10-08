@@ -202,7 +202,6 @@ This analysis validates that the EUI matching system design appropriately handle
 ### Why Building Type and Climate Zone Must Be Preserved
 
 1. **`building_type` (3.2% 'All' usage)**:
-
    - Only 477 out of 14,712 EUI records use 'All'
    - 96.8% use specific building types
    - **Critical for EUI accuracy** - different building types have vastly different energy patterns
