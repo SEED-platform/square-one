@@ -57,7 +57,7 @@ class FileProcessingService:
             log_error_with_context(error_msg, e)
             return None, error_msg
 
-    def _process_json(self, file) -> list[dict] | dict:
+    def _process_json(self, file) -> Union[list[dict], dict]:
         """Process JSON file."""
         file_content = file.read().decode("utf-8")
         return json.loads(file_content)
