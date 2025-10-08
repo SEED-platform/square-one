@@ -383,8 +383,8 @@ class FootprintService:
         street = osm_gdf["addr:street"].astype(str).str.strip()
 
         # Create masks for valid values (not empty, not 'nan')
-        has_house_num = ~house_num.isin(['', 'nan', 'None'])
-        has_street = ~street.isin(['', 'nan', 'None'])
+        has_house_num = ~house_num.isin(["", "nan", "None"])
+        has_street = ~street.isin(["", "nan", "None"])
 
         # Use pandas vectorized operations to create street_address
         street_address = ""  # default empty
@@ -489,15 +489,15 @@ class FootprintService:
         def merge_height_lists(row):
             """Safely merge height lists from both datasets"""
             all_heights = []
-            
+
             # Collect heights from both columns
             for col in ["height_1_list", "height_2_list"]:
                 if col in row and row[col] is not None:
                     if isinstance(row[col], (list, tuple)):
-                        all_heights.extend([h for h in row[col] if h is not None and str(h) != 'nan'])
-                    elif row[col] is not None and str(row[col]) != 'nan':
+                        all_heights.extend([h for h in row[col] if h is not None and str(h) != "nan"])
+                    elif row[col] is not None and str(row[col]) != "nan":
                         all_heights.append(row[col])
-            
+
             # Convert to float and remove duplicates
             valid_heights = []
             for h in all_heights:
@@ -513,9 +513,7 @@ class FootprintService:
         overlap_gdf["height_list"] = overlap_gdf.apply(merge_height_lists, axis=1)
 
         # grab the largest height and set to height
-        overlap_gdf["height"] = overlap_gdf["height_list"].apply(
-            lambda x: float(max(x)) if x and len(x) > 0 else None
-        )
+        overlap_gdf["height"] = overlap_gdf["height_list"].apply(lambda x: float(max(x)) if x and len(x) > 0 else None)
 
         # Merge MultiPolygon into a single Polygon if possible
         def merge_or_largest(geom):
@@ -638,15 +636,23 @@ class FootprintService:
         )
 
         # clean-up. there are multiple duplicate fields with _1 and _2 in the combined_gdf, delete them all
-        cols_to_drop = [col for col in combined_gdf.columns if col.endswith("_1") or col.endswith("_2")]
+        cols_to_drop = [col for col in combined_gdf.columns if col.endswith(("_1", "_2"))]
         combined_gdf = combined_gdf.drop(columns=cols_to_drop)
 
         # if street_address is empty, use Addr:househumber and Addr:street to create it
         if "street_address" in combined_gdf.columns:
             empty_street_mask = combined_gdf["street_address"].isna() | (combined_gdf["street_address"].str.strip() == "")
             if empty_street_mask.any():
-                house_numbers = combined_gdf.loc[empty_street_mask, "addr:housenumber"].astype(str).str.strip() if "addr:housenumber" in combined_gdf.columns else ""
-                streets = combined_gdf.loc[empty_street_mask, "addr:street"].astype(str).str.strip() if "addr:street" in combined_gdf.columns else ""
+                house_numbers = (
+                    combined_gdf.loc[empty_street_mask, "addr:housenumber"].astype(str).str.strip()
+                    if "addr:housenumber" in combined_gdf.columns
+                    else ""
+                )
+                streets = (
+                    combined_gdf.loc[empty_street_mask, "addr:street"].astype(str).str.strip()
+                    if "addr:street" in combined_gdf.columns
+                    else ""
+                )
 
                 street_addresses = []
                 for house_num, street in zip(house_numbers, streets):
@@ -679,8 +685,7 @@ class FootprintService:
             "addr:postcode",
             "addr:state",
             "addr:street",
-            "Addr:street"
-            "city_1",
+            "Addr:streetcity_1",
             "city_2",
             "country_1",
             "country_2",
@@ -716,7 +721,7 @@ class FootprintService:
             "ubid_1_list",
             "ubid_2_list",
         ]
-        cleanup_cols = [col for col in cleanup_cols if col in combined_gdf.columns] # only keep existing columns
+        cleanup_cols = [col for col in cleanup_cols if col in combined_gdf.columns]  # only keep existing columns
         combined_gdf = combined_gdf.drop(columns=cleanup_cols)
 
         # also remove all Addr:* fields if they exist

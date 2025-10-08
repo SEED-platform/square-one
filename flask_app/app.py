@@ -592,7 +592,7 @@ def geocode():
         try:
             json_data = json.loads(json_string)
             app.logger.info(f"Parsed json_data: {json_data}")
-            locations = json_data['locations']
+            locations = json_data["locations"]
         except json.JSONDecodeError as e:
             app.logger.error(f"Invalid JSON in request: {e}")
             return jsonify({"message": f"Invalid JSON in request: {e}"}), 400

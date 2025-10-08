@@ -9,8 +9,8 @@ import os
 from typing import Optional
 
 import requests
-from building_data_utilities.ubid import encode_ubid
 from building_data_utilities.geocode_addresses import geocode_addresses as aws_geocode_addresses
+from building_data_utilities.ubid import encode_ubid
 from shapely.geometry import Polygon
 
 from flask_app.services.logging_utils import log_error_with_context
@@ -34,7 +34,6 @@ class GeocodingService:
         self.amazon_app_id = os.environ.get("AMAZON_APP_ID")
         if not self.amazon_app_id:
             self.logger.warning("AMAZON_APP_ID not found in environment variables")
-
 
     def geocode_addresses(self, locations: list) -> tuple[Optional[dict], Optional[str]]:
         """
