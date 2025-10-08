@@ -403,7 +403,7 @@ export class FileUploadDialogComponent {
       // Remove latitude/longitude case variations to avoid duplicates
       const cleanedProperties = { ...feature.properties }
       const latLngVariations = ['latitude', 'longitude', 'Latitude', 'Longitude', 'LATITUDE', 'LONGITUDE']
-      latLngVariations.forEach(fieldName => {
+      latLngVariations.forEach((fieldName) => {
         delete cleanedProperties[fieldName]
       })
 
@@ -450,7 +450,7 @@ export class FileUploadDialogComponent {
           },
         ],
       }
-    }    // Handle tabular data (CSV, Excel, JSON array) - convert to GeoJSON
+    } // Handle tabular data (CSV, Excel, JSON array) - convert to GeoJSON
     if (Array.isArray(data)) {
       const features = data.map((item, index) => {
         const itemData = item as Record<string, unknown>
@@ -529,7 +529,11 @@ export class FileUploadDialogComponent {
                   type: 'Polygon',
                   coordinates: coordinatesField,
                 }
-              } else if (Array.isArray(coordinatesField[0]) && Array.isArray(coordinatesField[0][0]) && typeof coordinatesField[0][0][0] === 'number') {
+              } else if (
+                Array.isArray(coordinatesField[0]) &&
+                Array.isArray(coordinatesField[0][0]) &&
+                typeof coordinatesField[0][0][0] === 'number'
+              ) {
                 // Polygon coordinates [[[lng,lat],[lng,lat],...]]
                 geometry = {
                   type: 'Polygon',
@@ -585,7 +589,13 @@ export class FileUploadDialogComponent {
         const needsLatitude = calculatedLatitude === undefined
         const needsLongitude = calculatedLongitude === undefined
 
-        if ((needsLatitude || needsLongitude) && geometry.type === 'Polygon' && geometry.coordinates && Array.isArray(geometry.coordinates[0]) && geometry.coordinates[0].length > 0) {
+        if (
+          (needsLatitude || needsLongitude) &&
+          geometry.type === 'Polygon' &&
+          geometry.coordinates &&
+          Array.isArray(geometry.coordinates[0]) &&
+          geometry.coordinates[0].length > 0
+        ) {
           const centroid = this.calculatePolygonCentroid(geometry.coordinates)
           if (centroid) {
             console.log(`Calculated centroid for CSV row ${index}: lat=${centroid.lat}, lng=${centroid.lng}`)

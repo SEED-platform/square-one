@@ -59,7 +59,7 @@ export class FlaskRequests {
     )
   }
 
-    sendGeoCodeData(jsonString: string): Observable<any> {
+  sendGeoCodeData(jsonString: string): Observable<any> {
     return this.http.post<any>(
       'http://127.0.0.1:5001/api/geocode',
       { value: jsonString }, // Send JSON object with 'value' key

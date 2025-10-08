@@ -92,7 +92,7 @@ export class MapWorkflowComponent implements AfterViewInit {
       // Call the backend API to properly merge the footprints
       const requestData = {
         geojson_1: this.msFootprintsData,
-        geojson_2: this.osmFootprintsData
+        geojson_2: this.osmFootprintsData,
       }
 
       console.log('Sending merge request to backend...')
@@ -174,7 +174,7 @@ export class MapWorkflowComponent implements AfterViewInit {
           const duration = endTime - startTime
           console.log(`Merge footprints request completed after ${duration}ms`)
           // Don't update status message here - let the next/error callbacks handle UI updates
-        }
+        },
       })
     } else {
       this.showStatusMessage('Both MS and OSM footprints must be loaded to merge', true)
@@ -728,7 +728,7 @@ export class MapWorkflowComponent implements AfterViewInit {
         // Store the combined data in both the GeoJsonService and session storage
         this.geoJsonService.setGeoJson(combinedData)
         this.sessionService.setGeoJsonData(combinedData) // Store as JSON object in session
-        console.log("COMBINED DATA:", combinedData)
+        console.log('COMBINED DATA:', combinedData)
         // Navigate to the cbl-table page
         this.router.navigate(['/cbl-table'])
       }

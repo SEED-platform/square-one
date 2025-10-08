@@ -168,9 +168,9 @@ export class CblTableComponent implements OnInit, OnDestroy {
     postal_code: '80202',
     country: 'US',
     quality: 'Poor',
-  ubid: '',
-  latitude: null,
-  longitude: null,
+    ubid: '',
+    latitude: null,
+    longitude: null,
     footprint_area_m2: 0,
     footprint_area_ft2: 0,
     height: null,
@@ -349,8 +349,6 @@ export class CblTableComponent implements OnInit, OnDestroy {
             })
             console.log('names1', geoJsonPropertyNames)
             this.sessionService.setPropertyNames(geoJsonPropertyNames)
-
-
           }
           this.updateTable() // Update table only on initial load
 
@@ -1343,7 +1341,7 @@ export class CblTableComponent implements OnInit, OnDestroy {
       return
     }
 
-    if (!city || streetAddress.trim() === '' || !state ){
+    if (!city || streetAddress.trim() === '' || !state) {
       alert('Please ensure street address, city, and state are provided for geocoding')
       return
     }
@@ -1354,7 +1352,7 @@ export class CblTableComponent implements OnInit, OnDestroy {
     const location: Record<string, string> = {
       street: streetAddress,
       city: city,
-      state: state
+      state: state,
     }
 
     if (postalCode && postalCode.trim() !== '') {
@@ -1414,7 +1412,7 @@ export class CblTableComponent implements OnInit, OnDestroy {
     this.geoJsonService.setGeoJson(this.geoJson)
   }
 
-    updateBuildingWithGeocodeData(originalBuilding: any, updatedData: any) {
+  updateBuildingWithGeocodeData(originalBuilding: any, updatedData: any) {
     // Update the original building's properties with the reverse geocoded data
 
     if (updatedData) {

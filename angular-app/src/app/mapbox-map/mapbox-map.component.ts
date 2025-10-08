@@ -152,12 +152,14 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
     // This covers geocoded addresses that have lat/lng but no polygon footprint
     if (coords && coords.latitude !== 0 && coords.longitude !== 0) {
       // Check if geometry exists and has valid polygon coordinates
-      if (!geometry ||
-          !geometry.coordinates ||
-          !Array.isArray(geometry.coordinates) ||
-          geometry.coordinates.length === 0 ||
-          !Array.isArray(geometry.coordinates[0]) ||
-          geometry.coordinates[0].length === 0) {
+      if (
+        !geometry ||
+        !geometry.coordinates ||
+        !Array.isArray(geometry.coordinates) ||
+        geometry.coordinates.length === 0 ||
+        !Array.isArray(geometry.coordinates[0]) ||
+        geometry.coordinates[0].length === 0
+      ) {
         return true // Has coordinates but no footprint - allow drawing
       }
     }
@@ -857,7 +859,9 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
 
   editEmptyData() {
     if (this.emptyBuildingId === 'none selected') {
-      alert('Please select a building to draw a footprint on.\n\nYou can draw footprints on:\n• Buildings with poor/missing data\n• Buildings with coordinates but no footprint (e.g., geocoded addresses)\n\nTo edit an existing footprint, first remove it using the trash can.')
+      alert(
+        'Please select a building to draw a footprint on.\n\nYou can draw footprints on:\n• Buildings with poor/missing data\n• Buildings with coordinates but no footprint (e.g., geocoded addresses)\n\nTo edit an existing footprint, first remove it using the trash can.',
+      )
       return
     }
 
