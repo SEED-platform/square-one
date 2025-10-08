@@ -723,12 +723,12 @@ export class MapWorkflowComponent implements AfterViewInit {
       }
 
       if (combinedData) {
-        console.log('Map workflow: Sending merged data to cbl-table with', combinedData.features?.length || 0, 'features')
+        console.log('Map workflow: Sending data to cbl-table with', combinedData.features?.length || 0, 'features')
 
         // Store the combined data in both the GeoJsonService and session storage
         this.geoJsonService.setGeoJson(combinedData)
         this.sessionService.setGeoJsonData(combinedData) // Store as JSON object in session
-
+        console.log("COMBINED DATA:", combinedData)
         // Navigate to the cbl-table page
         this.router.navigate(['/cbl-table'])
       }

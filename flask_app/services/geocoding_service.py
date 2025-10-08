@@ -10,6 +10,7 @@ from typing import Optional
 
 import requests
 from building_data_utilities.ubid import encode_ubid
+from building_data_utilities.geocode_addresses import geocode_addresses as aws_geocode_addresses
 from shapely.geometry import Polygon
 
 from flask_app.services.logging_utils import log_error_with_context
@@ -23,6 +24,46 @@ class GeocodingService:
         self.mapbox_token = os.environ.get("MAPBOX_ACCESS_TOKEN")
         if not self.mapbox_token:
             self.logger.warning("MAPBOX_ACCESS_TOKEN not found in environment variables")
+        # AWS variables
+        self.amazon_api_key = os.environ.get("AMAZON_API_KEY")
+        if not self.amazon_api_key:
+            self.logger.warning("AMAZON_API_KEY not found in environment variables")
+        self.amazon_base_url = os.environ.get("AMAZON_BASE_URL")
+        if not self.amazon_base_url:
+            self.logger.warning("AMAZON_BASE_URL not found in environment variables")
+        self.amazon_app_id = os.environ.get("AMAZON_APP_ID")
+        if not self.amazon_app_id:
+            self.logger.warning("AMAZON_APP_ID not found in environment variables")
+
+
+    def geocode_addresses(self, locations: list) -> tuple[Optional[dict], Optional[str]]:
+        """
+        Geocode a list of addresses using Amazon Location Services in building_data_utilities package.
+
+        Args:
+            locations: List of location dictionaries containing address information
+
+        Returns:
+            Tuple of (geocoded_data, error_message)
+        """
+        if not locations:
+            geocoded_data = []
+            return geocoded_data, None
+
+        if not self.amazon_api_key:
+            error_msg = "Amazon Location Services credentials are not fully set in environment variables."
+            self.logger.error(error_msg)
+            return None, error_msg
+
+        geocoded_data = []
+        try:
+            geocoded_data = aws_geocode_addresses(locations, self.amazon_api_key, self.amazon_base_url, self.amazon_app_id)
+            self.logger.info(f"Geocoded {len(geocoded_data)} addresses successfully.")
+        except Exception as e:
+            self.logger.error(f"Error geocoding addresses: {e}")
+            return None, f"Error geocoding addresses: {e}"
+
+        return geocoded_data, None
 
     def reverse_geocode_polygon(self, polygon: Polygon, property_names: list) -> tuple[Optional[dict], Optional[str]]:
         """

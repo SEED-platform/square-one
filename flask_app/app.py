@@ -570,6 +570,47 @@ def reverse_geocode():
         return jsonify({"message": f"Unexpected error: {e}"}), 500
 
 
+@app.route("/api/geocode", methods=["POST"])
+@handle_service_exceptions("geocode")
+def geocode():
+    """
+    Given address (street, city, state, postal_code (optional), and country (optional)) in request, look up the address using Amazon Location Services and return the resulting data.
+    """
+    app.logger.info("=== Starting geocode function ===")
+    app.logger.info(f"Request data: {request.json}")
+
+    try:
+        # Validate request data
+        data, error = validate_request_data(["value"])
+        if error:
+            return error
+
+        # Parse the value
+        json_string = data.get("value")
+
+        locations = []
+        try:
+            json_data = json.loads(json_string)
+            app.logger.info(f"Parsed json_data: {json_data}")
+            locations = json_data['locations']
+        except json.JSONDecodeError as e:
+            app.logger.error(f"Invalid JSON in request: {e}")
+            return jsonify({"message": f"Invalid JSON in request: {e}"}), 400
+
+        # Use geocoding service to get Lat/Lng
+        properties, error_msg = geocoding_service.geocode_addresses(locations)
+        if error_msg:
+            return jsonify({"message": error_msg}), 400
+
+        # Create returned feature
+        app.logger.info(f"Returning feature: {properties}")
+        return jsonify({"message": "success", "user_data": json.dumps(properties)}), 200
+
+    except Exception as e:
+        log_error_with_context("Unexpected error in geocode", e)
+        return jsonify({"message": f"Unexpected error: {e}"}), 500
+
+
 @app.route("/api/edit_footprint", methods=["POST"])
 @handle_service_exceptions("edit_footprint")
 def edit_footprint():
