@@ -6,10 +6,10 @@ import logging
 import traceback
 from collections.abc import Callable
 from functools import wraps
-from typing import Any
+from typing import Any, Optional
 
 
-def log_error_with_context(message: str, error: Exception, extra_context: dict | None = None) -> None:
+def log_error_with_context(message: str, error: Exception, extra_context: Optional[dict] = None) -> None:
     """
     Log an error with additional context information.
 

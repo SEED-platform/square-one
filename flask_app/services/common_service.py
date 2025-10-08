@@ -5,7 +5,7 @@ Common service utilities for handling requests, validation, and responses.
 import json
 import logging
 from functools import wraps
-from typing import Any
+from typing import Any, Optional, Union
 
 from flask import jsonify, request
 from shapely.geometry import Polygon
@@ -14,7 +14,7 @@ from flask_app.services.file_processing_service import FileProcessingService
 from flask_app.services.logging_utils import log_error_with_context
 
 
-def validate_request_data(required_fields: list) -> tuple[dict | None, Any | None]:
+def validate_request_data(required_fields: list) -> tuple[Optional[dict], Optional[Any]]:
     """
     Validate that request contains required fields.
 
@@ -38,7 +38,7 @@ def validate_request_data(required_fields: list) -> tuple[dict | None, Any | Non
         return None, jsonify({"error": f"Invalid request data: {e}"}), 400
 
 
-def parse_polygon_from_request(polygon_data: dict) -> tuple[Polygon | None, Any | None]:
+def parse_polygon_from_request(polygon_data: dict) -> tuple[Optional[Polygon], Optional[Any]]:
     """
     Parse polygon data from request into Shapely Polygon.
 
@@ -90,7 +90,7 @@ def handle_service_exceptions(operation_name: str):
     return decorator
 
 
-def create_success_response(data: Any, message: str = "success", extra_fields: dict | None = None) -> tuple[dict, int]:
+def create_success_response(data: Any, message: str = "success", extra_fields: Optional[dict] = None) -> tuple[dict, int]:
     """
     Create a standardized success response.
 
@@ -133,7 +133,7 @@ def create_geojson_response(gdf, count_field_name: str = "footprints_count") -> 
         return jsonify({"error": f"Error creating GeoJSON data: {e}"}), 500
 
 
-def validate_polygon_data(polygon_data: Any) -> tuple[Any | None, tuple[Any, int] | None]:
+def validate_polygon_data(polygon_data: Any) -> tuple[Optional[Any], Optional[tuple[Any, int]]]:
     """
     Validate polygon data from request.
 
