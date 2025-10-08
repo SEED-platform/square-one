@@ -22,6 +22,7 @@
   background-color: #6c757d;
   cursor: not-allowed;
 }
+
 /* Find Location button styling */
 .find-location-btn {
   background-color: #17a2b8;
@@ -39,6 +40,7 @@
 .find-location-btn:hover:not(:disabled) {
   background-color: #138496;
 }
+
 .map-controls-layout {
   display: flex;
   gap: 20px;
@@ -116,7 +118,7 @@
   padding: 10px 15px;
   border-radius: 5px;
   font-weight: bold;
-  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 .status-message.success {
