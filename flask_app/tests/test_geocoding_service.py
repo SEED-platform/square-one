@@ -275,7 +275,7 @@ class TestGeocodingService(unittest.TestCase):
             service = GeocodingService()
             service.mapbox_token = None  # Skip API call
 
-            result, error = service.reverse_geocode_polygon(square_polygon, self.property_names)
+            result, _ = service.reverse_geocode_polygon(square_polygon, self.property_names)
 
             # Centroid of the square should be (1, 1)
             self.assertEqual(result["latitude"], "1.0")
