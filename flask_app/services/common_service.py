@@ -5,7 +5,7 @@ Common service utilities for handling requests, validation, and responses.
 import json
 import logging
 from functools import wraps
-from typing import Any, Optional, Union
+from typing import Any, Optional
 
 from flask import jsonify, request
 from shapely.geometry import Polygon
