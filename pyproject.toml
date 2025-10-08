@@ -16,11 +16,8 @@ flask-cors = "^4.0.1"
 openpyxl = "^3.1.5"
 tqdm = "^4.67.1"
 
-# local development dependencies, need to release and
-# pin to pypi versions before using in production.
-building-data-utilities = { path = "../building-data-utilities", develop = true }
+building-data-utilities = "~0.1.0"
 # building-data-utilities = { git = "https://github.com/seed-platform/building-data-utilities.git", rev = "develop" }
-
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^3.8.0"
