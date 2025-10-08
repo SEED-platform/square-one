@@ -4,7 +4,6 @@ Service for handling file processing operations.
 
 import json
 import logging
-from typing import Optional, Union
 
 import geopandas as gpd
 import pandas as pd
@@ -26,7 +25,7 @@ class FileProcessingService:
             "application/octet-stream": self._process_geojson,
         }
 
-    def process_uploaded_file(self, file) -> tuple[Optional[Union[list[dict], dict]], Optional[str]]:
+    def process_uploaded_file(self, file) -> tuple[list[dict] | dict | None, str | None]:
         """
         Process an uploaded file and convert it to a standardized format.
 
@@ -57,7 +56,7 @@ class FileProcessingService:
             log_error_with_context(error_msg, e)
             return None, error_msg
 
-    def _process_json(self, file) -> Union[list[dict], dict]:
+    def _process_json(self, file) -> list[dict] | dict:
         """Process JSON file."""
         file_content = file.read().decode("utf-8")
         return json.loads(file_content)
@@ -112,7 +111,7 @@ class FileProcessingService:
             log_error_with_context("Error converting GeoDataFrame to JSON", e)
             raise
 
-    def validate_required_columns(self, data: list[dict]) -> tuple[bool, Optional[str]]:
+    def validate_required_columns(self, data: list[dict]) -> tuple[bool, str | None]:
         """
         Validate that required columns are present in the data.
 

@@ -6,7 +6,6 @@ See also https://github.com/SEED-platform/cbl-web-tool/blob/main/LICENSE.md
 import json
 import logging
 import os
-from typing import Optional
 
 import requests
 from building_data_utilities.ubid import encode_ubid
@@ -24,7 +23,7 @@ class GeocodingService:
         if not self.mapbox_token:
             self.logger.warning("MAPBOX_ACCESS_TOKEN not found in environment variables")
 
-    def reverse_geocode_polygon(self, polygon: Polygon, property_names: list) -> tuple[Optional[dict], Optional[str]]:
+    def reverse_geocode_polygon(self, polygon: Polygon, property_names: list) -> tuple[dict | None, str | None]:
         """
         Reverse geocode a polygon using Mapbox API.
 

@@ -2,13 +2,11 @@
 Custom exceptions for the CBL Web Tool application.
 """
 
-from typing import Optional
-
 
 class CBLWebToolError(Exception):
     """Base exception class for CBL Web Tool."""
 
-    def __init__(self, message: str, details: Optional[str] = None):
+    def __init__(self, message: str, details: str | None = None):
         self.message = message
         self.details = details
         super().__init__(self.message)

@@ -5,14 +5,14 @@ module.exports = {
     'selector-class-pattern': [
       '^([a-z][a-z0-9]*)(-[a-z0-9]+)*$',
       {
-        message: 'Expected class selector to be kebab-case'
-      }
+        message: 'Expected class selector to be kebab-case',
+      },
     ],
     'selector-id-pattern': [
       '^([a-z][a-z0-9]*)(-[a-z0-9]+)*$',
       {
-        message: 'Expected id selector to be kebab-case'
-      }
-    ]
-  }
+        message: 'Expected id selector to be kebab-case',
+      },
+    ],
+  },
 }

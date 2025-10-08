@@ -222,13 +222,13 @@ def generate_cbl():
             {"message": "Failed geocoding property states due to Amazon error. Your Amazon API Key is either invalid or at its limit."}
         ), 400
 
-    poorQualityCodes = ["Ambiguous", "No results found", "Less Than 0.90 Confidence"]
+    poor_quality_codes = ["Ambiguous", "No results found", "Less Than 0.90 Confidence"]
 
     # Find all quadkeys that the coordinates fall within
     # TODO: this is redundant with the quadkey generation in the download_ms_footprints function, resolve
     quadkeys = set()
     for datum in data:
-        if datum["quality"] not in poorQualityCodes:  # todo: check that "longitude" field is present
+        if datum["quality"] not in poor_quality_codes:  # todo: check that "longitude" field is present
             tile = mercantile.tile(datum["longitude"], datum["latitude"], 9)
             quadkey = int(mercantile.quadkey(tile))
             quadkeys.add(quadkey)
@@ -243,7 +243,7 @@ def generate_cbl():
     loaded_quadkeys: dict[int, Any] = {}
     index = 0
     for datum in data:
-        if datum["quality"] not in poorQualityCodes:
+        if datum["quality"] not in poor_quality_codes:
             quadkey = datum["quadkey"]
             if quadkey not in loaded_quadkeys:
                 app.logger.info(f"Loading quadkey: {quadkey}")
@@ -290,7 +290,7 @@ def generate_cbl():
         file_dict = file_data[i]
         data_dict = data[i]
 
-        if data_dict["quality"] in poorQualityCodes:
+        if data_dict["quality"] in poor_quality_codes:
             data_dict["quality"] = "Poor"
         else:
             data_dict["quality"] = "Good"

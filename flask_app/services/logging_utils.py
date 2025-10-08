@@ -4,11 +4,12 @@ Logging utilities for the CBL Web Tool services.
 
 import logging
 import traceback
+from collections.abc import Callable
 from functools import wraps
-from typing import Any, Callable, Optional
+from typing import Any
 
 
-def log_error_with_context(message: str, error: Exception, extra_context: Optional[dict] = None) -> None:
+def log_error_with_context(message: str, error: Exception, extra_context: dict | None = None) -> None:
     """
     Log an error with additional context information.
 
