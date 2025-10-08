@@ -15,7 +15,10 @@
     {
       "files": "*.html",
       "options": {
-        "printWidth": 200
+        "printWidth": 999999,
+        "plugins": [],
+        "singleAttributePerLine": false,
+        "bracketSameLine": true
       }
     },
     {

@@ -5,7 +5,9 @@
   <div class="absolute top-4 right-4 bg-white rounded-lg shadow-lg p-4 min-w-[200px] z-10" *ngIf="showHeatmapLegend">
     <div class="mb-2">
       <h4 class="text-sm font-semibold text-gray-800">{{ heatmapConfig?.field || 'Field' }}</h4>
-      <p class="text-xs text-gray-600">{{ heatmapConfig && heatmapConfig.field ? getFieldDisplayName(heatmapConfig.field) : 'Select a field' }}</p>
+      <p class="text-xs text-gray-600">
+        {{ heatmapConfig && heatmapConfig.field ? getFieldDisplayName(heatmapConfig.field) : 'Select a field' }}
+      </p>
     </div>
 
     <div class="flex flex-col space-y-1">
