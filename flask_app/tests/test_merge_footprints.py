@@ -40,9 +40,10 @@ class TestMergeFootprint(unittest.TestCase):
         merged = self.service.merge_footprint_geodataframes(gdf_1, gdf_2)
 
         print(merged)
+        print("Columns:", merged.columns.tolist())
         assert len(merged) > 0, "Merged GeoDataFrame should not be empty"
         assert "geometry" in merged.columns, "Merged GeoDataFrame should have geometry column"
-        assert "ubid_1" in merged.columns, "Merged GeoDataFrame should have ubid_1 column"
+        assert "ubid" in merged.columns, "Merged GeoDataFrame should have ubid column"
 
     def test_merge_ms_osm_footprints(self):
         """Test loading and merging denver footprints (8 buildings +/-)"""

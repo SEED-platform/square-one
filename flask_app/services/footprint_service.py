@@ -368,12 +368,12 @@ class FootprintService:
             osm_gdf["city"] = osm_gdf["addr:city"].fillna("")
 
         if "addr:housenumber" not in osm_gdf.columns:
-            osm_gdf["addr:housenumber"] = osm_gdf
+            osm_gdf["addr:housenumber"] = ""
         else:
             osm_gdf["addr:housenumber"] = osm_gdf["addr:housenumber"].fillna("")
 
         if "addr:street" not in osm_gdf.columns:
-            osm_gdf["addr:street"] = osm_gdf["addr:street"] if "addr:street" in osm_gdf.columns else ""
+            osm_gdf["addr:street"] = ""
         else:
             osm_gdf["addr:street"] = osm_gdf["addr:street"].fillna("")
 
