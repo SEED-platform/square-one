@@ -2,7 +2,7 @@
 name = "cbl_web_tool"
 version = "0.1.0"
 description = ""
-authors = ["Devin Brady <devin.brady@nrel.gov>", "Alex Swindler <axelstudios>", "Nicholas Long <nllong>", "Roger Braun <roger.braun@nrel.gov>", "Rahman Mian <rahman.mian@nrel.gov>"]
+authors = ["Alex Swindler <axelstudios>", "Nicholas Long <nllong>", "Katherine Fleming <kflemin>", "Roger Braun <roger.braun@nrel.gov>", "Rahman Mian <rahman.mian@nrel.gov>", "Devin Brady <devin.brady@nrel.gov>"]
 readme = "README.md"
 packages = [
     { include = "flask_app" }
@@ -16,11 +16,8 @@ flask-cors = "^4.0.1"
 openpyxl = "^3.1.5"
 tqdm = "^4.67.1"
 
-# local development dependencies, need to release and
-# pin to pypi versions before using in production.
-cbl-workflow = { path = "../cbl-workflow", develop = true }
-# cbl-workflow = { git = "https://github.com/seed-platform/cbl-workflow.git", rev = "develop" }
-
+building-data-utilities = "~0.1.0"
+# building-data-utilities = { git = "https://github.com/seed-platform/building-data-utilities.git", rev = "develop" }
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^3.8.0"
@@ -47,6 +44,7 @@ build-backend = "poetry.core.masonry.api"
 [tool.ruff]
 fix = true
 line-length = 140
+target-version = "py39"
 
 [tool.ruff.format]
 docstring-code-format = true
@@ -117,6 +115,7 @@ ignore = [
     "S701",    # jinja2-autoescape-false
     "SIM108",  # if-else-block-instead-of-if-exp
     "SIM115",  # Use context handler for opening files
+    "UP007",   # non-pep604-annotation (use Union instead of | for Python < 3.10)
 ]
 
 [tool.ruff.lint.per-file-ignores]

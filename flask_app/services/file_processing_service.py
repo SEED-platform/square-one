@@ -26,7 +26,7 @@ class FileProcessingService:
             "application/octet-stream": self._process_geojson,
         }
 
-    def process_uploaded_file(self, file) -> tuple[Optional[Union[list[dict], dict]], Optional[str]]:
+    def process_uploaded_file(self, file) -> tuple[Union[list[dict], dict, None], Optional[str]]:
         """
         Process an uploaded file and convert it to a standardized format.
 

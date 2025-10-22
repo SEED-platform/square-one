@@ -4,6 +4,7 @@ See also https://github.com/SEED-platform/cbl-web-tool/blob/main/LICENSE.md
 """
 
 import gzip
+import json
 import logging
 from pathlib import Path
 
@@ -12,9 +13,9 @@ import mercantile
 import numpy as np
 import osmnx as ox
 import pandas as pd
-from cbl_workflow.utils.ubid import centroid, encode_ubid
-from cbl_workflow.utils.update_dataset_links import update_dataset_links
-from cbl_workflow.utils.update_quadkeys import update_quadkeys
+from building_data_utilities.ubid import centroid, encode_ubid
+from building_data_utilities.update_dataset_links import update_dataset_links
+from building_data_utilities.update_quadkeys import update_quadkeys
 from shapely.geometry import MultiPolygon, Polygon
 from shapely.ops import unary_union
 
@@ -203,6 +204,8 @@ class FootprintService:
             ms_gdf["source"] = "Microsoft Footprints"
 
             self.logger.info(f"Processed Microsoft footprints: {len(ms_gdf)} final footprints")
+            print("@@@@@@@@@")
+            print(ms_gdf.dtypes)
             return ms_gdf
 
         except Exception as e:
@@ -360,7 +363,7 @@ class FootprintService:
 
         # Process address fields
         if "addr:city" not in osm_gdf.columns:
-            osm_gdf["city"] = ""
+            osm_gdf["city"] = osm_gdf["city"] if "city" in osm_gdf.columns else ""
         else:
             osm_gdf["city"] = osm_gdf["addr:city"].fillna("")
 
@@ -370,10 +373,26 @@ class FootprintService:
             osm_gdf["addr:housenumber"] = osm_gdf["addr:housenumber"].fillna("")
 
         if "addr:street" not in osm_gdf.columns:
-            osm_gdf["street"] = ""
+            osm_gdf["addr:street"] = ""
         else:
-            osm_gdf["street"] = osm_gdf["addr:street"].fillna("")
+            osm_gdf["addr:street"] = osm_gdf["addr:street"].fillna("")
 
+        # check if addr:housenumber and addr:street are not null
+        # if not null, combine them and put in "street_address"
+        house_num = osm_gdf["addr:housenumber"].astype(str).str.strip()
+        street = osm_gdf["addr:street"].astype(str).str.strip()
+
+        # Create masks for valid values (not empty, not 'nan')
+        has_house_num = ~house_num.isin(["", "nan", "None"])
+        has_street = ~street.isin(["", "nan", "None"])
+
+        # Use pandas vectorized operations to create street_address
+        street_address = ""  # default empty
+        street_address = street.where(has_street, "")  # use street if available
+        street_address = house_num.where(has_house_num & ~has_street, street_address)  # use house_num if no street
+        street_address = (house_num + " " + street).where(has_house_num & has_street, street_address)  # combine both if available
+
+        osm_gdf["street_address"] = street_address
         if "addr:state" not in osm_gdf.columns:
             osm_gdf["state"] = ""
         else:
@@ -384,39 +403,63 @@ class FootprintService:
         else:
             osm_gdf["postal_code"] = osm_gdf["addr:postcode"].fillna("")
 
-        # Create combined street address
-        house_numbers = osm_gdf["addr:housenumber"].astype(str).str.strip()
-        streets = osm_gdf["street"].astype(str).str.strip()
-
-        # Combine house number and street, handling empty values
-        street_addresses = []
-        for house_num, street in zip(house_numbers, streets):
-            if house_num and house_num != "nan" and street and street != "nan":
-                street_addresses.append(f"{house_num} {street}")
-            elif street and street != "nan":
-                street_addresses.append(street)
-            elif house_num and house_num != "nan":
-                street_addresses.append(house_num)
-            else:
-                street_addresses.append("")
-
-        osm_gdf["street_address"] = street_addresses
-
         # Add country field
         osm_gdf["country"] = ""
 
     def merge_footprint_geodataframes(self, gdf_1, gdf_2):
         """
-        Merge two footprint GeoDataFrames first by intersection and then dissolve by UBID.
+        Merge two footprint GeoDataFrames, preserving unique footprints and merging overlapping ones.
 
-        This method makes assumptions on fields coming from Microsoft Footprint and OpenStreetMap.
-        The assumptions probably need to be relaxed in the future and as we support different
-        formats of data.
+        This method:
+        1. Identifies overlapping footprints between the two datasets
+        2. Merges the overlapping footprints into combined features
+        3. Preserves non-overlapping footprints from both datasets
+        4. Returns a combined GeoDataFrame with all unique and merged footprints
+        5. Clean the fields
 
-        Returns a GeoDataFrame with merged footprints.
+        Returns a GeoDataFrame with unique + merged footprints.
         """
-        # Overlay the two GeoDataFrames to get intersection geometries
+        print(f"Starting merge: gdf_1 has {len(gdf_1)} features, gdf_2 has {len(gdf_2)} features")
+
+        # Step 1: Find overlapping footprints
         overlap_gdf = gpd.overlay(gdf_1, gdf_2, how="intersection")
+        print(f"Found {len(overlap_gdf)} overlapping footprint pairs")
+
+        if len(overlap_gdf) == 0:
+            # No overlaps, just combine all footprints
+            print("No overlaps found, combining all footprints as-is")
+
+            # Add source column to identify origin
+            gdf_1_copy = gdf_1.copy()
+            gdf_2_copy = gdf_2.copy()
+            gdf_1_copy["source"] = "Microsoft"
+            gdf_2_copy["source"] = "OpenStreetMap"
+
+            # Combine all footprints
+            combined_gdf = pd.concat([gdf_1_copy, gdf_2_copy], ignore_index=True)
+            print(f"Combined result: {len(combined_gdf)} total footprints")
+            return self._finalize_footprints(combined_gdf)
+
+        # Step 2: Identify which footprints from each dataset were involved in overlaps
+        overlapping_indices_1 = set()
+        overlapping_indices_2 = set()
+
+        # Get the original indices that were involved in overlaps
+        for idx, row in overlap_gdf.iterrows():
+            # The overlay operation preserves indices, but we need to be careful about how to track them
+            # For now, we'll use spatial joins to identify which original footprints overlap
+            pass
+
+        # Alternative approach: Use spatial joins to identify overlapping footprints
+        # This is more reliable than trying to track indices through overlay
+        spatial_join = gpd.sjoin(gdf_1, gdf_2, how="inner", predicate="intersects")
+        overlapping_indices_1 = set(spatial_join.index)
+        overlapping_indices_2 = set(spatial_join["index_right"])
+
+        print(f"Overlapping footprints: {len(overlapping_indices_1)} from MS, {len(overlapping_indices_2)} from OSM")
+
+        # Step 3: Process the overlapping footprints (existing merge logic)
+        # Continue with the existing overlap processing logic...
 
         # Create a mapping for how each column should be aggregated when dissolving
         # "first" means take the first value found for that column in each group
@@ -443,9 +486,34 @@ class FootprintService:
             overlap_gdf = overlap_gdf.rename(columns={col: f"{col}_list" if column_mapping[col] == "unique" else col})
 
         # For height, merge the height_1 and height_2 lists
-        overlap_gdf["height_list"] = overlap_gdf[["height_1_list", "height_2_list"]].apply(lambda x: list(set(x.dropna().sum())), axis=1)
+        def merge_height_lists(row):
+            """Safely merge height lists from both datasets"""
+            all_heights = []
+
+            # Collect heights from both columns
+            for col in ["height_1_list", "height_2_list"]:
+                if col in row and row[col] is not None:
+                    if isinstance(row[col], (list, tuple)):
+                        all_heights.extend([h for h in row[col] if h is not None and str(h) != "nan"])
+                    elif row[col] is not None and str(row[col]) != "nan":
+                        all_heights.append(row[col])
+
+            # Convert to float and remove duplicates
+            valid_heights = []
+            for h in all_heights:
+                try:
+                    height_val = float(h)
+                    if height_val > 0:  # Only keep positive heights
+                        valid_heights.append(height_val)
+                except (ValueError, TypeError):
+                    continue
+
+            return list(set(valid_heights)) if valid_heights else []
+
+        overlap_gdf["height_list"] = overlap_gdf.apply(merge_height_lists, axis=1)
+
         # grab the largest height and set to height
-        overlap_gdf["height"] = overlap_gdf["height_list"].apply(lambda x: max(x) if x else None)
+        overlap_gdf["height"] = overlap_gdf["height_list"].apply(lambda x: float(max(x)) if x and len(x) > 0 else None)
 
         # Merge MultiPolygon into a single Polygon if possible
         def merge_or_largest(geom):
@@ -526,8 +594,214 @@ class FootprintService:
         overlap_gdf = overlap_gdf.to_crs(epsg=4326)
 
         # calculate the number of stories and gross floor area based on a 3.5 meter height
-        overlap_gdf["number_of_stories"] = (overlap_gdf["height"] / 3.5).apply(np.ceil).astype(int)
+        overlap_gdf["number_of_stories"] = (overlap_gdf["height"] / 3.5).apply(
+            lambda x: int(np.ceil(x)) if x is not None and not np.isnan(x) and x > 0 else 1
+        )
         overlap_gdf["gross_floor_area_m2"] = overlap_gdf["footprint_area_m2"] * overlap_gdf["number_of_stories"]
         overlap_gdf["gross_floor_area_ft2"] = overlap_gdf["gross_floor_area_m2"] * 10.764
 
-        return overlap_gdf
+        # Mark merged footprints as 'Merged' source
+        overlap_gdf["source"] = "Merged"
+        print(f"Processed {len(overlap_gdf)} merged footprints")
+
+        # Step 4: Get non-overlapping footprints from each dataset
+        non_overlapping_1 = gdf_1.loc[~gdf_1.index.isin(overlapping_indices_1)].copy()
+        non_overlapping_2 = gdf_2.loc[~gdf_2.index.isin(overlapping_indices_2)].copy()
+
+        # Add source labels
+        non_overlapping_1["source"] = "Microsoft"
+        non_overlapping_2["source"] = "OpenStreetMap"
+
+        print(f"Non-overlapping: {len(non_overlapping_1)} from MS, {len(non_overlapping_2)} from OSM")
+
+        # Step 5: Combine all footprints (merged + unique from both datasets)
+        all_parts = []
+
+        if len(overlap_gdf) > 0:
+            all_parts.append(overlap_gdf)
+        if len(non_overlapping_1) > 0:
+            all_parts.append(non_overlapping_1)
+        if len(non_overlapping_2) > 0:
+            all_parts.append(non_overlapping_2)
+
+        if not all_parts:
+            # Edge case: no footprints at all
+            print("No footprints to return")
+            return gpd.GeoDataFrame()
+
+        # Combine all parts
+        combined_gdf = pd.concat(all_parts, ignore_index=True, sort=False)
+        print(
+            f"Final result: {len(combined_gdf)} total footprints ({len(overlap_gdf)} merged + {len(non_overlapping_1)} MS unique + {len(non_overlapping_2)} OSM unique)"
+        )
+
+        # clean-up. there are multiple duplicate fields with _1 and _2 in the combined_gdf, delete them all
+        cols_to_drop = [col for col in combined_gdf.columns if col.endswith(("_1", "_2"))]
+        combined_gdf = combined_gdf.drop(columns=cols_to_drop)
+
+        # if street_address is empty, use Addr:househumber and Addr:street to create it
+        if "street_address" in combined_gdf.columns:
+            empty_street_mask = combined_gdf["street_address"].isna() | (combined_gdf["street_address"].str.strip() == "")
+            if empty_street_mask.any():
+                house_numbers = (
+                    combined_gdf.loc[empty_street_mask, "addr:housenumber"].astype(str).str.strip()
+                    if "addr:housenumber" in combined_gdf.columns
+                    else ""
+                )
+                streets = (
+                    combined_gdf.loc[empty_street_mask, "addr:street"].astype(str).str.strip()
+                    if "addr:street" in combined_gdf.columns
+                    else ""
+                )
+
+                street_addresses = []
+                for house_num, street in zip(house_numbers, streets):
+                    if house_num and house_num != "nan" and street and street != "nan":
+                        street_addresses.append(f"{house_num} {street}")
+                    elif street and street != "nan":
+                        street_addresses.append(street)
+                    elif house_num and house_num != "nan":
+                        street_addresses.append(house_num)
+                    else:
+                        street_addresses.append("")
+
+                combined_gdf.loc[empty_street_mask, "street_address"] = street_addresses
+
+        # if city is empty:
+        # use addr:city to fill it. same with state and addr:state and postal_code and addr:postcode
+        for field, addr_field in [("city", "addr:city"), ("state", "addr:state"), ("postal_code", "addr:postcode")]:
+            if field in combined_gdf.columns and addr_field in combined_gdf.columns:
+                empty_mask = combined_gdf[field].isna() | (combined_gdf[field].str.strip() == "")
+                if empty_mask.any():
+                    combined_gdf.loc[empty_mask, field] = combined_gdf.loc[empty_mask, addr_field].fillna("")
+
+        # These fields also need to be cleaned up:
+        # Height 1 List, Height 2 List, Height List, Id1, Id2, Latitude 1, Latitude 2, Longitude 1, Longitude 2, OSM_ID 1, OSM_ID 2, UBID 1, UBID 2
+        # Street Address 1, Street Address 2, City 1, City 2, Postal Code 1, Postal Code 2, State 1, State 2
+        # Source 1, Source 2, State 1, State 2, Street Address 2, Ubid 1, Ubid 2, Ubid 1 List, Ubid 2 List
+        cleanup_cols = [
+            "addr:city",
+            "addr:housenumber",
+            "addr:postcode",
+            "addr:state",
+            "addr:street",
+            "Addr:streetcity_1",
+            "city_2",
+            "country_1",
+            "country_2",
+            "footprint_area_ft2_1",
+            "footprint_area_ft2_2",
+            "footprint_area_m2_1",
+            "footprint_area_m2_2",
+            "gross_floor_area_ft2_1",
+            "gross_floor_area_ft2_2",
+            "gross_floor_area_m2_1",
+            "gross_floor_area_m2_2",
+            "height_1_list",
+            "height_2_list",
+            "height_list",
+            "id_1",
+            "id_2",
+            "latitude_1",
+            "latitude_2",
+            "longitude_1",
+            "longitude_2",
+            "osm_id_1",
+            "osm_id_2",
+            "postal_code_1",
+            "postal_code_2",
+            "state_1",
+            "state_2",
+            "source_1",
+            "source_2",
+            "street_address_1",
+            "street_address_2",
+            "ubid_1",
+            "ubid_2",
+            "ubid_1_list",
+            "ubid_2_list",
+        ]
+        cleanup_cols = [col for col in cleanup_cols if col in combined_gdf.columns]  # only keep existing columns
+        combined_gdf = combined_gdf.drop(columns=cleanup_cols)
+
+        # also remove all Addr:* fields if they exist
+        addr_cols = [col for col in combined_gdf.columns if col.startswith("Addr:")]
+        combined_gdf = combined_gdf.drop(columns=addr_cols)
+
+        return self._finalize_footprints(combined_gdf)
+
+    def _finalize_footprints(self, gdf):
+        """
+        Apply final processing to footprints for JSON serialization.
+        """
+        if len(gdf) == 0:
+            return gdf
+
+        # Convert all remaining NumPy types to native Python types for JSON serialization
+        for col in gdf.columns:
+            if col != "geometry":  # Skip geometry column
+                gdf[col] = gdf[col].apply(self._convert_to_json_serializable)
+
+        # Additional cleanup: ensure all numeric columns are properly converted
+        for col in gdf.select_dtypes(include=[np.number]).columns:
+            if col != "geometry":
+                gdf[col] = gdf[col].astype(float).astype(object)
+
+        # Final check: convert any remaining problematic types
+        for col in gdf.columns:
+            if col != "geometry":
+                try:
+                    # Test if the column can be JSON serialized
+                    json.dumps(gdf[col].iloc[0] if len(gdf) > 0 else None)
+                except TypeError:
+                    # Force conversion of problematic values
+                    gdf[col] = gdf[col].apply(lambda x: str(x) if x is not None else None)
+
+        print("@@@@@@@@@@@ finalizing footprints!")
+        print(gdf.dtypes)
+
+        return gdf
+
+    def _convert_to_json_serializable(self, value):
+        """Convert NumPy types and other non-JSON-serializable types to native Python types."""
+        # Handle None first
+        if value is None:
+            return None
+        # Handle numpy arrays first (before pd.isna check which fails on arrays)
+        elif isinstance(value, (pd.Series, np.ndarray)):
+            return value.tolist()
+        elif isinstance(value, list):
+            return [self._convert_to_json_serializable(item) for item in value]
+        # Check for pandas NA values safely
+        else:
+            # First try pd.isna check, but handle arrays gracefully
+            try:
+                if pd.isna(value):
+                    return None
+            except (ValueError, TypeError):
+                # If pd.isna fails (e.g., on complex types), continue to other checks
+                pass
+
+            # Handle numpy scalar types
+            if isinstance(value, (np.integer, np.int64, np.int32, np.int16, np.int8)):
+                return int(value)
+            elif isinstance(value, (np.floating, np.float64, np.float32, np.float16)):
+                return float(value)
+            elif isinstance(value, np.bool_):
+                return bool(value)
+            elif hasattr(value, "item"):  # Handle numpy scalars
+                return value.item()
+            else:
+                # Force conversion of any remaining pandas/numpy types
+                try:
+                    if hasattr(value, "dtype"):
+                        if "int" in str(value.dtype):
+                            return int(value)
+                        elif "float" in str(value.dtype):
+                            return float(value)
+                        elif "bool" in str(value.dtype):
+                            return bool(value)
+                except Exception as e:
+                    self.logger.error(f"Exception during conversion to json serializable. logging error: {e}")
+                # return value as is
+                return value

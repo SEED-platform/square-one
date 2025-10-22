@@ -7,7 +7,7 @@ import logging
 import os
 from typing import Optional
 
-from cbl_workflow.utils.common import Location
+from building_data_utilities.common import Location
 
 from flask_app.services.logging_utils import log_error_with_context
 

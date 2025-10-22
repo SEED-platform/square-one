@@ -123,6 +123,50 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
     return null
   }
 
+  /**
+   * Check if a building can have a footprint drawn on it.
+   * This includes buildings with:
+   * 1. Invalid coordinates (0,0 or missing) - original logic
+   * 2. Poor/Very Poor quality - original logic
+   * 3. Valid coordinates but no actual footprint geometry (e.g., geocoded addresses)
+   */
+  private canDrawFootprintOnBuilding(feature: any): boolean {
+    if (!feature || !feature.properties) {
+      return false
+    }
+
+    const coords = this.extractCoordinatesFromFeature(feature)
+    const quality = feature.properties.quality
+    const geometry = feature.geometry
+
+    // Original logic: Invalid coordinates or poor quality
+    if (!coords || coords.latitude === 0 || coords.longitude === 0) {
+      return true
+    }
+
+    if (quality === 'Poor' || quality === 'Very Poor') {
+      return true
+    }
+
+    // New logic: Has valid coordinates but no actual footprint geometry
+    // This covers geocoded addresses that have lat/lng but no polygon footprint
+    if (coords && coords.latitude !== 0 && coords.longitude !== 0) {
+      // Check if geometry exists and has valid polygon coordinates
+      if (
+        !geometry ||
+        !geometry.coordinates ||
+        !Array.isArray(geometry.coordinates) ||
+        geometry.coordinates.length === 0 ||
+        !Array.isArray(geometry.coordinates[0]) ||
+        geometry.coordinates[0].length === 0
+      ) {
+        return true // Has coordinates but no footprint - allow drawing
+      }
+    }
+
+    return false
+  }
+
   ngOnInit() {
     this.geoJsonSubscription = this.geoJsonService.getGeoJson().subscribe((geoJsonObject) => {
       this.initializeMapWithGeoJson(geoJsonObject)
@@ -170,15 +214,33 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
           }
         }
 
-        if (id !== undefined && coords && coords.latitude !== 0 && coords.longitude !== 0) {
-          // Always allow map to zoom and highlight, regardless of quality
+        // Get the full feature object to check if we can draw on it
+        let fullFeature: any = feature
+        if (this.globalGeoJsonObject?.features) {
+          const foundFeature = this.globalGeoJsonObject.features.find((f: any) => f.id === id)
+          if (foundFeature) {
+            fullFeature = foundFeature
+          }
+        }
+
+        // Check if this building can have a footprint drawn
+        if (this.canDrawFootprintOnBuilding(fullFeature)) {
+          this.emptyBuildingId = id.toString()
+          this.clickedBuildingId = id.toString()
+
+          // If it has valid coordinates, still zoom to them
+          if (coords && coords.latitude !== 0 && coords.longitude !== 0) {
+            this.flyToCoordinatesWithZoom(coords.longitude, coords.latitude)
+          }
+        } else if (id !== undefined && coords && coords.latitude !== 0 && coords.longitude !== 0) {
+          // Building has good data and footprint - allow normal view/selection
           this.flyToCoordinatesWithZoom(coords.longitude, coords.latitude)
           this.setActivePolygon(id)
           this.draw?.changeMode('simple_select')
+          this.emptyBuildingId = 'none selected' // Reset since this building can't be drawn on
         } else {
-          // Only set as empty building if coordinates are invalid (0,0) or missing
-          this.emptyBuildingId = id.toString()
-          this.clickedBuildingId = id.toString()
+          // Fallback - reset selection
+          this.emptyBuildingId = 'none selected'
         }
       }
     })
@@ -797,7 +859,9 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
 
   editEmptyData() {
     if (this.emptyBuildingId === 'none selected') {
-      alert('Please select a row with empty or poor data. To edit a building, first remove existing footprint using the trash can.')
+      alert(
+        'Please select a building to draw a footprint on.\n\nYou can draw footprints on:\n• Buildings with poor/missing data\n• Buildings with coordinates but no footprint (e.g., geocoded addresses)\n\nTo edit an existing footprint, first remove it using the trash can.',
+      )
       return
     }
 

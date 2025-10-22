@@ -2,9 +2,7 @@
   "arrowParens": "always",
   "bracketSameLine": false,
   "bracketSpacing": true,
-  "plugins": [
-    "prettier-plugin-organize-attributes"
-  ],
+  "plugins": ["prettier-plugin-organize-attributes"],
   "printWidth": 140,
   "semi": false,
   "singleQuote": true,
@@ -15,7 +13,10 @@
     {
       "files": "*.html",
       "options": {
-        "printWidth": 200
+        "printWidth": 999999,
+        "plugins": [],
+        "singleAttributePerLine": false,
+        "bracketSameLine": true
       }
     },
     {

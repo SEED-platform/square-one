@@ -87,36 +87,95 @@ export class MapWorkflowComponent implements AfterViewInit {
    */
   mergeFootprints(): void {
     if (this.msFootprintsData && this.osmFootprintsData) {
-      const mergedGeoJson: GeoJSON.FeatureCollection = {
-        type: 'FeatureCollection',
-        features: [...this.msFootprintsData.features, ...this.osmFootprintsData.features],
+      this.showStatusMessage('Merging footprints...', false)
+
+      // Call the backend API to properly merge the footprints
+      const requestData = {
+        geojson_1: this.msFootprintsData,
+        geojson_2: this.osmFootprintsData,
       }
-      try {
-        if (this.map.getLayer('merged-footprints-layer')) {
-          this.map.removeLayer('merged-footprints-layer')
-        }
-        if (this.map.getSource('merged-footprints')) {
-          this.map.removeSource('merged-footprints')
-        }
-        this.map.addSource('merged-footprints', {
-          type: 'geojson',
-          data: mergedGeoJson,
-        })
-        this.map.addLayer({
-          id: 'merged-footprints-layer',
-          type: 'fill',
-          source: 'merged-footprints',
-          paint: {
-            'fill-color': '#4f8cff',
-            'fill-opacity': 0.4,
-            'fill-outline-color': '#4f8cff',
-          },
-        })
-        this.showStatusMessage('Merged MS + OSM footprints visualized on map', false)
-      } catch (error) {
-        console.error('Error merging footprints:', error)
-        this.showStatusMessage('Error merging footprints', true)
-      }
+
+      console.log('Sending merge request to backend...')
+      console.log('Request data size (approx):', JSON.stringify(requestData).length, 'chars')
+
+      // Log request start time
+      const startTime = Date.now()
+      console.log('Starting merge request at:', new Date().toISOString())
+
+      this.http.post<any>(`${environment.apiBaseUrl}/api/merge_footprints`, requestData).subscribe({
+        next: (response: any) => {
+          console.log('=== MERGE RESPONSE RECEIVED ===')
+          console.log('Received merge footprints response:', response)
+          console.log('Response type:', typeof response)
+          console.log('Response keys:', Object.keys(response || {}))
+          console.log('Response size estimate:', JSON.stringify(response).length, 'chars')
+
+          if (response && response.merged_geojson) {
+            console.log('Merged GeoJSON features count:', response.merged_geojson.features?.length || 0)
+          }
+
+          if (response.merged_geojson) {
+            try {
+              // Remove existing merged layer if it exists
+              if (this.map.getLayer('merged-footprints-layer')) {
+                this.map.removeLayer('merged-footprints-layer')
+              }
+              if (this.map.getSource('merged-footprints')) {
+                this.map.removeSource('merged-footprints')
+              }
+
+              // Add the properly merged footprints to the map
+              this.map.addSource('merged-footprints', {
+                type: 'geojson',
+                data: response.merged_geojson,
+              })
+              this.map.addLayer({
+                id: 'merged-footprints-layer',
+                type: 'fill',
+                source: 'merged-footprints',
+                paint: {
+                  'fill-color': '#4f8cff',
+                  'fill-opacity': 0.4,
+                  'fill-outline-color': '#4f8cff',
+                },
+              })
+
+              // Store the merged data for potential use in "Proceed to CBL Table"
+              this.msFootprintsData = response.merged_geojson
+              this.osmFootprintsData = null // Clear OSM data since it's now merged
+
+              this.showStatusMessage(`Successfully merged footprints (${response.merged_geojson.features.length} buildings)`, false)
+            } catch (error) {
+              console.error('Error displaying merged footprints:', error)
+              this.showStatusMessage('Error displaying merged footprints on map', true)
+            }
+          } else {
+            this.showStatusMessage('Backend returned no merged data', true)
+          }
+        },
+        error: (error: any) => {
+          console.error('Error merging footprints:', error)
+          console.error('Error status:', error.status)
+          console.error('Error message:', error.message)
+          console.error('Error error:', error.error)
+
+          let errorMessage = 'Error merging footprints'
+          if (error.status === 0) {
+            errorMessage = 'Connection failed - check if backend is running'
+          } else if (error.error?.message) {
+            errorMessage = error.error.message
+          } else if (error.message) {
+            errorMessage = error.message
+          }
+          this.showStatusMessage(errorMessage, true)
+        },
+        complete: () => {
+          const endTime = Date.now()
+          const duration = endTime - startTime
+          console.log(`Merge footprints request completed after ${duration}ms`)
+          // Don't update status message here - let the next/error callbacks handle UI updates
+        },
+      })
     } else {
       this.showStatusMessage('Both MS and OSM footprints must be loaded to merge', true)
     }
@@ -664,12 +723,12 @@ export class MapWorkflowComponent implements AfterViewInit {
       }
 
       if (combinedData) {
-        console.log('Map workflow: Sending merged data to cbl-table with', combinedData.features?.length || 0, 'features')
+        console.log('Map workflow: Sending data to cbl-table with', combinedData.features?.length || 0, 'features')
 
         // Store the combined data in both the GeoJsonService and session storage
         this.geoJsonService.setGeoJson(combinedData)
         this.sessionService.setGeoJsonData(combinedData) // Store as JSON object in session
-
+        console.log('COMBINED DATA:', combinedData)
         // Navigate to the cbl-table page
         this.router.navigate(['/cbl-table'])
       }
@@ -686,10 +745,14 @@ export class MapWorkflowComponent implements AfterViewInit {
     this.statusMessage = message
     this.isError = isError
 
+    // Trigger change detection since we're using zoneless
+    this.cdr.detectChanges()
+
     // Clear message after 5 seconds
     setTimeout(() => {
       this.statusMessage = ''
-    }, 5000)
+      this.cdr.detectChanges() // Also trigger change detection when clearing
+    }, 10000)
   }
 
   /**

@@ -56,7 +56,10 @@ class TestGeocodingService(unittest.TestCase):
             service = GeocodingService()
 
             self.assertIsNone(service.mapbox_token)
-            mock_logger_instance.warning.assert_called_with("MAPBOX_ACCESS_TOKEN not found in environment variables")
+            # Check that the Mapbox warning was called among the warning calls
+            warning_calls = mock_logger_instance.warning.call_args_list
+            mapbox_warning_called = any(call[0][0] == "MAPBOX_ACCESS_TOKEN not found in environment variables" for call in warning_calls)
+            self.assertTrue(mapbox_warning_called, "MAPBOX_ACCESS_TOKEN warning should be called")
 
     @patch("flask_app.services.geocoding_service.encode_ubid")
     @patch("flask_app.services.geocoding_service.requests.get")
@@ -275,7 +278,7 @@ class TestGeocodingService(unittest.TestCase):
             service = GeocodingService()
             service.mapbox_token = None  # Skip API call
 
-            result, error = service.reverse_geocode_polygon(square_polygon, self.property_names)
+            result, _ = service.reverse_geocode_polygon(square_polygon, self.property_names)
 
             # Centroid of the square should be (1, 1)
             self.assertEqual(result["latitude"], "1.0")

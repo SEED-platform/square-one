@@ -59,6 +59,14 @@ export class FlaskRequests {
     )
   }
 
+  sendGeoCodeData(jsonString: string): Observable<any> {
+    return this.http.post<any>(
+      'http://127.0.0.1:5001/api/geocode',
+      { value: jsonString }, // Send JSON object with 'value' key
+      { headers: { 'Content-Type': 'application/json' } },
+    )
+  }
+
   sendEditedPolygonData(jsonString: string): Observable<any> {
     return this.http.post<any>(
       'http://127.0.0.1:5001/api/edit_footprint',
@@ -67,7 +75,7 @@ export class FlaskRequests {
     )
   }
 
-  sendMapQuestKey(apiKey: string): Observable<any> {
+  sendApiKey(apiKey: string): Observable<any> {
     return this.http.post<any>('http://127.0.0.1:5001/api/update_api_key', { apiKey: apiKey })
   }
 

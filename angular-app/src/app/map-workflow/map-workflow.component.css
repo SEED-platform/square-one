@@ -1,26 +1,28 @@
 /* Merge Footprints button styling (uguale a .proceed-btn) */
 .merge-btn {
-  background-color: #28a745;
+  background-color: #ea580c;
   color: white;
-  padding: 12px 20px;
+  padding: 10px 15px;
   border: none;
   border-radius: 5px;
   cursor: pointer;
-  font-size: 16px;
+  font-size: 12px;
   font-weight: bold;
   transition: background-color 0.2s;
   width: 100%;
-  margin-bottom: 10px;
+  white-space: nowrap;
+  margin-bottom: 5px;
 }
 
 .merge-btn:hover:not(:disabled) {
-  background-color: #218838;
+  background-color: #ea580c;
 }
 
 .merge-btn:disabled {
   background-color: #6c757d;
   cursor: not-allowed;
 }
+
 /* Find Location button styling */
 .find-location-btn {
   background-color: #17a2b8;
@@ -29,7 +31,7 @@
   border: none;
   border-radius: 5px;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: bold;
   margin-bottom: 10px;
   transition: background-color 0.2s;
@@ -38,6 +40,7 @@
 .find-location-btn:hover:not(:disabled) {
   background-color: #138496;
 }
+
 .map-controls-layout {
   display: flex;
   gap: 20px;
@@ -83,7 +86,7 @@
   border: none;
   border-radius: 5px;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 12px;
   white-space: nowrap;
   transition: background-color 0.2s;
 }
@@ -115,7 +118,7 @@
   padding: 10px 15px;
   border-radius: 5px;
   font-weight: bold;
-  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 .status-message.success {
@@ -180,12 +183,13 @@
 .proceed-btn {
   background-color: #28a745;
   color: white;
-  padding: 12px 20px;
+  padding: 10px 15px;
   border: none;
   border-radius: 5px;
   cursor: pointer;
-  font-size: 16px;
+  font-size: 12px;
   font-weight: bold;
+  white-space: nowrap;
   transition: background-color 0.2s;
 }
 

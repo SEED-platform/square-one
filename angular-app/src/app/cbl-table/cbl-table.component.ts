@@ -17,6 +17,7 @@ import { GeoJsonService } from '../services/geojson.service'
 import { FlaskRequests } from '../services/server.service'
 import { SessionService } from '../services/session.service'
 import { HeatmapService, type HeatmapConfig } from '../services/heatmap.service'
+import { state } from '@angular/animations'
 
 interface ColumnStatistic {
   columnName: string
@@ -168,8 +169,8 @@ export class CblTableComponent implements OnInit, OnDestroy {
     country: 'US',
     quality: 'Poor',
     ubid: '',
-    latitude: 39.7392,
-    longitude: -104.9903,
+    latitude: null,
+    longitude: null,
     footprint_area_m2: 0,
     footprint_area_ft2: 0,
     height: null,
@@ -323,7 +324,7 @@ export class CblTableComponent implements OnInit, OnDestroy {
       if (data && data.features && data.features.length > 0) {
         console.log('Processing valid data with', data.features.length, 'features')
         if (this.initialLoad) {
-          //keeps it from rendering every change..better performance
+          // keeps it from rendering every change..better performance
           if (this.sessionService.getPropertyNames().length === 0) {
             const buildingArray = this.geoJson.features
 
@@ -338,6 +339,7 @@ export class CblTableComponent implements OnInit, OnDestroy {
 
             // Convert Set to Array
             const geoJsonPropertyNames = Array.from(allPropertyNames)
+            console.log('names1', geoJsonPropertyNames)
 
             // Ensure essential columns are always included
             this.essentialColumns.forEach((col) => {
@@ -345,7 +347,7 @@ export class CblTableComponent implements OnInit, OnDestroy {
                 geoJsonPropertyNames.push(col)
               }
             })
-
+            console.log('names1', geoJsonPropertyNames)
             this.sessionService.setPropertyNames(geoJsonPropertyNames)
           }
           this.updateTable() // Update table only on initial load
@@ -388,7 +390,6 @@ export class CblTableComponent implements OnInit, OnDestroy {
         if (clickEvent.id !== '') {
           this.selectedRowIdStorage = clickEvent.id
           this.scrollToFeatureById(this.selectedRowIdStorage, clickEvent.isShiftClick)
-          console.log('THIS IS SELECTED ROW ID', this, this.selectedRowIdStorage) //keep selected row incase the table re renders and you want to go back to it
           this.sessionService.setSelectedRow(this.selectedRowIdStorage ? [this.selectedRowIdStorage] : [])
         }
       }
@@ -805,7 +806,6 @@ export class CblTableComponent implements OnInit, OnDestroy {
   // Dynamically sets grid for geojson values
   setColumnDefs() {
     let keys = this.sessionService.getPropertyNames()
-
     // Also collect any new properties that might have been added to current features
     // (e.g., during merges or data updates)
     if (this.geoJson && this.geoJson.features) {
@@ -1259,7 +1259,7 @@ export class CblTableComponent implements OnInit, OnDestroy {
     )
   }
 
-  reverseGeocodeByAddress() {
+  reverseGeocodeByLatLng() {
     if (!this.selectedRowForReverseGeocode) {
       alert('No building selected')
       return
@@ -1276,6 +1276,7 @@ export class CblTableComponent implements OnInit, OnDestroy {
     // For address-based reverse geocoding, we would typically use a geocoding service
     // to get coordinates from the address, then reverse geocode those coordinates
     // For now, we'll use the existing lat/lng if available
+
     const latitude = building.properties?.latitude
     const longitude = building.properties?.longitude
 
@@ -1312,11 +1313,75 @@ export class CblTableComponent implements OnInit, OnDestroy {
         this.updateBuildingWithReverseGeocodeData(building, updatedBuilding)
 
         this.closeReverseGeocodeDialog()
-        alert('Building successfully reverse geocoded using address!')
+        alert('Building successfully reverse geocoded using lat/lng!')
       },
       (errorResponse) => {
         console.error('Reverse geocoding failed:', errorResponse)
         alert('Reverse geocoding failed: ' + (errorResponse.error?.message || 'Unknown error'))
+        this.closeReverseGeocodeDialog()
+      },
+    )
+  }
+
+  geocodeByAddress() {
+    if (!this.selectedRowForReverseGeocode) {
+      alert('No building selected')
+      return
+    }
+
+    const building = this.selectedRowForReverseGeocode
+    const streetAddress = building.properties?.street_address
+    const city = building.properties?.city
+    const state = building.properties?.state
+    const postalCode = building.properties?.postal_code
+    const country = building.properties?.country
+
+    if (!streetAddress || streetAddress.trim() === '') {
+      alert('No address available for geocoding')
+      return
+    }
+
+    if (!city || streetAddress.trim() === '' || !state) {
+      alert('Please ensure street address, city, and state are provided for geocoding')
+      return
+    }
+
+    // For address-based reverse geocoding, use a geocoding service
+    // to get lat/lng coordinates from the address
+
+    const location: Record<string, string> = {
+      street: streetAddress,
+      city: city,
+      state: state,
+    }
+
+    if (postalCode && postalCode.trim() !== '') {
+      location['postal_code'] = postalCode
+    }
+    if (country && country.trim() !== '') {
+      location['country'] = country
+    }
+
+    const jsonData = {
+      locations: [location],
+    }
+
+    const jsonDataString = JSON.stringify(jsonData)
+
+    this.apiHandler.sendGeoCodeData(jsonDataString).subscribe(
+      (response) => {
+        console.log('Geocoding successful:', response)
+        const updatedBuilding = JSON.parse(response.user_data)
+
+        // Update the selected building with new address data
+        this.updateBuildingWithGeocodeData(building, updatedBuilding)
+
+        this.closeReverseGeocodeDialog()
+        alert('Building successfully Geocoded using address!')
+      },
+      (errorResponse) => {
+        console.error('Geocoding failed:', errorResponse)
+        alert('Geocoding failed: ' + (errorResponse.error?.message || 'Unknown error'))
         this.closeReverseGeocodeDialog()
       },
     )
@@ -1336,6 +1401,35 @@ export class CblTableComponent implements OnInit, OnDestroy {
 
       // Update quality to indicate it was reverse geocoded
       originalBuilding.properties.quality = 'Reverse Geocoded'
+    }
+
+    // Refresh the grid to show updated data
+    this.gridApi.applyTransaction({
+      update: [originalBuilding],
+    })
+
+    // Update the GeoJSON service
+    this.geoJsonService.setGeoJson(this.geoJson)
+  }
+
+  updateBuildingWithGeocodeData(originalBuilding: any, updatedData: any) {
+    // Update the original building's properties with the reverse geocoded data
+
+    if (updatedData) {
+      // Update specific fields while preserving others
+      const fieldsToUpdate = ['street_address', 'city', 'state', 'postal_code', 'country', 'latitude', 'longitude']
+
+      // retrieve first result in updatedData
+      updatedData = updatedData[0]
+
+      fieldsToUpdate.forEach((field) => {
+        if (updatedData[field]) {
+          originalBuilding.properties[field] = updatedData[field]
+        }
+      })
+
+      // Update quality to indicate it was geocoded
+      originalBuilding.properties.quality = 'Geocoded-' + updatedData['quality']
     }
 
     // Refresh the grid to show updated data
