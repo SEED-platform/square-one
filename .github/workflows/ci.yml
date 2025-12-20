@@ -7,9 +7,9 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Check out building-data-utilities repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           repository: SEED-platform/building-data-utilities
           path: building-data-utilities
@@ -18,7 +18,7 @@ jobs:
           mkdir -p ../
           mv building-data-utilities ../building-data-utilities
       - name: Set up Python 3.12
-        uses: actions/setup-python@v6.0.0
+        uses: actions/setup-python@v6.1.0
         with:
           python-version: '3.12'
       - name: Install Poetry
@@ -47,9 +47,9 @@ jobs:
         python-version: ['3.9', '3.12']
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Check out building-data-utilities repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           repository: SEED-platform/building-data-utilities
           path: building-data-utilities
@@ -58,7 +58,7 @@ jobs:
           mkdir -p ../
           mv building-data-utilities ../building-data-utilities
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v6.0.0
+        uses: actions/setup-python@v6.1.0
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install Poetry
@@ -78,7 +78,7 @@ jobs:
         run: poetry run pytest --cov=flask_app --cov-report=html --cov-report=xml --cov-report=term --disable-warnings
       - name: Upload Python Test Coverage
         if: matrix.python-version == '3.12' # Only upload once per build
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: python-coverage
           path: flask_app/htmlcov/
@@ -88,7 +88,7 @@ jobs:
     needs: lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
         with:
           node-version: 22
@@ -117,7 +117,7 @@ jobs:
           # This executes all *.spec.ts files in the project
           npm test
       - name: Upload Angular Test Coverage
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: angular-coverage
           path: angular-app/coverage/
