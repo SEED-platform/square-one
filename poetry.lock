@@ -4130,14 +4130,14 @@ test = ["argcomplete (>=3.0.3)", "mypy (>=1.7.0)", "pre-commit", "pytest (>=7.0,
 
 [[package]]
 name = "types-geopandas"
-version = "1.1.1.20251214"
+version = "1.1.2.20251224"
 description = "Typing stubs for geopandas"
 optional = false
 python-versions = ">=3.9"
 groups = ["dev"]
 files = [
-    {file = "types_geopandas-1.1.1.20251214-py3-none-any.whl", hash = "sha256:d488701f9492213410e0592c0b4c8d36e68285121f06f51d8cb8a90fe7abb564"},
-    {file = "types_geopandas-1.1.1.20251214.tar.gz", hash = "sha256:84faf42433a1d664959356350f6be15d44ba9dda109206a9c5e2b39dd6c8a56a"},
+    {file = "types_geopandas-1.1.2.20251224-py3-none-any.whl", hash = "sha256:60a588966842e2ef1b8f796b847a0a9244bb3d4c03a0237a123899fc77cf8d32"},
+    {file = "types_geopandas-1.1.2.20251224.tar.gz", hash = "sha256:85f410f6c3f46013400999922a562f9cca67234499184c24639d0a8c777411dd"},
 ]
 
 [package.dependencies]
@@ -4378,4 +4378,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.9, <3.13"
-content-hash = "cbcc043f90999df039db0e84302cbaa118f7ae411826caf7f6632ab0cc5ff707"
+content-hash = "0086d7fff59ac412c4056cafcdc1d93b94d4001306bc56388fe0bc00c8c00c99"
