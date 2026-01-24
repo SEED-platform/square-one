@@ -9,7 +9,7 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = ">=3.9, <3.13"
+python = ">=3.10, <3.13"
 
 flask = "^3.0.3"
 flask-cors = "^6.0.2"
