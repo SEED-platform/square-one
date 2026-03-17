@@ -11,10 +11,10 @@ packages = [
 [tool.poetry.dependencies]
 python = ">=3.10, <3.13"
 
-flask = "^3.0.3"
+flask = "^3.1.3"
 flask-cors = "^6.0.2"
 openpyxl = "^3.1.5"
-tqdm = "^4.67.1"
+tqdm = "^4.67.3"
 
 building-data-utilities = "~0.1.0"
 # building-data-utilities = { git = "https://github.com/seed-platform/building-data-utilities.git", rev = "develop" }
