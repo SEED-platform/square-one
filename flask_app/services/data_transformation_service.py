@@ -5,7 +5,6 @@ Service for handling data transformation and location processing.
 import csv
 import logging
 import os
-from typing import Optional
 
 from building_data_utilities.common import Location
 
@@ -237,7 +236,7 @@ class DataTransformationService:
             log_error_with_context("Error generating locations list", e)
             raise
 
-    def _extract_field(self, record: dict, field_name: str) -> Optional[str]:
+    def _extract_field(self, record: dict, field_name: str) -> str | None:
         """
         Extract field value with case-insensitive matching.
 
@@ -865,7 +864,7 @@ class DataTransformationService:
             log_error_with_context("Error performing CSV lookup", e)
             return {}
 
-    def _safe_float_conversion(self, value: str) -> Optional[float]:
+    def _safe_float_conversion(self, value: str) -> float | None:
         """
         Safely convert a string value to float, handling empty/null values.
 

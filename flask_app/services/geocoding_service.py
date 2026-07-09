@@ -6,7 +6,6 @@ See also https://github.com/SEED-platform/cbl-web-tool/blob/main/LICENSE.md
 import json
 import logging
 import os
-from typing import Optional
 
 import requests
 from building_data_utilities.geocode_addresses import geocode_addresses as aws_geocode_addresses
@@ -35,7 +34,7 @@ class GeocodingService:
         if not self.amazon_app_id:
             self.logger.warning("AMAZON_APP_ID not found in environment variables")
 
-    def geocode_addresses(self, locations: list) -> tuple[Optional[dict], Optional[str]]:
+    def geocode_addresses(self, locations: list) -> tuple[dict | None, str | None]:
         """
         Geocode a list of addresses using Amazon Location Services in building_data_utilities package.
 
@@ -64,7 +63,7 @@ class GeocodingService:
 
         return geocoded_data, None
 
-    def reverse_geocode_polygon(self, polygon: Polygon, property_names: list) -> tuple[Optional[dict], Optional[str]]:
+    def reverse_geocode_polygon(self, polygon: Polygon, property_names: list) -> tuple[dict | None, str | None]:
         """
         Reverse geocode a polygon using Mapbox API.
 
