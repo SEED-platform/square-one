@@ -21,7 +21,7 @@ building-data-utilities = "~0.1.0"
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^4.3.0"
-pytest = "8.4.2"
+pytest = "9.0.3"
 pytest-cov = "^7.0.0"
 nbformat = "^5.10.4"
 folium = "^0.20.0"
