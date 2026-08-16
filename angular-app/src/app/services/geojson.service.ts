@@ -20,6 +20,7 @@ export class GeoJsonService implements OnDestroy {
   private isSentFromTable = false // Flag to track selection source
   private geoJsonSubject: BehaviorSubject<any> = new BehaviorSubject<any>({})
   private shouldAutoSave = true // Flag to control auto-save behavior
+  private readonly unloadHandler = (event: BeforeUnloadEvent) => this.handleUnload(event)
 
   private clickEventSubject = new BehaviorSubject<{ latitude: number; longitude: number; id: string; isShiftClick?: boolean } | null>(null)
   public clickEvent$: Observable<{ latitude: number; longitude: number; id: string; isShiftClick?: boolean } | null> =
@@ -53,12 +54,12 @@ export class GeoJsonService implements OnDestroy {
     this.geoJsonSubject.next(this.getGeoJsonFromSessionStorage())
 
     // Listen for the beforeunload event to save the data
-    window.addEventListener('beforeunload', this.handleUnload.bind(this))
+    window.addEventListener('beforeunload', this.unloadHandler)
   }
 
   ngOnDestroy() {
     // Clean up the event listener when the component is destroyed
-    window.removeEventListener('beforeunload', this.handleUnload.bind(this))
+    window.removeEventListener('beforeunload', this.unloadHandler)
   }
 
   handleUnload(event: BeforeUnloadEvent) {

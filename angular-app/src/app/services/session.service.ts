@@ -65,7 +65,7 @@ export class SessionService {
    */
   getMapLocation(): MapLocation {
     const saved = this.getItem<MapLocation>(this.STORAGE_KEYS.MAP_LOCATION)
-    if (saved && saved.longitude && saved.latitude) {
+    if (saved && Number.isFinite(saved.longitude) && Number.isFinite(saved.latitude)) {
       return {
         longitude: saved.longitude,
         latitude: saved.latitude,

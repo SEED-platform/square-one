@@ -66,6 +66,10 @@ export class ColumnMappingModalComponent implements OnChanges {
     return this.duplicateTargetFields.size > 0
   }
 
+  get hasInvalidMappings(): boolean {
+    return this.localRows.some((row) => row.include && !row.mappedField.trim())
+  }
+
   isDuplicateField(row: ColumnMappingRow): boolean {
     return row.include && this.duplicateTargetFields.has(row.mappedField.trim().toLowerCase())
   }
@@ -103,7 +107,7 @@ export class ColumnMappingModalComponent implements OnChanges {
   }
 
   save() {
-    if (this.hasDuplicates) {
+    if (this.hasDuplicates || this.hasInvalidMappings) {
       return
     }
     this.saveMapping.emit(this.localRows)

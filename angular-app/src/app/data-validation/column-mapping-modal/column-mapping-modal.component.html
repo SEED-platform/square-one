@@ -21,6 +21,7 @@
       </div>
 
       <p class="mb-3 rounded-md border border-red-200 bg-red-50 p-2 text-sm text-red-700" *ngIf="hasDuplicates">Two or more selected columns are mapped to the same field name. Make each mapped field name unique before saving.</p>
+      <p class="mb-3 rounded-md border border-red-200 bg-red-50 p-2 text-sm text-red-700" *ngIf="hasInvalidMappings">Each selected column must have a field name before saving.</p>
 
       <table class="w-full border-collapse text-sm">
         <thead>
@@ -54,7 +55,7 @@
 
     <div class="flex justify-end gap-2 rounded-b-lg border-t bg-gray-50 px-6 py-4">
       <button class="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200" (click)="cancel()" type="button">Cancel</button>
-      <button class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50" [disabled]="hasDuplicates" (click)="save()" type="button">Save Mapping</button>
+      <button class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50" [disabled]="hasDuplicates || hasInvalidMappings" (click)="save()" type="button">Save Mapping</button>
     </div>
   </div>
 </div>

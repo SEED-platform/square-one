@@ -210,7 +210,7 @@ export class DataValidationComponent implements OnInit {
 
   convertAgGridDataToJson() {
     const csvUserData = this.gridApi.getDataAsCsv() ?? ''
-    const jsonHeaderData: ColDef[] = this.sessionService.getColumnDefinitions()
+    const columnDefinitions: ColDef[] = this.sessionService.getColumnDefinitions()
     const { data: parsedCsvData } = Papa.parse(csvUserData, { header: true })
 
     if (!Array.isArray(parsedCsvData)) {
@@ -218,13 +218,13 @@ export class DataValidationComponent implements OnInit {
       return JSON.stringify([], null, 2)
     }
 
-    const updatedHeaders = jsonHeaderData.map((item) => item.headerName ?? '')
-
     const updatedData = parsedCsvData.map((row: any) => {
       const updatedRow: any = {}
-      updatedHeaders.forEach((header: string | number, index: number) => {
-        const rowKeys = Object.keys(row)
-        updatedRow[header] = row[rowKeys[index]] || ''
+      columnDefinitions.forEach((column) => {
+        const header = String(column.headerName ?? column.field ?? '')
+        // getDataAsCsv uses headerName as the CSV header. Nullish coalescing preserves
+        // meaningful values such as 0 and false instead of turning them into empty strings.
+        updatedRow[header] = row[header] ?? ''
       })
       return updatedRow
     })

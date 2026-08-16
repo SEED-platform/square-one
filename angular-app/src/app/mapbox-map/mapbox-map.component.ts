@@ -60,6 +60,7 @@ export class MapboxMapComponent implements OnInit, OnChanges, OnDestroy {
   private isStreet = true
   private heatmapSubscription: Subscription | undefined
   private heatmapDataSubscription: Subscription | undefined
+  private heatmapActiveSubscription: Subscription | undefined
 
   // Heatmap legend properties
   showHeatmapLegend = false
@@ -84,20 +85,20 @@ export class MapboxMapComponent implements OnInit, OnChanges, OnDestroy {
    */
   private extractCoordinatesFromFeature(feature: Record<string, unknown>): { latitude: number; longitude: number } | null {
     // First check if coordinates are directly on the feature object (from table selection)
-    if (feature['latitude'] && feature['longitude']) {
+    if (feature['latitude'] != null && feature['longitude'] != null) {
       const lat = Number(feature['latitude'])
       const lng = Number(feature['longitude'])
-      if (!isNaN(lat) && !isNaN(lng)) {
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
         return { latitude: lat, longitude: lng }
       }
     }
 
     // Then try to get coordinates from properties (for CSV-converted data)
     const properties = feature['properties'] as Record<string, unknown>
-    if (properties?.['latitude'] && properties?.['longitude']) {
+    if (properties?.['latitude'] != null && properties?.['longitude'] != null) {
       const lat = Number(properties['latitude'])
       const lng = Number(properties['longitude'])
-      if (!isNaN(lat) && !isNaN(lng)) {
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
         return { latitude: lat, longitude: lng }
       }
     }
@@ -126,7 +127,7 @@ export class MapboxMapComponent implements OnInit, OnChanges, OnDestroy {
         if (coordinates.length >= 2) {
           const lng = Number(coordinates[0])
           const lat = Number(coordinates[1])
-          if (!isNaN(lat) && !isNaN(lng)) {
+          if (Number.isFinite(lat) && Number.isFinite(lng)) {
             return { latitude: lat, longitude: lng }
           }
         }
@@ -230,7 +231,7 @@ export class MapboxMapComponent implements OnInit, OnChanges, OnDestroy {
     })
 
     // Subscribe to heatmap clearing
-    this.heatmapService.isHeatmapActive$.subscribe((isActive) => {
+    this.heatmapActiveSubscription = this.heatmapService.isHeatmapActive$.subscribe((isActive) => {
       if (!isActive) {
         // console.log('Clearing heatmap colors from map');
         this.clearHeatmapColors()
@@ -490,9 +491,14 @@ export class MapboxMapComponent implements OnInit, OnChanges, OnDestroy {
     this.removedBuildingSubscription?.unsubscribe() // Add this missing unsubscribe
     this.heatmapSubscription?.unsubscribe()
     this.heatmapDataSubscription?.unsubscribe()
+    this.heatmapActiveSubscription?.unsubscribe()
   }
 
   initializeMapWithGeoJson(geoJsonObject: any) {
+    // The service emits an empty object before a dataset is loaded. Normalize it so the
+    // initial BehaviorSubject emission cannot crash the map component.
+    geoJsonObject = geoJsonObject && Array.isArray(geoJsonObject.features) ? geoJsonObject : { type: 'FeatureCollection', features: [] }
+
     if (!this.map) {
       let emptyLat = 0
       let emptyLong = 0
