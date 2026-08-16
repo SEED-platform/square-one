@@ -6,280 +6,111 @@
   <div class="max-w-md rounded-lg bg-white p-8 text-center shadow-lg">
     <div class="mb-4">
       <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 48 48">
-        <path
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          stroke-width="2"
-          d="M9 12h6m-6 4h6m2 5l7-7 7 7M9 20h6m-7 4h7m0 0v8a2 2 0 002 2h8a2 2 0 002-2v-8m0 0V9a2 2 0 00-2-2H8a2 2 0 00-2 2v3m0 0a2 2 0 002-2V6a2 2 0 012-2h6a2 2 0 012 2v2a2 2 0 01-2 2H8a2 2 0 01-2-2z"
-        ></path>
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5l7-7 7 7M9 20h6m-7 4h7m0 0v8a2 2 0 002 2h8a2 2 0 002-2v-8m0 0V9a2 2 0 00-2-2H8a2 2 0 00-2 2v3m0 0a2 2 0 002-2V6a2 2 0 012-2h6a2 2 0 012 2v2a2 2 0 01-2 2H8a2 2 0 01-2-2z"></path>
       </svg>
     </div>
     <h3 class="mb-2 text-lg font-medium text-gray-900">No Building Data Available</h3>
-    <p class="mb-4 text-sm text-gray-500">
-      To get started, you can upload building data or use the map workflow to fetch Microsoft building footprints.
-    </p>
+    <p class="mb-4 text-sm text-gray-500">To get started, you can upload building data or use the map workflow to fetch Microsoft building footprints.</p>
     <div class="space-y-2">
-      <button
-        class="w-full rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-        (click)="navigateToMapWorkflow()"
-      >
-        Go to Map Workflow
-      </button>
-      <button
-        class="w-full rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        (click)="uploadFile()"
-      >
-        Upload Building Data
-      </button>
+      <button class="w-full rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:outline-none" (click)="navigateToMapWorkflow()">Go to Map Workflow</button>
+      <button class="w-full rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500" (click)="uploadFile()">Upload Building Data</button>
     </div>
   </div>
 </div>
 
 <div class="mt-2 flex max-h-[100vh] w-[100vw] flex-col items-center justify-center" *ngIf="hasValidGeoJsonData">
   <div class="mb-2 w-[90%] flex gap-2 text-center">
-    <p class="flex-1 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-gray-600">
-      <strong>Data loaded:</strong> {{ cachedDataSourceInfo }}
-    </p>
-    <p class="flex-1 rounded-lg border border-green-200 bg-green-50 px-4 py-2 text-sm text-gray-600">
-      <strong>Selection:</strong> {{ cachedSelectedRowsInfo }}
-    </p>
+    <p class="flex-1 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-gray-600"><strong>Data loaded:</strong> {{ cachedDataSourceInfo }}</p>
+    <p class="flex-1 rounded-lg border border-green-200 bg-green-50 px-4 py-2 text-sm text-gray-600"><strong>Selection:</strong> {{ cachedSelectedRowsInfo }}</p>
   </div>
 
   <!-- Heatmap Controls Header -->
   <div class="bg-nrel-second-dark-blue flex h-12 w-[90%] items-center justify-between rounded-tl-lg rounded-tr-lg">
-    <div class="ml-5 flex items-end gap-2 text-white text-sm font-medium">
-      <!-- <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"></path>
-      </svg> -->
+    <div class="ml-5 flex items-center gap-2 text-white text-sm font-medium">
+      <label class="flex items-center gap-1.5 cursor-pointer">
+        <input type="checkbox" [(ngModel)]="showAllPins" title="Show a pin for every building so all buildings stay visible when zoomed out" />
+        <span>Show All Building Pins</span>
+      </label>
     </div>
 
     <div class="mr-5 flex items-center gap-2">
       <span class="text-white text-sm font-medium"> Heatmap Visualization </span>
-      <select
-        class="rounded-md border border-gray-300 px-2 py-1 text-sm text-gray-900"
-        [(ngModel)]="selectedHeatmapField"
-        [disabled]="!hasNumericColumns"
-        (change)="onHeatmapFieldChange()"
-        title="Select field for heatmap"
-      >
+      <select class="rounded-md border border-gray-300 px-2 py-1 text-sm text-gray-900" [(ngModel)]="selectedHeatmapField" [disabled]="!hasNumericColumns" (change)="onHeatmapFieldChange()" title="Select field for heatmap">
         <option value="">Select Field for Heatmap</option>
         <option *ngFor="let field of numericColumns" [value]="field">{{ getDisplayName(field) }}</option>
       </select>
 
-      <button
-        class="inline-flex justify-center gap-x-1.5 rounded-md px-3 py-1 text-sm font-semibold text-white shadow-sm transition-colors"
-        [class.bg-orange-600]="selectedHeatmapField"
-        [class.hover:bg-orange-700]="selectedHeatmapField"
-        [class.bg-gray-400]="!selectedHeatmapField"
-        [class.cursor-not-allowed]="!selectedHeatmapField"
-        [disabled]="!selectedHeatmapField"
-        (click)="applyHeatmap()"
-        title="Apply heatmap visualization"
-      >
-        Apply Heatmap
-      </button>
+      <button class="inline-flex justify-center gap-x-1.5 rounded-md px-3 py-1 text-sm font-semibold text-white shadow-sm transition-colors" [class.bg-orange-600]="selectedHeatmapField" [class.hover:bg-orange-700]="selectedHeatmapField" [class.bg-gray-400]="!selectedHeatmapField" [class.cursor-not-allowed]="!selectedHeatmapField" [disabled]="!selectedHeatmapField" (click)="applyHeatmap()" title="Apply heatmap visualization">Apply Heatmap</button>
 
-      <button
-        class="inline-flex justify-center gap-x-1.5 rounded-md px-3 py-1 text-sm font-semibold text-white shadow-sm transition-colors"
-        [class.bg-gray-700]="isHeatmapActive"
-        [class.hover:bg-gray-800]="isHeatmapActive"
-        [class.bg-gray-400]="!isHeatmapActive"
-        [class.cursor-not-allowed]="!isHeatmapActive"
-        [disabled]="!isHeatmapActive"
-        (click)="clearHeatmap()"
-        title="Clear heatmap and return to normal view"
-      >
-        Clear Heatmap
-      </button>
+      <button class="inline-flex justify-center gap-x-1.5 rounded-md px-3 py-1 text-sm font-semibold text-white shadow-sm transition-colors" [class.bg-gray-700]="isHeatmapActive" [class.hover:bg-gray-800]="isHeatmapActive" [class.bg-gray-400]="!isHeatmapActive" [class.cursor-not-allowed]="!isHeatmapActive" [disabled]="!isHeatmapActive" (click)="clearHeatmap()" title="Clear heatmap and return to normal view">Clear Heatmap</button>
     </div>
   </div>
 
   <!-- Main Controls Header -->
-  <div class="bg-nrel-second-dark-blue flex h-16 w-[90%] items-center justify-between rounded-bl-lg rounded-br-lg">
-    <div class="relative ml-5 inline-block text-left">
-      <div>
-        <button
-          class="inline-flex w-full justify-center gap-x-1.5 rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 ring-inset hover:bg-gray-50"
-          id="menu-button"
-          (click)="toggleMenu()"
-          type="button"
-          aria-expanded="true"
-          aria-haspopup="true"
-        >
-          Export
-          <svg class="-mr-1 h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-            <path
-              fill-rule="evenodd"
-              d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
-              clip-rule="evenodd"
-            />
-          </svg>
-        </button>
+  <div class="bg-nrel-second-dark-blue relative flex h-16 w-[90%] items-center justify-between rounded-bl-lg rounded-br-lg px-5">
+    <!-- Actions hamburger menu (all row/table action buttons) -->
+    <div class="relative inline-block text-left">
+      <button class="inline-flex items-center justify-center gap-x-1.5 rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 ring-inset hover:bg-gray-50" id="actions-menu-button" (click)="toggleActionsMenu()" type="button" [attr.aria-expanded]="isActionsMenuOpen" aria-haspopup="true" title="Table and record actions">
+        <svg class="h-5 w-5 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+        Actions
+      </button>
+
+      <div class="ring-opacity-5 absolute left-0 z-20 mt-2 w-64 origin-top-left rounded-md bg-white shadow-lg ring-1 ring-black focus:outline-none max-h-[70vh] overflow-y-auto" *ngIf="isActionsMenuOpen" role="menu" aria-orientation="vertical" aria-labelledby="actions-menu-button" tabindex="-1">
+        <div class="py-1" role="none">
+          <a class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" (click)="$event.preventDefault(); showColumnStatsModal(); closeActionsMenu()" href="" role="menuitem" tabindex="-1">Column Stats</a>
+          <a class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" (click)="$event.preventDefault(); openHeaderEditDialog(); closeActionsMenu()" href="" role="menuitem" tabindex="-1" title="Edit column header names">Edit Headers</a>
+          <a class="block px-4 py-2 text-sm" [class.text-gray-700]="cachedCanMergeRecords" [class.hover:bg-gray-100]="cachedCanMergeRecords" [class.text-gray-400]="!cachedCanMergeRecords" [class.cursor-not-allowed]="!cachedCanMergeRecords" (click)="$event.preventDefault(); runActionsMenuItem(cachedCanMergeRecords, openRecordMergeDialog.bind(this))" href="" role="menuitem" tabindex="-1" title="Select exactly 2 records to merge them">Merge Records</a>
+
+          <a class="block px-4 py-2 text-sm" [class.text-gray-700]="cachedCanReverseGeocode" [class.hover:bg-gray-100]="cachedCanReverseGeocode" [class.text-gray-400]="!cachedCanReverseGeocode" [class.cursor-not-allowed]="!cachedCanReverseGeocode" (click)="$event.preventDefault(); runActionsMenuItem(cachedCanReverseGeocode, reverseGeocodeSelected.bind(this))" href="" role="menuitem" tabindex="-1" title="Select at least 1 record to reverse geocode">Geocode / Reverse Geocode</a>
+          <a class="block px-4 py-2 text-sm" [class.text-gray-700]="cachedCanDownloadFootprints && !isGeocoding" [class.hover:bg-gray-100]="cachedCanDownloadFootprints && !isGeocoding" [class.text-gray-400]="!cachedCanDownloadFootprints || isGeocoding" [class.cursor-not-allowed]="!cachedCanDownloadFootprints || isGeocoding" (click)="$event.preventDefault(); runActionsMenuItem(cachedCanDownloadFootprints && !isGeocoding, geocodeSelected.bind(this))" href="" role="menuitem" tabindex="-1" title="Geocode selected buildings that are missing latitude/longitude">{{ isGeocoding ? 'Geocoding...' : 'Geocode Addresses' }}</a>
+          <a class="block px-4 py-2 text-sm" [class.text-gray-700]="cachedCanDownloadFootprints && !isMatchingFootprints" [class.hover:bg-gray-100]="cachedCanDownloadFootprints && !isMatchingFootprints" [class.text-gray-400]="!cachedCanDownloadFootprints || isMatchingFootprints" [class.cursor-not-allowed]="!cachedCanDownloadFootprints || isMatchingFootprints" (click)="$event.preventDefault(); runActionsMenuItem(cachedCanDownloadFootprints && !isMatchingFootprints, matchFootprintsForSelected.bind(this))" href="" role="menuitem" tabindex="-1" title="Match selected (already-geocoded) buildings to Microsoft footprint data">{{ isMatchingFootprints ? 'Matching...' : 'Match Footprints' }}</a>
+          <a class="block px-4 py-2 text-sm" [class.text-gray-700]="cachedCanDownloadFootprints && !isRunningFullWorkflow" [class.hover:bg-gray-100]="cachedCanDownloadFootprints && !isRunningFullWorkflow" [class.text-gray-400]="!cachedCanDownloadFootprints || isRunningFullWorkflow" [class.cursor-not-allowed]="!cachedCanDownloadFootprints || isRunningFullWorkflow" (click)="$event.preventDefault(); runActionsMenuItem(cachedCanDownloadFootprints && !isRunningFullWorkflow, runFullWorkflowForSelected.bind(this))" href="" role="menuitem" tabindex="-1" title="Run geocoding + footprint matching for the selected buildings in one step">{{ isRunningFullWorkflow ? 'Running...' : 'Run Full Workflow' }}</a>
+          <a class="block px-4 py-2 text-sm" [class.text-gray-700]="cachedCanDownloadFootprints" [class.hover:bg-gray-100]="cachedCanDownloadFootprints" [class.text-gray-400]="!cachedCanDownloadFootprints" [class.cursor-not-allowed]="!cachedCanDownloadFootprints" (click)="$event.preventDefault(); runActionsMenuItem(cachedCanDownloadFootprints, openDownloadFootprintsDialog.bind(this))" href="" role="menuitem" tabindex="-1" title="Select at least 1 record to download MS/OSM footprints">Download Footprints</a>
+
+          <a class="block px-4 py-2 text-sm" [class.text-gray-700]="cachedCanDeleteRecords" [class.hover:bg-gray-100]="cachedCanDeleteRecords" [class.text-gray-400]="!cachedCanDeleteRecords" [class.cursor-not-allowed]="!cachedCanDeleteRecords" (click)="$event.preventDefault(); runActionsMenuItem(cachedCanDeleteRecords, openBulkEditDialog.bind(this))" href="" role="menuitem" tabindex="-1" title="Select at least 1 record to bulk edit">Bulk Edit</a>
+          <a class="block px-4 py-2 text-sm" [class.text-gray-700]="cachedCanDeleteRecords" [class.hover:bg-gray-100]="cachedCanDeleteRecords" [class.text-gray-400]="!cachedCanDeleteRecords" [class.cursor-not-allowed]="!cachedCanDeleteRecords" (click)="$event.preventDefault(); runActionsMenuItem(cachedCanDeleteRecords, assignTargetEUI.bind(this))" href="" role="menuitem" tabindex="-1" title="Select at least 1 record to assign target EUI data">Assign Target EUI</a>
+          <a class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" (click)="$event.preventDefault(); addNewRow(); closeActionsMenu()" href="" role="menuitem" tabindex="-1">+ New Row</a>
+          <a class="block px-4 py-2 text-sm border-t border-gray-200" [class.text-red-700]="cachedCanDeleteRecords" [class.hover:bg-red-50]="cachedCanDeleteRecords" [class.text-gray-400]="!cachedCanDeleteRecords" [class.cursor-not-allowed]="!cachedCanDeleteRecords" (click)="$event.preventDefault(); runActionsMenuItem(cachedCanDeleteRecords, handleDelete.bind(this))" href="" role="menuitem" tabindex="-1" title="Select at least 1 record to delete">Delete Selected Row(s)</a>
+        </div>
       </div>
     </div>
 
-    <div
-      class="ring-opacity-5 absolute left-[5%] z-10 mt-52 w-40 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black focus:outline-none"
-      *ngIf="isOpen"
-      role="menu"
-      aria-orientation="vertical"
-      aria-labelledby="menu-button"
-      tabindex="-1"
-    >
-      <div class="py-1" role="none">
-        <a
-          class="block border-b border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-          id="menu-item-0"
-          (click)="exportAsExcel($event)"
-          href=""
-          role="menuitem"
-          tabindex="-1"
-          title="Export filtered data to Excel"
-          >Excel</a
-        >
-        <a
-          class="block border-b border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-          id="menu-item-1"
-          (click)="exportAsCsv($event)"
-          href=""
-          role="menuitem"
-          tabindex="-1"
-          title="Export filtered data to CSV"
-          >CSV</a
-        >
-        <a
-          class="block border-b border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-          id="menu-item-2"
-          (click)="exportAsJson($event)"
-          href=""
-          role="menuitem"
-          tabindex="-1"
-          title="Export filtered data to JSON"
-          >JSON</a
-        >
-        <a
-          class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-          id="menu-item-3"
-          (click)="exportAsGeoJson($event)"
-          href=""
-          role="menuitem"
-          tabindex="-1"
-          title="Export filtered data to GeoJSON"
-          >GeoJSON</a
-        >
+    <!-- Export menu -->
+    <div class="relative inline-block text-left">
+      <button class="inline-flex w-full justify-center gap-x-1.5 rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 ring-inset hover:bg-gray-50" id="menu-button" (click)="toggleMenu()" type="button" [attr.aria-expanded]="isOpen" aria-haspopup="true">
+        Export
+        <svg class="-mr-1 h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+          <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
+        </svg>
+      </button>
+
+      <div class="ring-opacity-5 absolute right-0 z-20 mt-2 w-40 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black focus:outline-none" *ngIf="isOpen" role="menu" aria-orientation="vertical" aria-labelledby="menu-button" tabindex="-1">
+        <div class="py-1" role="none">
+          <a class="block border-b border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" id="menu-item-0" (click)="exportAsExcel($event)" href="" role="menuitem" tabindex="-1" title="Export filtered data to Excel">Excel</a>
+          <a class="block border-b border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" id="menu-item-1" (click)="exportAsCsv($event)" href="" role="menuitem" tabindex="-1" title="Export filtered data to CSV">CSV</a>
+          <a class="block border-b border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" id="menu-item-2" (click)="exportAsJson($event)" href="" role="menuitem" tabindex="-1" title="Export filtered data to JSON">JSON</a>
+          <a class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" id="menu-item-3" (click)="exportAsGeoJson($event)" href="" role="menuitem" tabindex="-1" title="Export filtered data to GeoJSON">GeoJSON</a>
+        </div>
       </div>
-    </div>
-
-    <div class="mr-5 flex gap-2">
-      <button
-        class="inline-flex justify-center gap-x-1.5 rounded-md bg-purple-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-purple-700"
-        (click)="showColumnStatsModal()"
-      >
-        Column Stats
-      </button>
-      <button
-        class="inline-flex justify-center gap-x-1.5 rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"
-        (click)="openHeaderEditDialog()"
-        title="Edit column header names"
-      >
-        Edit Headers
-      </button>
-      <button
-        class="inline-flex justify-center gap-x-1.5 rounded-md px-3 py-2 text-sm font-semibold text-white shadow-sm transition-colors"
-        [class.bg-orange-600]="cachedCanMergeRecords"
-        [class.hover:bg-orange-700]="cachedCanMergeRecords"
-        [class.bg-gray-400]="!cachedCanMergeRecords"
-        [class.cursor-not-allowed]="!cachedCanMergeRecords"
-        [disabled]="!cachedCanMergeRecords"
-        (click)="openRecordMergeDialog()"
-        title="Select exactly 2 records to merge them"
-      >
-        Merge Records
-      </button>
-
-      <button
-        class="inline-flex justify-center gap-x-1.5 rounded-md px-3 py-2 text-sm font-semibold text-white shadow-sm transition-colors"
-        [class.bg-blue-600]="cachedCanReverseGeocode"
-        [class.hover:bg-blue-700]="cachedCanReverseGeocode"
-        [class.bg-gray-400]="!cachedCanReverseGeocode"
-        [class.cursor-not-allowed]="!cachedCanReverseGeocode"
-        [disabled]="!cachedCanReverseGeocode"
-        (click)="reverseGeocodeSelected()"
-        title="Select at least 1 record to reverse geocode"
-      >
-        Geocode / Reverse Geocode
-      </button>
-      <button
-        class="inline-flex justify-center gap-x-1.5 rounded-md px-3 py-2 text-sm font-semibold text-white shadow-sm transition-colors"
-        [class.bg-teal-600]="cachedCanDeleteRecords"
-        [class.hover:bg-teal-700]="cachedCanDeleteRecords"
-        [class.bg-gray-400]="!cachedCanDeleteRecords"
-        [class.cursor-not-allowed]="!cachedCanDeleteRecords"
-        [disabled]="!cachedCanDeleteRecords"
-        (click)="openBulkEditDialog()"
-        title="Select at least 1 record to bulk edit"
-      >
-        Bulk Edit
-      </button>
-      <button
-        class="inline-flex justify-center gap-x-1.5 rounded-md px-3 py-2 text-sm font-semibold text-white shadow-sm transition-colors"
-        [class.bg-purple-600]="cachedCanDeleteRecords"
-        [class.hover:bg-purple-700]="cachedCanDeleteRecords"
-        [class.bg-gray-400]="!cachedCanDeleteRecords"
-        [class.cursor-not-allowed]="!cachedCanDeleteRecords"
-        [disabled]="!cachedCanDeleteRecords"
-        (click)="assignTargetEUI()"
-        title="Select at least 1 record to assign target EUI data"
-      >
-        Assign Target EUI
-      </button>
-      <button
-        class="inline-flex justify-center gap-x-1.5 rounded-md bg-green-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-700"
-        (click)="addNewRow()"
-      >
-        + New Row
-      </button>
-      <button
-        class="inline-flex justify-center gap-x-1.5 rounded-md px-3 py-2 text-sm font-semibold text-white shadow-sm transition-colors"
-        [class.bg-red-600]="cachedCanDeleteRecords"
-        [class.hover:bg-red-700]="cachedCanDeleteRecords"
-        [class.bg-gray-400]="!cachedCanDeleteRecords"
-        [class.cursor-not-allowed]="!cachedCanDeleteRecords"
-        [disabled]="!cachedCanDeleteRecords"
-        (click)="handleDelete()"
-        title="Select at least 1 record to delete"
-      >
-        Delete Selected Row(s)
-      </button>
     </div>
   </div>
   <div class="mt-0 flex h-[100vh] w-[90%] flex-col justify-center p-0" id="data-container" *ngIf="hasValidGeoJsonData">
     <!-- Map Section -->
     <div class="mb-4 h-[60vh] min-h-[400px] w-full">
-      <app-mapbox-map></app-mapbox-map>
+      <app-mapbox-map [showAllPins]="showAllPins"></app-mapbox-map>
     </div>
 
     <div class="cbl-table-container h-[65vh] w-full mt-20">
-      <ag-grid-angular
-        class="ag-theme-quartz"
-        [columnDefs]="colDefs"
-        [defaultColDef]="defaultColDef"
-        [rowData]="rowData"
-        [rowSelection]="{ mode: 'multiRow' }"
-        [getRowId]="getRowId"
-        (gridReady)="onGridReady($event)"
-        (rowClicked)="onRowClicked($event)"
-        (selectionChanged)="onSelectionChanged($event)"
-        theme="legacy"
-        style="height: 100%; width: 100%"
-      />
+      <ag-grid-angular class="ag-theme-quartz" [columnDefs]="colDefs" [defaultColDef]="defaultColDef" [rowData]="rowData" [rowSelection]="{ mode: 'multiRow' }" [getRowId]="getRowId" (gridReady)="onGridReady($event)" (rowClicked)="onRowClicked($event)" (selectionChanged)="onSelectionChanged($event)" theme="legacy" style="height: 100%; width: 100%" />
     </div>
   </div>
 </div>
 
 <!-- Column Statistics Modal -->
 <div class="bg-opacity-50 fixed inset-0 z-50 flex items-center justify-center bg-black" *ngIf="showColumnStatsDialog">
-  <div class="mx-4 w-full max-w-4xl rounded-lg bg-white p-6 shadow-xl max-h-[80vh] overflow-hidden">
+  <div class="mx-4 flex h-[80vh] w-full max-w-5xl flex-col overflow-hidden rounded-lg bg-white p-6 shadow-xl">
     <div class="mb-4 flex items-center justify-between">
       <h3 class="text-lg font-semibold text-gray-900">Column Population Statistics</h3>
       <button class="text-gray-400 hover:text-gray-600 focus:outline-none" (click)="closeColumnStatsModal()" aria-label="Close modal">
@@ -289,112 +120,31 @@
       </button>
     </div>
 
-    <p class="mb-6 text-sm text-gray-600">
-      This table shows the percentage of records that have data populated for each column. You can delete non-essential columns by clicking
-      the delete button. Essential columns and computed columns are protected from deletion.
-    </p>
+    <p class="mb-4 text-sm text-gray-600">This table shows the percentage of records that have data populated for each column. Click column headers to sort, use the filter icon to filter, and right-click a row for quick delete/merge actions. Essential columns and computed columns are protected from deletion.</p>
 
-    <div class="overflow-auto max-h-[60vh]">
-      <table class="min-w-full divide-y divide-gray-200">
-        <thead class="bg-gray-50 sticky top-0">
-          <tr>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Column Name</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Records with Data</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Records</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Population %</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Visual</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-          </tr>
-        </thead>
-        <tbody class="bg-white divide-y divide-gray-200">
-          <tr class="hover:bg-gray-50" *ngFor="let stat of columnStats; trackBy: trackByColumnName">
-            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-              {{ stat.columnName }}
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-              {{ stat.populatedCount }}
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-              {{ stat.totalCount }}
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-              <span [class]="getPercentageClass(stat.percentage)"> {{ stat.percentage }}% </span>
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap">
-              <div class="w-full bg-gray-200 rounded-full h-2">
-                <div
-                  class="h-2 rounded-full transition-all duration-300"
-                  [style.width.%]="stat.percentage"
-                  [class]="getProgressBarClass(stat.percentage)"
-                ></div>
-              </div>
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-              <button
-                class="inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded text-red-700 bg-red-100 hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors"
-                *ngIf="canDeleteColumn(stat.columnName)"
-                [attr.aria-label]="'Delete column ' + stat.columnName"
-                (click)="deleteColumn(stat.columnName)"
-                title="Delete this column from all records"
-              >
-                <svg class="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                  ></path>
-                </svg>
-                Delete
-              </button>
-              <span
-                class="inline-flex items-center px-2 py-1 text-xs font-medium text-gray-400 bg-gray-100 rounded"
-                *ngIf="!canDeleteColumn(stat.columnName)"
-                title="This column cannot be deleted"
-              >
-                <svg class="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-                  ></path>
-                </svg>
-                Protected
-              </span>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+    <div class="ag-theme-quartz min-h-0 flex-1">
+      <ag-grid-angular class="ag-theme-quartz" [columnDefs]="columnStatsColDefs" [defaultColDef]="columnStatsDefaultColDef" [rowData]="columnStats" [getRowId]="trackByColumnNameRowId" (gridReady)="onColumnStatsGridReady($event)" (cellContextMenu)="onColumnStatsCellContextMenu($event)" theme="legacy" style="height: 100%; width: 100%" />
     </div>
 
     <div class="mt-6 flex justify-between">
-      <button
-        class="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        [disabled]="columnStats.length < 2"
-        [class.opacity-50]="columnStats.length < 2"
-        [class.cursor-not-allowed]="columnStats.length < 2"
-        (click)="openMergeDialog()"
-      >
+      <button class="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500" [disabled]="columnStats.length < 2" [class.opacity-50]="columnStats.length < 2" [class.cursor-not-allowed]="columnStats.length < 2" (click)="openMergeDialog()">
         <svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-          ></path>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
         </svg>
         Merge Columns
       </button>
-      <button
-        class="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500"
-        (click)="closeColumnStatsModal()"
-      >
-        Close
-      </button>
+      <button class="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500" (click)="closeColumnStatsModal()">Close</button>
     </div>
   </div>
 </div>
+
+<!-- Column Statistics right-click context menu -->
+<div class="fixed z-[60] w-48 rounded-md bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5" *ngIf="columnStatsContextMenu.visible" [style.left.px]="columnStatsContextMenu.x" [style.top.px]="columnStatsContextMenu.y">
+  <a class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" (click)="$event.preventDefault(); contextMenuMergeFromHere()" href="" role="menuitem" tabindex="-1">Merge Columns...</a>
+  <a class="block px-4 py-2 text-sm" [class.text-red-700]="canDeleteColumn(columnStatsContextMenu.columnName)" [class.hover:bg-red-50]="canDeleteColumn(columnStatsContextMenu.columnName)" [class.text-gray-400]="!canDeleteColumn(columnStatsContextMenu.columnName)" [class.cursor-not-allowed]="!canDeleteColumn(columnStatsContextMenu.columnName)" (click)="$event.preventDefault(); canDeleteColumn(columnStatsContextMenu.columnName) ? contextMenuDeleteColumn() : closeColumnStatsContextMenu()" href="" role="menuitem" tabindex="-1">Delete Column</a>
+</div>
+<!-- Backdrop to close the context menu on outside click -->
+<div class="fixed inset-0 z-[55]" *ngIf="columnStatsContextMenu.visible" (click)="closeColumnStatsContextMenu()"></div>
 
 <!-- Merge Columns Dialog -->
 <div class="bg-opacity-50 fixed inset-0 z-50 flex items-center justify-center bg-black" *ngIf="showMergeDialog">
@@ -408,22 +158,13 @@
       </button>
     </div>
 
-    <p class="mb-6 text-sm text-gray-600">
-      Merge data from one column into another. Empty cells in the target column will be filled with data from the source column. You can
-      choose which column takes priority when both have data. The source column will be deleted after merging.
-    </p>
+    <p class="mb-6 text-sm text-gray-600">Merge data from one column into another. Empty cells in the target column will be filled with data from the source column. You can choose which column takes priority when both have data. The source column will be deleted after merging.</p>
 
     <div class="space-y-6">
       <!-- Target Column Selection -->
       <div>
-        <label class="block text-sm font-medium text-gray-700 mb-2" for="target-column">
-          Target Column (data will be merged INTO this column):
-        </label>
-        <select
-          class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-          id="target-column"
-          [(ngModel)]="mergeConfig.targetColumn"
-        >
+        <label class="block text-sm font-medium text-gray-700 mb-2" for="target-column"> Target Column (data will be merged INTO this column): </label>
+        <select class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" id="target-column" [(ngModel)]="mergeConfig.targetColumn">
           <option value="">Select target column...</option>
           <option *ngFor="let column of getAvailableTargetColumns()" [value]="column">
             {{ column }}
@@ -433,14 +174,8 @@
 
       <!-- Source Column Selection -->
       <div>
-        <label class="block text-sm font-medium text-gray-700 mb-2" for="source-column">
-          Source Column (data will be merged FROM this column, then deleted):
-        </label>
-        <select
-          class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-          id="source-column"
-          [(ngModel)]="mergeConfig.sourceColumn"
-        >
+        <label class="block text-sm font-medium text-gray-700 mb-2" for="source-column"> Source Column (data will be merged FROM this column, then deleted): </label>
+        <select class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" id="source-column" [(ngModel)]="mergeConfig.sourceColumn">
           <option value="">Select source column...</option>
           <option *ngFor="let column of getAvailableSourceColumns()" [value]="column">
             {{ column }}
@@ -453,23 +188,11 @@
         <fieldset class="space-y-2">
           <legend class="block text-sm font-medium text-gray-700 mb-2">When both columns have data, which should take priority?</legend>
           <label class="flex items-center">
-            <input
-              class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
-              [(ngModel)]="mergeConfig.priorityColumn"
-              type="radio"
-              value="target"
-              name="priorityColumn"
-            />
+            <input class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500" [(ngModel)]="mergeConfig.priorityColumn" type="radio" value="target" name="priorityColumn" />
             <span class="ml-2 text-sm text-gray-700"> Target column (keep existing data in target, don't overwrite) </span>
           </label>
           <label class="flex items-center">
-            <input
-              class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
-              [(ngModel)]="mergeConfig.priorityColumn"
-              type="radio"
-              value="source"
-              name="priorityColumn"
-            />
+            <input class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500" [(ngModel)]="mergeConfig.priorityColumn" type="radio" value="source" name="priorityColumn" />
             <span class="ml-2 text-sm text-gray-700"> Source column (overwrite target with source data) </span>
           </label>
         </fieldset>
@@ -483,21 +206,8 @@
     </div>
 
     <div class="mt-6 flex justify-end space-x-3">
-      <button
-        class="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500"
-        (click)="closeMergeDialog()"
-      >
-        Cancel
-      </button>
-      <button
-        class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        [disabled]="!mergeConfig.targetColumn || !mergeConfig.sourceColumn"
-        [class.opacity-50]="!mergeConfig.targetColumn || !mergeConfig.sourceColumn"
-        [class.cursor-not-allowed]="!mergeConfig.targetColumn || !mergeConfig.sourceColumn"
-        (click)="mergeColumns()"
-      >
-        Merge Columns
-      </button>
+      <button class="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500" (click)="closeMergeDialog()">Cancel</button>
+      <button class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500" [disabled]="!mergeConfig.targetColumn || !mergeConfig.sourceColumn" [class.opacity-50]="!mergeConfig.targetColumn || !mergeConfig.sourceColumn" [class.cursor-not-allowed]="!mergeConfig.targetColumn || !mergeConfig.sourceColumn" (click)="mergeColumns()">Merge Columns</button>
     </div>
   </div>
 </div>
@@ -507,21 +217,14 @@
   <div class="mx-4 w-full max-w-2xl rounded-lg bg-white p-6 shadow-xl">
     <div class="mb-4 flex items-center justify-between">
       <h3 class="text-lg font-semibold text-gray-900">Merge Records</h3>
-      <button
-        class="text-gray-400 hover:text-gray-600 focus:outline-none"
-        (click)="closeRecordMergeDialog()"
-        aria-label="Close record merge dialog"
-      >
+      <button class="text-gray-400 hover:text-gray-600 focus:outline-none" (click)="closeRecordMergeDialog()" aria-label="Close record merge dialog">
         <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
         </svg>
       </button>
     </div>
 
-    <p class="mb-6 text-sm text-gray-600">
-      Merge two building records into one. Empty fields in the priority record will be filled with data from the secondary record. The
-      secondary record will be deleted after merging.
-    </p>
+    <p class="mb-6 text-sm text-gray-600">Merge two building records into one. Empty fields in the priority record will be filled with data from the secondary record. The secondary record will be deleted after merging.</p>
 
     <div class="space-y-6">
       <!-- Selected Records Display -->
@@ -539,27 +242,13 @@
       <!-- Priority Selection -->
       <div>
         <fieldset class="space-y-2">
-          <legend class="block text-sm font-medium text-gray-700 mb-2">
-            Which record should take priority (be kept as the main record)?
-          </legend>
+          <legend class="block text-sm font-medium text-gray-700 mb-2">Which record should take priority (be kept as the main record)?</legend>
           <label class="flex items-center">
-            <input
-              class="h-4 w-4 border-gray-300 text-orange-600 focus:ring-orange-500"
-              [(ngModel)]="recordMergePriority"
-              type="radio"
-              value="first"
-              name="recordPriority"
-            />
+            <input class="h-4 w-4 border-gray-300 text-orange-600 focus:ring-orange-500" [(ngModel)]="recordMergePriority" type="radio" value="first" name="recordPriority" />
             <span class="ml-2 text-sm text-gray-700"> Record 1 - Empty fields will be filled from Record 2 </span>
           </label>
           <label class="flex items-center">
-            <input
-              class="h-4 w-4 border-gray-300 text-orange-600 focus:ring-orange-500"
-              [(ngModel)]="recordMergePriority"
-              type="radio"
-              value="second"
-              name="recordPriority"
-            />
+            <input class="h-4 w-4 border-gray-300 text-orange-600 focus:ring-orange-500" [(ngModel)]="recordMergePriority" type="radio" value="second" name="recordPriority" />
             <span class="ml-2 text-sm text-gray-700"> Record 2 - Empty fields will be filled from Record 1 </span>
           </label>
         </fieldset>
@@ -573,18 +262,8 @@
     </div>
 
     <div class="mt-6 flex justify-end space-x-3">
-      <button
-        class="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500"
-        (click)="closeRecordMergeDialog()"
-      >
-        Cancel
-      </button>
-      <button
-        class="rounded-md bg-orange-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
-        (click)="mergeRecords()"
-      >
-        Merge Records
-      </button>
+      <button class="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500" (click)="closeRecordMergeDialog()">Cancel</button>
+      <button class="rounded-md bg-orange-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500" (click)="mergeRecords()">Merge Records</button>
     </div>
   </div>
 </div>
@@ -596,52 +275,25 @@
     <p class="mb-6 text-sm text-gray-600">How would you like to geocode / reverse geocode the selected building?</p>
 
     <div class="mb-6 space-y-3">
-      <button
-        class="flex w-full items-center justify-center rounded-md bg-blue-600 px-4 py-3 text-white transition-colors hover:bg-blue-700"
-        [disabled]="!selectedRowHasFootprint"
-        [class.opacity-50]="!selectedRowHasFootprint"
-        [class.cursor-not-allowed]="!selectedRowHasFootprint"
-        (click)="reverseGeocodeByFootprint()"
-      >
+      <button class="flex w-full items-center justify-center rounded-md bg-blue-600 px-4 py-3 text-white transition-colors hover:bg-blue-700" [disabled]="!selectedRowHasFootprint" [class.opacity-50]="!selectedRowHasFootprint" [class.cursor-not-allowed]="!selectedRowHasFootprint" (click)="reverseGeocodeByFootprint()">
         <svg class="mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 01.553-.894L9 2l6 3 6-3v15l-6 3-6-3z"
-          ></path>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 01.553-.894L9 2l6 3 6-3v15l-6 3-6-3z"></path>
         </svg>
         Get Address From Footprint Polygon
         <span class="ml-2 text-xs" *ngIf="!selectedRowHasFootprint">(No footprint available)</span>
       </button>
 
-      <button
-        class="flex w-full items-center justify-center rounded-md bg-green-600 px-4 py-3 text-white transition-colors hover:bg-green-700"
-        (click)="reverseGeocodeByLatLng()"
-      >
+      <button class="flex w-full items-center justify-center rounded-md bg-green-600 px-4 py-3 text-white transition-colors hover:bg-green-700" (click)="reverseGeocodeByLatLng()">
         <svg class="mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-          ></path>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
         </svg>
         Get Address from Lat/Lng
       </button>
 
-      <button
-        class="flex w-full items-center justify-center rounded-md bg-pink-600 px-4 py-3 text-white transition-colors hover:bg-pink-700"
-        (click)="geocodeByAddress()"
-      >
+      <button class="flex w-full items-center justify-center rounded-md bg-pink-600 px-4 py-3 text-white transition-colors hover:bg-pink-700" (click)="geocodeByAddress()">
         <svg class="mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-          ></path>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
         </svg>
         Get Lat/Lng from Address
@@ -649,11 +301,49 @@
     </div>
 
     <div class="flex justify-end">
-      <button
-        class="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200"
-        (click)="closeReverseGeocodeDialog()"
-      >
-        Cancel
+      <button class="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200" (click)="closeReverseGeocodeDialog()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Download Footprints Dialog -->
+<div class="bg-opacity-50 fixed inset-0 z-50 flex items-center justify-center bg-black" *ngIf="showDownloadFootprintsDialog">
+  <div class="mx-4 w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+    <h3 class="mb-4 text-lg font-semibold text-gray-900">Download Footprints</h3>
+    <p class="mb-4 text-sm text-gray-600">Download building footprint data near the selected building(s) and match it to their location.</p>
+
+    <div class="mb-4">
+      <p class="mb-2 text-sm font-medium text-gray-700">Data source(s)</p>
+      <label class="mb-1 flex items-center gap-2 text-sm text-gray-700">
+        <input type="checkbox" [(ngModel)]="footprintDownloadConfig.sources.ms" />
+        Microsoft Building Footprints
+      </label>
+      <label class="flex items-center gap-2 text-sm text-gray-700">
+        <input type="checkbox" [(ngModel)]="footprintDownloadConfig.sources.osm" />
+        OpenStreetMap
+      </label>
+    </div>
+
+    <div class="mb-6">
+      <p class="mb-2 text-sm font-medium text-gray-700">What to keep</p>
+      <label class="mb-1 flex items-start gap-2 text-sm text-gray-700">
+        <input type="radio" class="mt-1" name="footprintKeepMode" [value]="false" [(ngModel)]="footprintDownloadConfig.keepNew" />
+        <span>Only keep footprints that overlap a selected building's point</span>
+      </label>
+      <label class="flex items-start gap-2 text-sm text-gray-700">
+        <input type="radio" class="mt-1" name="footprintKeepMode" [value]="true" [(ngModel)]="footprintDownloadConfig.keepNew" />
+        <span>Also add newly discovered footprints found nearby as new rows</span>
+      </label>
+    </div>
+
+    <div class="flex justify-end gap-2">
+      <button class="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200" [disabled]="isDownloadingFootprints" (click)="closeDownloadFootprintsDialog()">Cancel</button>
+      <button class="flex items-center gap-2 rounded-md bg-cyan-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-50" [disabled]="isDownloadingFootprints" (click)="downloadFootprintsForSelection()">
+        <svg class="h-4 w-4 animate-spin" *ngIf="isDownloadingFootprints" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        {{ isDownloadingFootprints ? 'Downloading...' : 'Download' }}
       </button>
     </div>
   </div>
@@ -664,11 +354,7 @@
   <div class="mx-4 w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
     <div class="mb-4 flex items-center justify-between">
       <h3 class="text-lg font-semibold text-gray-900">Bulk Edit Rows</h3>
-      <button
-        class="text-gray-400 hover:text-gray-600 focus:outline-none"
-        (click)="closeBulkEditDialog()"
-        aria-label="Close bulk edit dialog"
-      >
+      <button class="text-gray-400 hover:text-gray-600 focus:outline-none" (click)="closeBulkEditDialog()" aria-label="Close bulk edit dialog">
         <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
         </svg>
@@ -681,28 +367,16 @@
       <!-- Column Selection -->
       <div>
         <label class="block text-sm font-medium text-gray-700 mb-2" for="bulkEditColumn">Column to Edit</label>
-        <select
-          class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-200"
-          id="bulkEditColumn"
-          [(ngModel)]="bulkEditConfig.column"
-        >
+        <select class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-200" id="bulkEditColumn" [(ngModel)]="bulkEditConfig.column">
           <option value="">Select a column...</option>
-          <option *ngFor="let column of availableColumnsForBulkEdit" [value]="column">
-            {{ getDisplayHeaderName(column) }} ({{ column }})
-          </option>
+          <option *ngFor="let column of availableColumnsForBulkEdit" [value]="column">{{ getDisplayHeaderName(column) }} ({{ column }})</option>
         </select>
       </div>
 
       <!-- Value Input -->
       <div>
         <label class="block text-sm font-medium text-gray-700 mb-2" for="bulkEditValue">New Value</label>
-        <input
-          class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-200"
-          id="bulkEditValue"
-          [(ngModel)]="bulkEditConfig.value"
-          type="text"
-          placeholder="Enter the value to set..."
-        />
+        <input class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-200" id="bulkEditValue" [(ngModel)]="bulkEditConfig.value" type="text" placeholder="Enter the value to set..." />
       </div>
 
       <!-- Preview -->
@@ -713,21 +387,8 @@
     </div>
 
     <div class="mt-6 flex justify-end space-x-3">
-      <button
-        class="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500"
-        (click)="closeBulkEditDialog()"
-      >
-        Cancel
-      </button>
-      <button
-        class="rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500"
-        [disabled]="!bulkEditConfig.column || !bulkEditConfig.value"
-        [class.opacity-50]="!bulkEditConfig.column || !bulkEditConfig.value"
-        [class.cursor-not-allowed]="!bulkEditConfig.column || !bulkEditConfig.value"
-        (click)="bulkEditRows()"
-      >
-        Apply Changes
-      </button>
+      <button class="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500" (click)="closeBulkEditDialog()">Cancel</button>
+      <button class="rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500" [disabled]="!bulkEditConfig.column || !bulkEditConfig.value" [class.opacity-50]="!bulkEditConfig.column || !bulkEditConfig.value" [class.cursor-not-allowed]="!bulkEditConfig.column || !bulkEditConfig.value" (click)="bulkEditRows()">Apply Changes</button>
     </div>
   </div>
 </div>
@@ -749,46 +410,24 @@
       <div class="block text-sm font-medium text-gray-700 mb-2">Edit Mode</div>
       <div class="flex space-x-4">
         <label class="flex items-center">
-          <input
-            class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
-            [(ngModel)]="editMode"
-            (change)="openHeaderEditDialog('display')"
-            type="radio"
-            value="display"
-          />
+          <input class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500" [(ngModel)]="editMode" (change)="openHeaderEditDialog('display')" type="radio" value="display" />
           <span class="ml-2 text-sm text-gray-700">Edit Display Names</span>
         </label>
         <label class="flex items-center">
-          <input
-            class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
-            [(ngModel)]="editMode"
-            (change)="openHeaderEditDialog('column')"
-            type="radio"
-            value="column"
-          />
+          <input class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500" [(ngModel)]="editMode" (change)="openHeaderEditDialog('column')" type="radio" value="column" />
           <span class="ml-2 text-sm text-gray-700">Rename Column Keys</span>
         </label>
       </div>
     </div>
 
-    <p class="mb-6 text-sm text-gray-600" *ngIf="editMode === 'display'">
-      Edit the display names for column headers. Custom names will be used in the table display and all exports (CSV, Excel, JSON). Leave a
-      field empty to use the original column name.
-    </p>
-    <p class="mb-6 text-sm text-gray-600" *ngIf="editMode === 'column'">
-      Rename the actual column keys in your data. This will permanently change the property names in your dataset. Use with caution.
-    </p>
+    <p class="mb-6 text-sm text-gray-600" *ngIf="editMode === 'display'">Edit the display names for column headers. Custom names will be used in the table display and all exports (CSV, Excel, JSON). Leave a field empty to use the original column name.</p>
+    <p class="mb-6 text-sm text-gray-600" *ngIf="editMode === 'column'">Rename the actual column keys in your data. This will permanently change the property names in your dataset. Use with caution.</p>
 
     <div class="overflow-auto max-h-[50vh] mb-6">
       <!-- Empty state when no columns are available -->
       <div class="text-center py-8" *ngIf="headerEditList.length === 0">
         <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-          ></path>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
         </svg>
         <h3 class="mt-2 text-sm font-medium text-gray-900">No columns available</h3>
         <p class="mt-1 text-sm text-gray-500">Load some data first to edit column headers.</p>
@@ -812,22 +451,8 @@
               {{ item.originalKey }}
             </td>
             <td class="px-4 py-3 whitespace-nowrap">
-              <input
-                class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                *ngIf="editMode === 'display'"
-                [(ngModel)]="item.displayName"
-                [placeholder]="item.originalKey"
-                (input)="updateHeaderFromDialog(i, item.displayName)"
-                type="text"
-              />
-              <input
-                class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                *ngIf="editMode === 'column'"
-                [(ngModel)]="item.newColumnName"
-                [placeholder]="item.originalKey"
-                (input)="updateColumnNameFromDialog(i, item.newColumnName || '')"
-                type="text"
-              />
+              <input class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" *ngIf="editMode === 'display'" [(ngModel)]="item.displayName" [placeholder]="item.originalKey" (input)="updateHeaderFromDialog(i, item.displayName)" type="text" />
+              <input class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" *ngIf="editMode === 'column'" [(ngModel)]="item.newColumnName" [placeholder]="item.originalKey" (input)="updateColumnNameFromDialog(i, item.newColumnName || '')" type="text" />
             </td>
           </tr>
         </tbody>
@@ -836,25 +461,14 @@
 
     <div class="flex justify-end">
       <div class="space-x-2">
-        <button
-          class="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200"
-          (click)="closeHeaderEditDialog()"
-        >
-          Cancel
-        </button>
-        <button
-          class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
-          (click)="applyHeaderChanges()"
-        >
-          Apply Changes
-        </button>
+        <button class="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200" (click)="closeHeaderEditDialog()">Cancel</button>
+        <button class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700" (click)="applyHeaderChanges()">Apply Changes</button>
       </div>
     </div>
   </div>
 </div>
 
 <!-- File Upload Dialog -->
-<app-file-upload-dialog [isOpen]="showFileUploadDialog" (dialogClosed)="closeFileUploadDialog()" (fileUploaded)="onFileUploaded($event)">
-</app-file-upload-dialog>
+<app-file-upload-dialog [isOpen]="showFileUploadDialog" (dialogClosed)="closeFileUploadDialog()" (fileUploaded)="onFileUploaded($event)"> </app-file-upload-dialog>
 
 <app-footer></app-footer>

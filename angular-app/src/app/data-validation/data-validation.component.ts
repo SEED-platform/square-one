@@ -12,14 +12,16 @@ import { SessionService } from '../services/session.service'
 import { CustomHeaderComponent } from './custom-header/custom-header.component'
 import { NavigationComponent } from '../shared/navigation/navigation.component'
 import { TopMenuComponent } from '../shared/top-menu/top-menu.component'
+import { suggestColumnMapping } from '../shared/column-mapping.util'
+import { ColumnMappingModalComponent, type ColumnMappingRow } from './column-mapping-modal/column-mapping-modal.component'
 
 @Component({
-  selector: 'app-first-table',
-  templateUrl: './first-table.component.html',
-  styleUrl: 'first-table.component.css',
-  imports: [AgGridAngular, FormsModule, CommonModule, NavigationComponent, TopMenuComponent],
+  selector: 'app-data-validation',
+  templateUrl: './data-validation.component.html',
+  styleUrl: 'data-validation.component.css',
+  imports: [AgGridAngular, FormsModule, CommonModule, NavigationComponent, TopMenuComponent, ColumnMappingModalComponent],
 })
-export class FirstTableComponent implements OnInit {
+export class DataValidationComponent implements OnInit {
   private _userList: any[] = []
   colDefs: ColDef[] = []
   isDataLoaded = false
@@ -92,6 +94,30 @@ export class FirstTableComponent implements OnInit {
   }
   private gridApi!: GridApi
 
+  // Column mapping review modal state
+  columnMappingRows: ColumnMappingRow[] = []
+  showMappingModal = false
+
+  get includedColumnCount(): number {
+    return this.columnMappingRows.filter((row) => row.include).length
+  }
+
+  openMappingModal() {
+    this.showMappingModal = true
+  }
+
+  onMappingSaved(rows: ColumnMappingRow[]) {
+    this.columnMappingRows = rows
+    this.applyColumnMappingRows()
+    this.sessionService.setColumnDefinitions(this.colDefs)
+    this.showMappingModal = false
+    this.cdr.detectChanges()
+  }
+
+  onMappingCancelled() {
+    this.showMappingModal = false
+  }
+
   constructor(
     private apiHandler: FlaskRequests,
     private router: Router,
@@ -105,7 +131,7 @@ export class FirstTableComponent implements OnInit {
 
   getUser() {
     this.isDataLoaded = false
-    const rawData = this.sessionService.getFirstTableData()
+    const rawData = this.sessionService.getDataValidationData()
 
     if (rawData) {
       try {
@@ -145,15 +171,41 @@ export class FirstTableComponent implements OnInit {
 
     if (data && data.length > 0 && data[0]) {
       const keys = Object.keys(data[0])
-      this.colDefs = keys.map((key) => ({
-        field: key,
-        headerName: key,
-      }))
+      const suggestions = suggestColumnMapping(keys)
+
+      // Magic-map the columns automatically: confidently-matched fields get their canonical
+      // name suggested, while unmatched/duplicate columns default to "Keep existing" (their
+      // original header). All columns are included by default so the user opts OUT of the ones
+      // they don't want, rather than opting in to every column individually.
+      this.columnMappingRows = keys.map((key, index) => {
+        const suggestedField = suggestions[index].suggestedField
+        return {
+          originalHeader: key,
+          mappedField: suggestedField ?? key,
+          include: true,
+          useCustomField: suggestedField === null,
+        }
+      })
+      this.applyColumnMappingRows()
+      // Open the review modal so the user can confirm/tweak the auto-mapped columns and choose
+      // which fields to keep before continuing.
+      this.showMappingModal = true
     } else {
       this.colDefs = []
+      this.columnMappingRows = []
+      this.showMappingModal = false
     }
 
     this.sessionService.setColumnDefinitions(this.colDefs)
+  }
+
+  private applyColumnMappingRows() {
+    this.colDefs = this.columnMappingRows
+      .filter((row) => row.include)
+      .map((row) => ({
+        field: row.originalHeader,
+        headerName: row.mappedField,
+      }))
   }
 
   convertAgGridDataToJson() {
@@ -189,7 +241,7 @@ export class FirstTableComponent implements OnInit {
         console.log(response.message)
         this.ValidatedJsonString = response.user_data
         this.dataValid = true
-        this.uploadJsonToServer()
+        this.buildInitialGeoJsonAndContinue()
       },
       (errorResponse) => {
         console.log(errorResponse.error.message)
@@ -200,19 +252,30 @@ export class FirstTableComponent implements OnInit {
     )
   }
 
-  uploadJsonToServer() {
-    this.apiHandler.sendJsonData(this.ValidatedJsonString).subscribe(
+  // Builds the initial CBL Table GeoJSON (no geocoding/footprint matching yet -- those are
+  // separate, explicit steps the user triggers from the CBL Table) and navigates there.
+  buildInitialGeoJsonAndContinue() {
+    this.apiHandler.buildInitialGeoJson(this.ValidatedJsonString).subscribe(
       (response) => {
         console.log(response.message)
         this.geoJsonString = response.user_data
         const geoJson = JSON.parse(this.geoJsonString)
         this.geoJsonService.enableAutoSave() // Re-enable auto-save for new data
         this.geoJsonService.setGeoJson(geoJson)
-        this.sessionService.setGeoJsonData(geoJson) // Store as JSON object, not compressed
+        // Store as JSON object, not compressed. sessionStorage has a size quota (a few MB); very
+        // large uploads may fail to persist here even though the in-memory data (just set above)
+        // is fine. Warn the user since a hard refresh of /cbl-table would then lose the data.
+        const persisted = this.sessionService.setGeoJsonData(geoJson)
         this.sessionService.setCurrentPage('cbl-table')
         this.router.navigate(['/cbl-table'])
         this.isLoading = false
         this.cdr.detectChanges()
+        if (!persisted) {
+          alert(
+            'This dataset is too large to auto-save in your browser session. It will still work normally, ' +
+              'but avoid refreshing this page or you will lose your changes -- export your data periodically instead.',
+          )
+        }
       },
       (errorResponse) => {
         console.error(errorResponse.error.message)

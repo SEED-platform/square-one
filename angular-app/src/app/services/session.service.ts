@@ -11,14 +11,14 @@ export interface AppSessionData {
   mapLocation?: MapLocation
 
   // Navigation state
-  firstTableLoaded?: boolean
+  dataValidationLoaded?: boolean
   currentPage?: string
   homeAccess?: boolean
 
   // Data storage
   geoJsonData?: any
   geoJsonPropertyNames?: string[]
-  firstTableData?: string // compressed data
+  dataValidationData?: string // compressed data
   propertyNames?: string[]
   columnDefinitions?: any[] // AgGrid column definitions
   selectedRow?: any[] // Selected row data
@@ -31,12 +31,12 @@ export class SessionService {
   // Storage keys - centralized for easy management
   private readonly STORAGE_KEYS = {
     MAP_LOCATION: 'MAP_WORKFLOW_LOCATION',
-    FIRST_TABLE_LOADED: 'firstTableLoaded',
+    DATA_VALIDATION_LOADED: 'dataValidationLoaded',
     CURRENT_PAGE: 'CURRENTPAGE',
     HOME_ACCESS: 'HOMEACCESS',
     GEOJSON_DATA: 'GEOJSONDATA',
     GEOJSON_PROPERTY_NAMES: 'GEOJSONPROPERTYNAMES',
-    FIRST_TABLE_DATA: 'FIRSTTABLEDATA',
+    DATA_VALIDATION_DATA: 'DATAVALIDATIONDATA',
     PROPERTY_NAMES: 'PROPERTYNAMES',
     COLUMN_DEFINITIONS: 'COL',
     SELECTED_ROW: 'SELECTEDROW',
@@ -86,12 +86,12 @@ export class SessionService {
   // NAVIGATION STATE METHODS
   // ============================================================================
 
-  setFirstTableLoaded(loaded: boolean): void {
-    this.setItem(this.STORAGE_KEYS.FIRST_TABLE_LOADED, loaded)
+  setDataValidationLoaded(loaded: boolean): void {
+    this.setItem(this.STORAGE_KEYS.DATA_VALIDATION_LOADED, loaded)
   }
 
-  getFirstTableLoaded(): boolean {
-    return this.getItem<boolean>(this.STORAGE_KEYS.FIRST_TABLE_LOADED) ?? false
+  getDataValidationLoaded(): boolean {
+    return this.getItem<boolean>(this.STORAGE_KEYS.DATA_VALIDATION_LOADED) ?? false
   }
 
   setCurrentPage(page: string): void {
@@ -114,8 +114,9 @@ export class SessionService {
   // DATA STORAGE METHODS
   // ============================================================================
 
-  setGeoJsonData(data: any): void {
-    this.setItem(this.STORAGE_KEYS.GEOJSON_DATA, data)
+  /** Returns true if the data was actually persisted (false e.g. if sessionStorage quota was exceeded). */
+  setGeoJsonData(data: any): boolean {
+    return this.setItem(this.STORAGE_KEYS.GEOJSON_DATA, data)
   }
 
   getGeoJsonData(): any {
@@ -130,12 +131,12 @@ export class SessionService {
     return this.getItem<string[]>(this.STORAGE_KEYS.GEOJSON_PROPERTY_NAMES) ?? []
   }
 
-  setFirstTableData(data: string): void {
-    this.setItem(this.STORAGE_KEYS.FIRST_TABLE_DATA, data)
+  setDataValidationData(data: string): void {
+    this.setItem(this.STORAGE_KEYS.DATA_VALIDATION_DATA, data)
   }
 
-  getFirstTableData(): string | null {
-    return this.getItem<string>(this.STORAGE_KEYS.FIRST_TABLE_DATA)
+  getDataValidationData(): string | null {
+    return this.getItem<string>(this.STORAGE_KEYS.DATA_VALIDATION_DATA)
   }
 
   setPropertyNames(names: string[]): void {
@@ -191,7 +192,7 @@ export class SessionService {
    * Clear only navigation state (useful for logout/reset)
    */
   clearNavigationState(): void {
-    this.removeItem(this.STORAGE_KEYS.FIRST_TABLE_LOADED)
+    this.removeItem(this.STORAGE_KEYS.DATA_VALIDATION_LOADED)
     this.removeItem(this.STORAGE_KEYS.CURRENT_PAGE)
     this.removeItem(this.STORAGE_KEYS.HOME_ACCESS)
   }
@@ -202,7 +203,7 @@ export class SessionService {
   clearData(): void {
     this.removeItem(this.STORAGE_KEYS.GEOJSON_DATA)
     this.removeItem(this.STORAGE_KEYS.GEOJSON_PROPERTY_NAMES)
-    this.removeItem(this.STORAGE_KEYS.FIRST_TABLE_DATA)
+    this.removeItem(this.STORAGE_KEYS.DATA_VALIDATION_DATA)
     this.removeItem(this.STORAGE_KEYS.PROPERTY_NAMES)
     this.removeItem(this.STORAGE_KEYS.COLUMN_DEFINITIONS)
     this.removeItem(this.STORAGE_KEYS.SELECTED_ROW)
@@ -215,12 +216,12 @@ export class SessionService {
   getAllSessionData(): AppSessionData {
     return {
       mapLocation: this.getMapLocation(),
-      firstTableLoaded: this.getFirstTableLoaded(),
+      dataValidationLoaded: this.getDataValidationLoaded(),
       currentPage: this.getCurrentPage(),
       homeAccess: this.getHomeAccess(),
       geoJsonData: this.getGeoJsonData(),
       geoJsonPropertyNames: this.getGeoJsonPropertyNames(),
-      firstTableData: this.getFirstTableData() ?? undefined,
+      dataValidationData: this.getDataValidationData() ?? undefined,
       propertyNames: this.getPropertyNames(),
       columnDefinitions: this.getColumnDefinitions(),
       selectedRow: this.getSelectedRow(),
@@ -249,12 +250,14 @@ export class SessionService {
   // PRIVATE HELPER METHODS
   // ============================================================================
 
-  private setItem<T>(key: string, value: T): void {
+  private setItem<T>(key: string, value: T): boolean {
     try {
       const serialized = typeof value === 'string' ? value : JSON.stringify(value)
       sessionStorage.setItem(key, serialized)
+      return true
     } catch (error) {
       console.warn(`Could not save ${key} to session storage:`, error)
+      return false
     }
   }
 

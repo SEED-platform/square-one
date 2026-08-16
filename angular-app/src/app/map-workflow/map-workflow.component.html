@@ -1,46 +1,60 @@
 <app-navigation></app-navigation>
 <app-top-menu></app-top-menu>
 
-<div class="map-workflow-container mx-auto mt-10 max-w-7xl px-2 sm:px-6 lg:px-8">
-  <h1 class="text-4xl font-bold">Map-based Workflow</h1>
-  <p class="mt-5 text-lg mb-3">
-    This page will guide you through the map-based workflow for creating a Covered Building List (CBL). Start by typing a location to center
-    the map. Then zoom into the map and draw an area using the polygon tool. Alternatively, you can type in a location such as a county or
-    city and click on the "Retrieve Bounding Box" button to automatically retrieve a bounding box around that location. Once you have an
-    area selected, you can load the Microsoft (MS) footprints or the Open Street Maps (OSM) footprints within the area. When you are
-    finished, click the Proceed to CBL Table button.
-  </p>
+<div class="mt-2 flex w-[100vw] flex-col items-center justify-center">
+  <div class="mb-2 w-[90%]">
+    <p class="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-gray-600">Draw or upload an area of interest, load Microsoft/OpenStreetMap building footprints within it, then continue to the CBL Table. Type a location in the search box to center the map, then draw a polygon (or use "Retrieve Bounding Box" for a quick area around a searched location).</p>
+  </div>
 
-  <app-map-search-box (locationSelected)="onLocationSelected($event)"></app-map-search-box>
+  <!-- Search Header -->
+  <div class="bg-nrel-second-dark-blue flex h-16 w-[90%] items-center justify-between rounded-tl-lg rounded-tr-lg px-5">
+    <h5 class="text-2xl font-bold text-white">Map Workflow</h5>
+    <div class="w-96">
+      <app-map-search-box (locationSelected)="onLocationSelected($event)"></app-map-search-box>
+    </div>
+  </div>
 
-  <div class="status-message" *ngIf="statusMessage" [ngClass]="{ error: isError, success: !isError }">
+  <!-- Main Controls Header -->
+  <div class="bg-nrel-second-dark-blue relative flex h-16 w-[90%] items-center justify-between rounded-bl-lg rounded-br-lg px-5">
+    <!-- Actions hamburger menu (secondary/less-common controls) -->
+    <div class="relative inline-block text-left">
+      <button class="inline-flex items-center justify-center gap-x-1.5 rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 ring-inset hover:bg-gray-50" id="actions-menu-button" (click)="toggleActionsMenu()" type="button" [attr.aria-expanded]="isActionsMenuOpen" aria-haspopup="true" title="Area of interest and footprint actions">
+        <svg class="h-5 w-5 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+        Actions
+      </button>
+
+      <div class="ring-opacity-5 absolute left-0 z-20 mt-2 w-72 origin-top-left rounded-md bg-white shadow-lg ring-1 ring-black focus:outline-none" *ngIf="isActionsMenuOpen" role="menu" aria-orientation="vertical" aria-labelledby="actions-menu-button" tabindex="-1">
+        <div class="py-1" role="none">
+          <a class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" (click)="$event.preventDefault(); downloadAreaOfInterest(); closeActionsMenu()" href="" role="menuitem" tabindex="-1">Download Area of Interest</a>
+          <label class="block cursor-pointer px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">
+            Upload Area of Interest
+            <input (change)="uploadAreaOfInterest($event); closeActionsMenu()" type="file" accept=".geojson,application/geo+json,application/json" class="hidden" />
+          </label>
+          <a class="block border-t border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" (click)="$event.preventDefault(); clearPolygon(); closeActionsMenu()" href="" role="menuitem" tabindex="-1">Clear Polygon</a>
+          <a class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" (click)="$event.preventDefault(); clearMSFootprints(); closeActionsMenu()" href="" role="menuitem" tabindex="-1">Clear MS Footprints</a>
+          <a class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" (click)="$event.preventDefault(); clearOSMFootprints(); closeActionsMenu()" href="" role="menuitem" tabindex="-1">Clear OSM Footprints</a>
+          <a class="block border-t border-gray-200 px-4 py-2 text-sm text-red-700 hover:bg-red-50" (click)="$event.preventDefault(); clearAllFootprints(); closeActionsMenu()" href="" role="menuitem" tabindex="-1">Clear All</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex gap-2">
+      <button class="inline-flex justify-center gap-x-1.5 rounded-md bg-cyan-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-cyan-700" (click)="retrieveBoundingBox()" title="Retrieve a bounding box around the searched location">Retrieve Bounding Box</button>
+      <button class="inline-flex justify-center gap-x-1.5 rounded-md px-3 py-2 text-sm font-semibold text-white shadow-sm transition-colors" [class.bg-red-600]="hasPolygon" [class.hover:bg-red-700]="hasPolygon" [class.bg-gray-400]="!hasPolygon" [class.cursor-not-allowed]="!hasPolygon" [disabled]="!hasPolygon" (click)="loadMSFootprints()" title="Load Microsoft Building Footprints within the drawn area">Load MS Footprints</button>
+      <button class="inline-flex justify-center gap-x-1.5 rounded-md px-3 py-2 text-sm font-semibold text-white shadow-sm transition-colors" [class.bg-blue-600]="hasPolygon" [class.hover:bg-blue-700]="hasPolygon" [class.bg-gray-400]="!hasPolygon" [class.cursor-not-allowed]="!hasPolygon" [disabled]="!hasPolygon" (click)="loadOSMFootprints()" title="Load OpenStreetMap building footprints within the drawn area">Load OSM Footprints</button>
+      <button class="inline-flex justify-center gap-x-1.5 rounded-md px-3 py-2 text-sm font-semibold text-white shadow-sm transition-colors" [class.bg-orange-600]="hasMsFootprints && hasOsmFootprints" [class.hover:bg-orange-700]="hasMsFootprints && hasOsmFootprints" [class.bg-gray-400]="!(hasMsFootprints && hasOsmFootprints)" [class.cursor-not-allowed]="!(hasMsFootprints && hasOsmFootprints)" [disabled]="!(hasMsFootprints && hasOsmFootprints)" (click)="mergeFootprints()" title="Merge the loaded MS and OSM footprints">Merge Footprints</button>
+      <button class="inline-flex justify-center gap-x-1.5 rounded-md px-3 py-2 text-sm font-semibold text-white shadow-sm transition-colors" [class.bg-green-600]="hasAnyFootprints" [class.hover:bg-green-700]="hasAnyFootprints" [class.bg-gray-400]="!hasAnyFootprints" [class.cursor-not-allowed]="!hasAnyFootprints" [disabled]="!hasAnyFootprints" (click)="proceedToCBLTable()" title="Continue to the CBL Table with the loaded footprints">Proceed to CBL Table</button>
+    </div>
+  </div>
+
+  <div class="mt-2 w-[90%] rounded-md border px-4 py-2 text-sm" *ngIf="statusMessage" [class.border-green-200]="!isError" [class.bg-green-50]="!isError" [class.text-green-900]="!isError" [class.border-red-200]="isError" [class.bg-red-50]="isError" [class.text-red-900]="isError">
     {{ statusMessage }}
   </div>
 
-  <div class="map-controls-layout">
-    <div class="map-container" id="map"></div>
-    <!-- Control buttons -->
-    <div class="controls-container">
-      <button class="find-location-btn" (click)="retrieveBoundingBox()">Retrieve Bounding Box</button>
-      <button class="load-btn ms-btn" [disabled]="!hasPolygon" (click)="loadMSFootprints()">Load MS Footprints</button>
-      <button class="clear-btn ms-clear" (click)="clearMSFootprints()">Clear MS</button>
-      <button class="load-btn osm-btn" [disabled]="!hasPolygon" (click)="loadOSMFootprints()">Load OSM Footprints</button>
-      <button class="clear-btn osm-clear" (click)="clearOSMFootprints()">Clear OSM</button>
-      <button class="clear-btn polygon-clear" (click)="clearPolygon()">Clear Polygon</button>
-      <button class="load-btn" (click)="downloadAreaOfInterest()">Download Area of Interest</button>
-      <label class="load-btn" style="display: block; cursor: pointer; margin-bottom: 5px">
-        Upload Area of Interest
-        <input
-          (change)="uploadAreaOfInterest($event)"
-          type="file"
-          accept=".geojson,application/geo+json,application/json"
-          style="display: none"
-        />
-      </label>
-      <button class="clear-btn all-clear" (click)="clearAllFootprints()">Clear All</button>
-      <button class="merge-btn" [disabled]="!(hasMsFootprints && hasOsmFootprints)" (click)="mergeFootprints()">Merge Footprints</button>
-      <button class="proceed-btn" [disabled]="!hasAnyFootprints" (click)="proceedToCBLTable()">Proceed to CBL Table</button>
-    </div>
+  <div class="mt-4 mb-6 h-[65vh] min-h-[400px] w-[90%]">
+    <div class="h-full w-full rounded-lg border border-gray-300" id="map"></div>
   </div>
 </div>
 

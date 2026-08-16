@@ -16,7 +16,7 @@ import pandas as pd
 from building_data_utilities.ubid import centroid, encode_ubid
 from building_data_utilities.update_dataset_links import update_dataset_links
 from building_data_utilities.update_quadkeys import update_quadkeys
-from shapely.geometry import MultiPolygon, Polygon
+from shapely.geometry import MultiPolygon, Point, Polygon, box
 from shapely.ops import unary_union
 
 import flask_app.config as config
@@ -52,28 +52,36 @@ class FootprintService:
         self.data_dir = Path(config.data_dir)
         self.quadkeys_dir = self.data_dir / "quadkeys"
 
-    def get_quadkeys_for_polygon(self, polygon: Polygon) -> list[int]:
+    def get_quadkeys_for_polygon(self, polygon: Polygon | MultiPolygon) -> list[int]:
         """
         Get quadkeys that intersect with the given polygon.
 
+        For a MultiPolygon, quadkeys are computed per constituent part (using each part's own
+        bounding box) rather than the bounding box of the whole geometry. This avoids sweeping
+        in unrelated tiles that lie only in the "gap" between disjoint parts (e.g. when the
+        input represents several small, widely-separated areas of interest).
+
         Args:
-            polygon: Shapely Polygon object
+            polygon: Shapely Polygon or MultiPolygon object
 
         Returns:
             List of quadkey integers
         """
         try:
-            # Create GeoDataFrame for the area of interest
-            aoi_gdf = gpd.GeoDataFrame([{"geometry": polygon}], crs="EPSG:4326")
+            geoms = list(polygon.geoms) if isinstance(polygon, MultiPolygon) else [polygon]
 
-            # Get bounds of the area of interest
-            bounds = aoi_gdf.bounds.iloc[0]
-            minx, miny, maxx, maxy = bounds["minx"], bounds["miny"], bounds["maxx"], bounds["maxy"]
-
-            # Get quadkeys for the area
             quadkeys = set()
-            for tile in list(mercantile.tiles(minx, miny, maxx, maxy, zooms=9)):
-                quadkeys.add(int(mercantile.quadkey(tile)))
+            for geom in geoms:
+                # Create GeoDataFrame for this part of the area of interest
+                aoi_gdf = gpd.GeoDataFrame([{"geometry": geom}], crs="EPSG:4326")
+
+                # Get bounds of this part
+                bounds = aoi_gdf.bounds.iloc[0]
+                minx, miny, maxx, maxy = bounds["minx"], bounds["miny"], bounds["maxx"], bounds["maxy"]
+
+                # Get quadkeys for this part
+                for tile in list(mercantile.tiles(minx, miny, maxx, maxy, zooms=9)):
+                    quadkeys.add(int(mercantile.quadkey(tile)))
 
             quadkeys_list = list(quadkeys)
             self.logger.info(f"The input area spans {len(quadkeys_list)} tiles: {quadkeys_list}")
@@ -729,6 +737,214 @@ class FootprintService:
         combined_gdf = combined_gdf.drop(columns=addr_cols)
 
         return self._finalize_footprints(combined_gdf)
+
+    def build_point_query_polygon(self, points: list[dict], buffer_degrees: float = 0.003) -> Polygon | MultiPolygon:
+        """
+        Build a small, padded box around EACH query point and return their union, suitable for
+        looking up nearby MS/OSM footprints (via get_quadkeys_for_polygon/load_*_footprints).
+
+        A per-point box (rather than one bounding box spanning every point) is used so that
+        selecting points that are geographically far apart doesn't sweep in the entire
+        (potentially huge/unrelated) area between them.
+
+        Args:
+            points: List of dicts with "latitude" and "longitude" keys
+            buffer_degrees: Padding (in degrees) added around each point, to ensure footprints
+                near (but not exactly centered on) the point are captured
+
+        Returns:
+            Shapely Polygon (single point) or MultiPolygon (multiple points) covering the area
+            around each point plus padding
+        """
+        boxes = [
+            box(
+                float(p["longitude"]) - buffer_degrees,
+                float(p["latitude"]) - buffer_degrees,
+                float(p["longitude"]) + buffer_degrees,
+                float(p["latitude"]) + buffer_degrees,
+            )
+            for p in points
+        ]
+        return unary_union(boxes)
+
+    def match_points_to_ms_footprints(self, points: list[dict]) -> dict[int, dict]:
+        """
+        Batched replacement for matching a (potentially large) list of geocoded points to
+        Microsoft footprints, grouped and spatial-joined per quadkey tile instead of one
+        `gpd.sjoin` call per individual point.
+
+        Args:
+            points: list of dicts, each with "index" (the point's position in the caller's
+                data list), "latitude", and "longitude" keys.
+
+        Returns:
+            Dict mapping each input point's "index" to a result dict with keys:
+            "geometry" (shapely geometry), "height" (float | None), "ubid" (str),
+            "footprint_match" ("intersection" | "closest"). Points whose quadkey tile file
+            is missing/unreadable, or that have no candidate footprints at all, are omitted.
+        """
+        if not points:
+            return {}
+
+        # Group points by MS quadkey tile (zoom 9) so each tile file is loaded/read once and
+        # matched against all of its points in a single vectorized spatial join.
+        points_by_quadkey: dict[int, list[dict]] = {}
+        for p in points:
+            tile = mercantile.tile(float(p["longitude"]), float(p["latitude"]), 9)
+            quadkey = int(mercantile.quadkey(tile))
+            points_by_quadkey.setdefault(quadkey, []).append(p)
+
+        results: dict[int, dict] = {}
+
+        for quadkey, quadkey_points in points_by_quadkey.items():
+            quadkey_file = self.quadkeys_dir / f"{quadkey}.geojsonl.gz"
+            if not quadkey_file.exists():
+                self.logger.warning(f"Quadkey file not found: {quadkey_file}")
+                continue
+
+            try:
+                with gzip.open(quadkey_file, "rb") as f:
+                    footprints_gdf = gpd.read_file(f)
+            except Exception as e:
+                self.logger.error(f"Error loading quadkey {quadkey}: {e}")
+                continue
+
+            if len(footprints_gdf) == 0:
+                continue
+
+            points_gdf = gpd.GeoDataFrame(
+                {"point_index": [p["index"] for p in quadkey_points]},
+                geometry=[Point(float(p["longitude"]), float(p["latitude"])) for p in quadkey_points],
+                crs="EPSG:4326",
+            )
+
+            # Single vectorized join for every point in this tile, instead of one join per point.
+            joined = gpd.sjoin(points_gdf, footprints_gdf, predicate="within", how="left")
+            joined = joined[~joined.index.duplicated(keep="first")]
+
+            unmatched_indices = []
+            for row in joined.itertuples():
+                point_index = row.point_index
+                footprint_idx = getattr(row, "index_right", None)
+                if footprint_idx is None or (isinstance(footprint_idx, float) and pd.isna(footprint_idx)):
+                    unmatched_indices.append(point_index)
+                    continue
+
+                footprint = footprints_gdf.iloc[int(footprint_idx)]
+                results[point_index] = {
+                    "geometry": footprint.geometry,
+                    "height": footprint.height if footprint.height != -1 else None,
+                    "ubid": encode_ubid(footprint.geometry),
+                    "footprint_match": "intersection",
+                }
+
+            # Points with no intersecting footprint fall back to nearest-by-distance within
+            # the same tile (still one vectorized distance computation per remaining point,
+            # not a fresh sjoin).
+            if unmatched_indices:
+                point_by_index = {p["index"]: p for p in quadkey_points}
+                for point_index in unmatched_indices:
+                    p = point_by_index[point_index]
+                    point_geom = Point(float(p["longitude"]), float(p["latitude"]))
+                    nearest_idx = footprints_gdf.distance(point_geom).sort_values().index[0]
+                    footprint = footprints_gdf.iloc[nearest_idx]
+                    results[point_index] = {
+                        "geometry": footprint.geometry,
+                        "height": footprint.height if footprint.height != -1 else None,
+                        "ubid": encode_ubid(footprint.geometry),
+                        "footprint_match": "closest",
+                    }
+
+        return results
+
+    def match_footprints_to_points(
+        self, points_gdf: gpd.GeoDataFrame, footprints_gdf: gpd.GeoDataFrame, max_nearest_distance_degrees: float = 0.003
+    ) -> tuple[gpd.GeoDataFrame, gpd.GeoDataFrame]:
+        """
+        Split a set of candidate footprints into those that match at least one of the given
+        query points, and those that don't.
+
+        A footprint "matches" a point either by containment (the point falls inside the
+        footprint polygon -- the common case for a geocoded/rooftop-accurate point) or, for any
+        point left unmatched by containment, by nearest-distance fallback (mirroring
+        match_points_to_ms_footprints()/the "Match Footprints" button), so points whose
+        coordinates are slightly off from the footprint (e.g. geocoded to a nearby location)
+        still get a footprint attached instead of silently returning nothing.
+
+        Args:
+            points_gdf: GeoDataFrame of query points with a "point_id" column
+            footprints_gdf: GeoDataFrame of candidate footprint polygons
+            max_nearest_distance_degrees: Maximum distance (in degrees) a point may be from its
+                nearest footprint to still count as a "closest" match; prevents matching a point
+                to a footprint from a completely unrelated building far away.
+
+        Returns:
+            Tuple of (matched, unmatched) GeoDataFrames. `matched` has an added
+            "matched_point_id" column identifying which point each footprint overlaps
+            (the first matching point, if more than one), and a "footprint_match" column
+            ("intersection" or "closest").
+        """
+        if len(footprints_gdf) == 0:
+            return footprints_gdf.copy(), footprints_gdf.copy()
+
+        joined = gpd.sjoin(footprints_gdf, points_gdf[["point_id", "geometry"]], predicate="contains", how="left")
+
+        matched_mask = joined["point_id"].notna()
+        matched = joined[matched_mask].copy()
+        matched = matched[~matched.index.duplicated(keep="first")]
+        matched = matched.rename(columns={"point_id": "matched_point_id"})
+        if "index_right" in matched.columns:
+            matched = matched.drop(columns=["index_right"])
+        matched["footprint_match"] = "intersection"
+
+        unmatched = footprints_gdf.drop(index=matched.index, errors="ignore").copy()
+
+        # Fallback: any query point that didn't fall inside a footprint (e.g. its coordinates
+        # are slightly off from the actual rooftop) still gets the nearest remaining footprint,
+        # as long as it's within max_nearest_distance_degrees.
+        matched_point_ids = set(matched["matched_point_id"]) if len(matched) > 0 else set()
+        unmatched_points = points_gdf[~points_gdf["point_id"].isin(matched_point_ids)]
+
+        if len(unmatched_points) > 0 and len(unmatched) > 0:
+            closest_rows = []
+            remaining = unmatched.copy()
+            for _, point_row in unmatched_points.iterrows():
+                if len(remaining) == 0:
+                    break
+                distances = remaining.distance(point_row.geometry)
+                nearest_idx = distances.sort_values().index[0]
+                if distances[nearest_idx] > max_nearest_distance_degrees:
+                    continue
+                nearest_footprint = remaining.loc[[nearest_idx]].copy()
+                nearest_footprint["matched_point_id"] = point_row["point_id"]
+                nearest_footprint["footprint_match"] = "closest"
+                closest_rows.append(nearest_footprint)
+                # Don't match the same footprint to more than one point.
+                remaining = remaining.drop(index=nearest_idx)
+
+            if closest_rows:
+                closest_matched = pd.concat(closest_rows)
+                matched = pd.concat([matched, closest_matched])
+                unmatched = unmatched.drop(index=closest_matched.index, errors="ignore")
+
+        return matched, unmatched
+
+    def footprints_to_feature_dicts(self, gdf: gpd.GeoDataFrame) -> list[dict]:
+        """
+        Convert a footprints GeoDataFrame into a list of plain GeoJSON Feature dicts
+        (geometry + properties), with NumPy types converted to native Python types.
+
+        Args:
+            gdf: GeoDataFrame to convert
+
+        Returns:
+            List of GeoJSON Feature dicts (empty list if gdf is empty)
+        """
+        if len(gdf) == 0:
+            return []
+
+        finalized = self._finalize_footprints(gdf.copy())
+        return json.loads(finalized.to_json())["features"]
 
     def _finalize_footprints(self, gdf):
         """

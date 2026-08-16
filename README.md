@@ -72,6 +72,7 @@ Note that if an environment key for AMAZON_API_KEY, AMAZON_BASE_URL, and AMAZON_
 ### Running the Web App
 
 1. Run the web app by opening two terminals:
+
    - One in the root directory (or angular-app directory) and running `npm start` to start the Angular development server
    - Another with the working directory as flask_app (in your virtual environment) and running `python app.py`
 

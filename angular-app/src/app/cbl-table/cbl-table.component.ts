@@ -17,6 +17,7 @@ import { GeoJsonService } from '../services/geojson.service'
 import { FlaskRequests } from '../services/server.service'
 import { SessionService } from '../services/session.service'
 import { HeatmapService, type HeatmapConfig } from '../services/heatmap.service'
+import { CANONICAL_FIELD_UNITS } from '../shared/column-mapping.util'
 import { state } from '@angular/animations'
 
 interface ColumnStatistic {
@@ -61,12 +62,33 @@ export class CblTableComponent implements OnInit, OnDestroy {
   public cachedCanMergeRecords: boolean = false
   public cachedCanDeleteRecords: boolean = false
   public cachedCanReverseGeocode: boolean = false
+  public cachedCanDownloadFootprints: boolean = false
 
-  // for menu
+  // for export menu
   isOpen = false
 
   toggleMenu() {
     this.isOpen = !this.isOpen
+  }
+
+  // for main "Actions" hamburger menu (holds all row/table action buttons)
+  isActionsMenuOpen = false
+
+  toggleActionsMenu() {
+    this.isActionsMenuOpen = !this.isActionsMenuOpen
+  }
+
+  closeActionsMenu() {
+    this.isActionsMenuOpen = false
+  }
+
+  // Runs the given action (if enabled) and closes the actions menu afterwards
+  runActionsMenuItem(enabled: boolean, action: () => void) {
+    if (!enabled) {
+      return
+    }
+    action()
+    this.closeActionsMenu()
   }
 
   //ag grid set up
@@ -93,12 +115,42 @@ export class CblTableComponent implements OnInit, OnDestroy {
   selectedRowForReverseGeocode: any = null
   selectedRowHasFootprint = false
 
+  // Download footprints dialog properties
+  showDownloadFootprintsDialog = false
+  isDownloadingFootprints = false
+  footprintDownloadConfig: { sources: { ms: boolean; osm: boolean }; keepNew: boolean } = {
+    sources: { ms: true, osm: false },
+    keepNew: false,
+  }
+
+  // Geocode / match-footprints / full-workflow button state
+  isGeocoding = false
+  isMatchingFootprints = false
+  isRunningFullWorkflow = false
+
   // File upload dialog properties
   showFileUploadDialog = false
 
   // Column statistics modal properties
   showColumnStatsDialog = false
   columnStats: ColumnStatistic[] = []
+  columnStatsColDefs: ColDef[] = []
+  columnStatsDefaultColDef = {
+    flex: 1,
+    minWidth: 130,
+    sortable: true,
+    filter: true,
+    resizable: true,
+  }
+  private columnStatsGridApi: any
+
+  // Right-click context menu for the Column Statistics table (delete/merge-from-here shortcuts)
+  columnStatsContextMenu: { visible: boolean; x: number; y: number; columnName: string } = {
+    visible: false,
+    x: 0,
+    y: 0,
+    columnName: '',
+  }
 
   // Merge columns properties
   showMergeDialog = false
@@ -115,6 +167,10 @@ export class CblTableComponent implements OnInit, OnDestroy {
   hasNumericColumns = false
   isHeatmapActive = false
   private heatmapSubscription?: Subscription
+
+  // Whether to show a pin for every building's lat/long on the map, so all buildings remain
+  // visible when zoomed out (in addition to any footprint polygons/edit markers already shown).
+  showAllPins = false
 
   // Record merging properties
   showRecordMergeDialog = false
@@ -148,12 +204,12 @@ export class CblTableComponent implements OnInit, OnDestroy {
     'weekly_hours',
   ]
 
-  // getRowId function for AG-Grid to properly identify rows using index
+  // getRowId function for AG-Grid to properly identify rows using the feature's own stable id
+  // (not its array index), so row identity survives sorting/filtering/reordering. Falls back to
+  // a random id only for the rare case a feature is missing an id entirely.
   getRowId = (params: any) => {
-    // Use the row's index in the data array as the unique identifier
-    // This ensures each row has a unique ID regardless of data content
-    const index = this.rowData.indexOf(params.data)
-    return index >= 0 ? index.toString() : Math.random().toString()
+    const id = params.data?.id
+    return id !== undefined && id !== null ? String(id) : Math.random().toString()
   }
 
   // Default properties for new buildings - easier to maintain
@@ -219,6 +275,7 @@ export class CblTableComponent implements OnInit, OnDestroy {
       this.cachedCanMergeRecords = false
       this.cachedCanDeleteRecords = false
       this.cachedCanReverseGeocode = false
+      this.cachedCanDownloadFootprints = false
       return
     }
 
@@ -236,6 +293,7 @@ export class CblTableComponent implements OnInit, OnDestroy {
     this.cachedCanMergeRecords = selectedRows.length === 2 && selectedNodes.length === 2
     this.cachedCanDeleteRecords = selectedRows.length >= 1
     this.cachedCanReverseGeocode = selectedRows.length >= 1
+    this.cachedCanDownloadFootprints = selectedRows.length >= 1
   }
 
   /**
@@ -292,6 +350,8 @@ export class CblTableComponent implements OnInit, OnDestroy {
     this.showReverseGeocodeDialog = false
     this.selectedRowForReverseGeocode = null
     this.selectedRowHasFootprint = false
+    this.showDownloadFootprintsDialog = false
+    this.isDownloadingFootprints = false
 
     // Defer updating cached info to prevent ExpressionChangedAfterItHasBeenCheckedError
     setTimeout(() => {
@@ -304,10 +364,21 @@ export class CblTableComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit() {
-    // Force reload from session storage to ensure we have the latest data
+    // Only force a reload from session storage if we don't already have valid data in memory.
+    // This handles a genuine fresh page load / hard refresh of /cbl-table (where in-memory state
+    // is empty and session storage is the only source of truth), WITHOUT clobbering data that
+    // was just navigated in from the Data Validation Table via geoJsonService.setGeoJson() --
+    // which is especially important for large uploads, where session storage may have failed to
+    // persist a stale/incomplete copy (e.g. sessionStorage quota exceeded) that would otherwise
+    // silently overwrite the correct, freshly-loaded in-memory data.
     if (this.initialLoad) {
-      console.log('Initial load - forcing reload from session storage')
-      this.geoJsonService.reloadFromSessionStorage()
+      const currentGeoJson = this.geoJsonService.getCurrentGeoJson()
+      if (!currentGeoJson || !currentGeoJson.features || currentGeoJson.features.length === 0) {
+        console.log('Initial load with no in-memory data - reloading from session storage')
+        this.geoJsonService.reloadFromSessionStorage()
+      } else {
+        console.log('Initial load already has in-memory data - skipping session storage reload')
+      }
     }
 
     // Subscribe to heatmap status changes
@@ -483,8 +554,15 @@ export class CblTableComponent implements OnInit, OnDestroy {
 
   // Header editing methods
   getDisplayHeaderName(originalKey: string): string {
-    // Return custom display name if set, otherwise return Title Case of original key
-    return this.editableHeaders[originalKey] || this.toTitleCase(originalKey)
+    // Return custom display name if set, otherwise Title Case of the original key with its
+    // known unit appended (e.g. "Weather Normalized Site Eui (kBtu/ft²)") so users can see what
+    // scale the values are in without having to guess.
+    if (this.editableHeaders[originalKey]) {
+      return this.editableHeaders[originalKey]
+    }
+    const titleCased = this.toTitleCase(originalKey)
+    const unit = CANONICAL_FIELD_UNITS[originalKey]
+    return unit ? `${titleCased} (${unit})` : titleCased
   }
 
   updateHeaderName(originalKey: string, newDisplayName: string): void {
@@ -678,6 +756,12 @@ export class CblTableComponent implements OnInit, OnDestroy {
       return coordinates.length > 0 && Array.isArray(coordinates[0]) && coordinates[0].length > 2 // Need at least 3 points for a valid polygon
     }
 
+    // A Point marker (lat/long only, no matched footprint polygon) never counts as having a
+    // footprint, even though its "coordinates" ([lng, lat]) is a non-empty array.
+    if (building.geometry.type === 'Point') {
+      return false
+    }
+
     // For other geometry types, check if coordinates exist
     return coordinates.length > 0
   }
@@ -723,65 +807,17 @@ export class CblTableComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Check if a column contains primarily numeric data for filtering purposes
+   * Check if a column contains primarily numeric data for filtering purposes. Prefers sampling
+   * the actual data (most reliable -- works regardless of column naming), and only falls back to
+   * column-name heuristics when there's no data to sample (e.g. an empty/new column). Name
+   * patterns use word boundaries so "country"/"county" don't false-positive on "count", etc.
    */
   private isColumnNumeric(columnName: string): boolean {
     if (!this.geoJson?.features?.length) {
       return false
     }
 
-    // Define known numeric columns
-    const knownNumericColumns = [
-      'footprint_area_ft2',
-      'footprint_area_m2',
-      'height',
-      'year_built',
-      'gross_floor_area',
-      'gfa',
-      'latitude',
-      'longitude',
-      'P25 target EUI',
-      'P50 target EUI',
-      'P75 target EUI',
-    ]
-
-    if (knownNumericColumns.includes(columnName)) {
-      return true
-    }
-
-    // Check if column name suggests numeric data
-    const numericPatterns = [
-      /area/i,
-      /size/i,
-      /sqft/i,
-      /sq_ft/i,
-      /square/i,
-      /feet/i,
-      /ft/i,
-      /height/i,
-      /width/i,
-      /length/i,
-      /depth/i,
-      /year/i,
-      /age/i,
-      /count/i,
-      /number/i,
-      /num/i,
-      /value/i,
-      /amount/i,
-      /price/i,
-      /cost/i,
-      /energy/i,
-      /eui/i,
-      /consumption/i,
-      /usage/i,
-    ]
-
-    if (numericPatterns.some((pattern) => pattern.test(columnName))) {
-      return true
-    }
-
-    // Sample data to determine if column is numeric
+    // Sample data to determine if column is numeric -- this is the primary signal.
     const sampleSize = Math.min(10, this.geoJson.features.length)
     const sampleFeatures = this.geoJson.features.slice(0, sampleSize)
 
@@ -799,8 +835,62 @@ export class CblTableComponent implements OnInit, OnDestroy {
       }
     })
 
-    // Consider a column numeric if at least 70% of non-empty values are numeric
-    return totalCount > 0 && numericCount / totalCount >= 0.7
+    if (totalCount > 0) {
+      // Consider a column numeric if at least 70% of non-empty sampled values are numeric.
+      return numericCount / totalCount >= 0.7
+    }
+
+    // No sampled data available (column is entirely empty in this sample) -- fall back to
+    // known-numeric-column names / word-boundary name patterns as a best-effort guess.
+    const knownNumericColumns = [
+      'footprint_area_ft2',
+      'footprint_area_m2',
+      'height',
+      'year_built',
+      'gross_floor_area',
+      'gfa',
+      'latitude',
+      'longitude',
+      'site_eui',
+      'weather_normalized_site_eui',
+      'P25 target EUI',
+      'P50 target EUI',
+      'P75 target EUI',
+    ]
+
+    if (knownNumericColumns.includes(columnName)) {
+      return true
+    }
+
+    // Word-boundary patterns so substrings like "count" don't match inside "country"/"county".
+    const numericPatterns = [
+      /\barea\b/i,
+      /\bsize\b/i,
+      /\bsqft\b/i,
+      /\bsq_ft\b/i,
+      /\bsquare\b/i,
+      /\bfeet\b/i,
+      /\bft\b/i,
+      /\bheight\b/i,
+      /\bwidth\b/i,
+      /\blength\b/i,
+      /\bdepth\b/i,
+      /\byear\b/i,
+      /\bage\b/i,
+      /\bcount\b/i,
+      /\bnumber\b/i,
+      /\bnum\b/i,
+      /\bvalue\b/i,
+      /\bamount\b/i,
+      /\bprice\b/i,
+      /\bcost\b/i,
+      /\benergy\b/i,
+      /\beui\b/i,
+      /\bconsumption\b/i,
+      /\busage\b/i,
+    ]
+
+    return numericPatterns.some((pattern) => pattern.test(columnName))
   }
 
   // Dynamically sets grid for geojson values
@@ -943,32 +1033,28 @@ export class CblTableComponent implements OnInit, OnDestroy {
   }
 
   scrollToFeatureById(id: string, isShiftClick: boolean = false) {
-    // Find the feature in rowData'
-    const feature = this.rowData.find((f: any) => f.id === id)
+    if (!this.gridApi) {
+      return
+    }
 
-    if (!feature) {
+    // Look up the row directly by its stable id (matches getRowId above) instead of by array
+    // index, so this still finds the right row even when the table is sorted or filtered (an
+    // array index would point at the wrong displayed row in that case).
+    const rowNode = this.gridApi.getRowNode(String(id))
+
+    if (!rowNode) {
       console.error(`Feature with ID ${id} not found.`)
       return
     }
 
-    console.log('THIS IS THE FEATURE BEING SEARCHED', feature)
-    console.log(this.rowData.indexOf(feature))
-
-    if (feature && this.gridApi) {
-      // For shift-click, don't clear existing selections to allow multi-select
-      if (!isShiftClick) {
-        // Clear any existing selections first (single-click behavior from map)
-        this.gridApi.deselectAll()
-      }
-
-      this.gridApi.ensureIndexVisible(this.rowData.indexOf(feature), 'middle')
-      const index = this.rowData.indexOf(feature)
-      const rowNode = this.gridApi.getDisplayedRowAtIndex(index)
-
-      if (rowNode) {
-        rowNode.setSelected(true)
-      }
+    // For shift-click, don't clear existing selections to allow multi-select
+    if (!isShiftClick) {
+      // Clear any existing selections first (single-click behavior from map)
+      this.gridApi.deselectAll()
     }
+
+    this.gridApi.ensureNodeVisible(rowNode, 'middle')
+    rowNode.setSelected(true)
   }
 
   onRowClicked(event: any) {
@@ -1186,6 +1272,373 @@ export class CblTableComponent implements OnInit, OnDestroy {
 
       // Refresh the grid to show new columns if they were added
       this.updateTable()
+    }
+  }
+
+  openDownloadFootprintsDialog() {
+    if (this.rowData.length === 0) {
+      alert('No data available')
+      return
+    }
+
+    const selectedData = this.gridApi.getSelectedRows()
+    if (selectedData.length === 0) {
+      alert('Please select at least one building to download footprints for')
+      return
+    }
+
+    this.showDownloadFootprintsDialog = true
+  }
+
+  closeDownloadFootprintsDialog() {
+    this.showDownloadFootprintsDialog = false
+  }
+
+  /**
+   * Download MS Footprints and/or OpenStreetMap building footprints near the selected
+   * buildings' points, and either:
+   * - only attach footprints that actually overlap (contain) a selected point, or
+   * - also add newly discovered nearby footprints as brand new rows (keepNew).
+   */
+  downloadFootprintsForSelection() {
+    const { ms, osm } = this.footprintDownloadConfig.sources
+    if (!ms && !osm) {
+      alert('Please select at least one data source (MS Footprints or OpenStreetMap)')
+      return
+    }
+
+    const selectedData = this.gridApi.getSelectedRows()
+    const points: { id: string; latitude: number; longitude: number }[] = []
+    const skipped: string[] = []
+
+    selectedData.forEach((building: any) => {
+      const lat = Number(building.properties?.latitude)
+      const lng = Number(building.properties?.longitude)
+      if (lat && lng && lat !== 0 && lng !== 0) {
+        points.push({ id: String(building.id), latitude: lat, longitude: lng })
+      } else {
+        skipped.push(building.properties?.street_address || building.id)
+      }
+    })
+
+    if (points.length === 0) {
+      alert('None of the selected buildings have valid latitude/longitude coordinates')
+      return
+    }
+
+    const sources: string[] = []
+    if (ms) sources.push('ms')
+    if (osm) sources.push('osm')
+
+    const requestData = {
+      points,
+      sources,
+      keep_new: this.footprintDownloadConfig.keepNew,
+    }
+
+    this.isDownloadingFootprints = true
+
+    this.apiHandler.downloadFootprintsForPoints(requestData).subscribe(
+      (response: { footprints?: any[]; matched_count?: number; new_count?: number }) => {
+        this.applyDownloadedFootprints(response.footprints ?? [])
+
+        const matchedCount = response.matched_count ?? 0
+        const newCount = response.new_count ?? 0
+        let message = `Matched footprints for ${matchedCount} of ${points.length} selected building${points.length === 1 ? '' : 's'}.`
+        if (this.footprintDownloadConfig.keepNew) {
+          message += ` Found ${newCount} new nearby footprint${newCount === 1 ? '' : 's'}.`
+        }
+        if (skipped.length > 0) {
+          message += ` Skipped ${skipped.length} selected building${skipped.length === 1 ? '' : 's'} without valid coordinates.`
+        }
+        alert(message)
+
+        this.isDownloadingFootprints = false
+        this.closeDownloadFootprintsDialog()
+        this.cdr.detectChanges()
+      },
+      (errorResponse: { error?: { message?: string; error?: string } }) => {
+        console.error('Download footprints failed:', errorResponse)
+        alert('Failed to download footprints: ' + (errorResponse.error?.message || errorResponse.error?.error || 'Unknown error'))
+        this.isDownloadingFootprints = false
+        this.cdr.detectChanges()
+      },
+    )
+  }
+
+  private applyDownloadedFootprints(footprints: any[]) {
+    const updatedBuildings: any[] = []
+    const newBuildings: any[] = []
+
+    // Fields NOT to copy onto an already-existing matched row: address/location fields (the
+    // row's own address/point should stay authoritative, not be overwritten by the footprint
+    // dataset's usually-blank address fields), and the internal matching bookkeeping field.
+    const excludedFieldsForExistingRows = new Set(['matched_point_id', 'street_address', 'city', 'state', 'postal_code', 'country', 'latitude', 'longitude'])
+
+    footprints.forEach((footprint) => {
+      const matchedPointId = footprint.properties?.matched_point_id
+
+      if (matchedPointId) {
+        // Attach ALL footprint metadata (height, footprint_area_ft2/m2, ubid, source,
+        // confidence, footprint_match, and any other columns MS/OSM returns) to the matching
+        // existing row, without clobbering the row's own address/identifying fields.
+        const building = this.rowData.find((row) => String(row.id) === String(matchedPointId))
+        if (building) {
+          building.geometry = footprint.geometry
+          Object.entries(footprint.properties ?? {}).forEach(([key, value]) => {
+            if (excludedFieldsForExistingRows.has(key)) {
+              return
+            }
+            // "source" from the footprint response maps to our "footprint_source" column.
+            const targetKey = key === 'source' ? 'footprint_source' : key
+            if (value !== null && value !== undefined) {
+              building.properties[targetKey] = value
+            }
+          })
+          updatedBuildings.push(building)
+
+          // Track any newly-introduced property names (e.g. "confidence") so they get their
+          // own table column instead of being silently dropped from the grid.
+          const propertyNames = this.sessionService.getPropertyNames()
+          let addedNewColumn = false
+          Object.keys(building.properties).forEach((key) => {
+            if (!propertyNames.includes(key)) {
+              propertyNames.push(key)
+              addedNewColumn = true
+            }
+          })
+          if (addedNewColumn) {
+            this.sessionService.setPropertyNames(propertyNames)
+          }
+        }
+      } else {
+        // New footprint that doesn't overlap any selected point - add as a brand new row
+        const newId = `footprint_${Date.now()}_${newBuildings.length}`
+        const defaults = this.getEnhancedDefaultProperties()
+        const newBuilding: any = {
+          type: 'Feature',
+          id: newId,
+          geometry: footprint.geometry,
+          properties: {
+            ...defaults,
+            ...footprint.properties,
+            street_address: footprint.properties?.street_address || defaults.street_address,
+            city: footprint.properties?.city || defaults.city,
+            state: footprint.properties?.state || defaults.state,
+            postal_code: footprint.properties?.postal_code || defaults.postal_code,
+            building_type: footprint.properties?.building_type || defaults.building_type,
+            footprint_source: footprint.properties?.source ?? defaults.footprint_source,
+            quality: 'New (from footprint)',
+          },
+        }
+        delete newBuilding.properties.matched_point_id
+        delete newBuilding.properties.source
+        newBuildings.push(newBuilding)
+
+        // Track any newly-introduced property names here too.
+        const propertyNames = this.sessionService.getPropertyNames()
+        let addedNewColumn = false
+        Object.keys(newBuilding.properties).forEach((key) => {
+          if (!propertyNames.includes(key)) {
+            propertyNames.push(key)
+            addedNewColumn = true
+          }
+        })
+        if (addedNewColumn) {
+          this.sessionService.setPropertyNames(propertyNames)
+        }
+      }
+    })
+
+    if (updatedBuildings.length > 0) {
+      this.gridApi.applyTransaction({ update: updatedBuildings })
+    }
+
+    if (newBuildings.length > 0) {
+      this.gridApi.applyTransaction({ add: newBuildings, addIndex: 0 })
+      newBuildings.forEach((newBuilding) => this.geoJson.features.push(newBuilding))
+    }
+
+    if (updatedBuildings.length > 0 || newBuildings.length > 0) {
+      this.geoJsonService.setGeoJson(this.geoJson)
+      this.updateTable()
+      this.gridApi.refreshCells({ columns: ['hasFootprint'], force: true })
+      this.updateDataSourceInfo()
+    }
+  }
+
+  /** Buildings without a valid, non-zero latitude/longitude yet (candidates for geocoding). */
+  private getBuildingsMissingCoordinates(buildings: any[]): any[] {
+    return buildings.filter((building: any) => {
+      const lat = Number(building.properties?.latitude)
+      const lng = Number(building.properties?.longitude)
+      return !lat || !lng || (lat === 0 && lng === 0)
+    })
+  }
+
+  /**
+   * Geocode (via Amazon Location Services) the selected buildings that don't already have a
+   * valid latitude/longitude, leaving buildings that already have coordinates untouched.
+   * Runs when the user clicks "Geocode Addresses".
+   */
+  geocodeSelected(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const selectedData = this.gridApi.getSelectedRows()
+      if (selectedData.length === 0) {
+        alert('Please select at least one building to geocode')
+        resolve()
+        return
+      }
+
+      const toGeocode = this.getBuildingsMissingCoordinates(selectedData)
+      if (toGeocode.length === 0) {
+        alert('All selected buildings already have valid latitude/longitude. Nothing to geocode.')
+        resolve()
+        return
+      }
+
+      const rows = toGeocode.map((building: any) => ({
+        id: building.id,
+        street_address: building.properties?.street_address,
+        city: building.properties?.city,
+        state: building.properties?.state,
+        postal_code: building.properties?.postal_code,
+        country: building.properties?.country,
+      }))
+
+      this.isGeocoding = true
+      this.apiHandler.geocodeMissingAddresses(JSON.stringify(rows)).subscribe(
+        (response: { results?: any[] }) => {
+          const updatedBuildings: any[] = []
+          ;(response.results ?? []).forEach((result: any) => {
+            const building = this.rowData.find((row) => String(row.id) === String(result.id))
+            if (!building) return
+            if (result.latitude !== undefined) building.properties.latitude = result.latitude
+            if (result.longitude !== undefined) building.properties.longitude = result.longitude
+            if (result.address !== undefined) building.properties.street_address = result.address
+            if (result.city !== undefined) building.properties.city = result.city
+            if (result.state !== undefined) building.properties.state = result.state
+            if (result.postal_code !== undefined) building.properties.postal_code = result.postal_code
+            building.properties.quality = result.quality === 'Poor' ? 'Poor' : 'Geocoded'
+            updatedBuildings.push(building)
+          })
+
+          if (updatedBuildings.length > 0) {
+            this.gridApi.applyTransaction({ update: updatedBuildings })
+            this.geoJsonService.setGeoJson(this.geoJson)
+            this.updateTable()
+            this.updateDataSourceInfo()
+          }
+
+          alert(`Geocoded ${updatedBuildings.length} of ${toGeocode.length} building(s) missing coordinates.`)
+          this.isGeocoding = false
+          this.cdr.detectChanges()
+          resolve()
+        },
+        (errorResponse: { error?: { message?: string } }) => {
+          console.error('Geocoding failed:', errorResponse)
+          alert('Geocoding failed: ' + (errorResponse.error?.message || 'Unknown error'))
+          this.isGeocoding = false
+          this.cdr.detectChanges()
+          reject(errorResponse)
+        },
+      )
+    })
+  }
+
+  /**
+   * Match the selected (already-geocoded) buildings against Microsoft footprint data, using a
+   * single batched request instead of per-row geocoding-plus-footprint calls.
+   * Runs when the user clicks "Match Footprints".
+   */
+  matchFootprintsForSelected(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const selectedData = this.gridApi.getSelectedRows()
+      if (selectedData.length === 0) {
+        alert('Please select at least one building to match footprints for')
+        resolve()
+        return
+      }
+
+      const candidates = selectedData.filter((building: any) => {
+        const lat = Number(building.properties?.latitude)
+        const lng = Number(building.properties?.longitude)
+        return lat && lng && !(lat === 0 && lng === 0)
+      })
+
+      if (candidates.length === 0) {
+        alert('None of the selected buildings have valid latitude/longitude yet. Try "Geocode Addresses" first.')
+        resolve()
+        return
+      }
+
+      const rows = candidates.map((building: any) => ({
+        id: building.id,
+        latitude: building.properties?.latitude,
+        longitude: building.properties?.longitude,
+      }))
+
+      this.isMatchingFootprints = true
+      this.apiHandler.matchFootprints(JSON.stringify(rows)).subscribe(
+        (response: { results?: any[] }) => {
+          const updatedBuildings: any[] = []
+          ;(response.results ?? []).forEach((result: any) => {
+            const building = this.rowData.find((row) => String(row.id) === String(result.id))
+            if (!building) return
+            building.geometry = result.geometry
+            building.properties.height = result.height
+            building.properties.ubid = result.ubid
+            building.properties.footprint_match = result.footprint_match
+            updatedBuildings.push(building)
+          })
+
+          if (updatedBuildings.length > 0) {
+            this.gridApi.applyTransaction({ update: updatedBuildings })
+            this.geoJsonService.setGeoJson(this.geoJson)
+            this.updateTable()
+            this.gridApi.refreshCells({ columns: ['hasFootprint'], force: true })
+            this.updateDataSourceInfo()
+          }
+
+          alert(`Matched footprints for ${updatedBuildings.length} of ${candidates.length} building(s).`)
+          this.isMatchingFootprints = false
+          this.cdr.detectChanges()
+          resolve()
+        },
+        (errorResponse: { error?: { message?: string } }) => {
+          console.error('Match footprints failed:', errorResponse)
+          alert('Match footprints failed: ' + (errorResponse.error?.message || 'Unknown error'))
+          this.isMatchingFootprints = false
+          this.cdr.detectChanges()
+          reject(errorResponse)
+        },
+      )
+    })
+  }
+
+  /**
+   * "Run Full Workflow" master button: geocodes the selected buildings that need it, then
+   * matches footprints for all selected buildings with valid coordinates, in sequence.
+   */
+  async runFullWorkflowForSelected() {
+    const selectedData = this.gridApi.getSelectedRows()
+    if (selectedData.length === 0) {
+      alert('Please select at least one building to run the full workflow for')
+      return
+    }
+
+    this.isRunningFullWorkflow = true
+    try {
+      const needsGeocoding = this.getBuildingsMissingCoordinates(selectedData).length > 0
+      if (needsGeocoding) {
+        await this.geocodeSelected()
+      }
+      // Re-select the same rows aren't necessary since geocodeSelected mutates in place and
+      // AG-Grid selection is preserved across applyTransaction updates.
+      await this.matchFootprintsForSelected()
+    } finally {
+      this.isRunningFullWorkflow = false
+      this.cdr.detectChanges()
     }
   }
 
@@ -1449,14 +1902,16 @@ export class CblTableComponent implements OnInit, OnDestroy {
         // Update the row data
         const data = rowNode
 
-        // Handle footprint deletion - if coordinates are empty, clear the footprint
+        // Handle footprint deletion / point-marker move - if no polygon coordinates were
+        // provided (e.g. a Point marker was dragged, or a footprint was explicitly removed),
+        // represent this building as a Point at its new lat/long instead of a stale/empty
+        // Polygon, and clear the UBID since any previously-matched footprint no longer applies.
         if (!modBuilding.coordinates || modBuilding.coordinates.length === 0) {
-          // Clear the footprint data
-          data.geometry.coordinates = [[]] // Empty polygon coordinates
+          data.geometry = { type: 'Point', coordinates: [Number(modBuilding.longitude), Number(modBuilding.latitude)] }
           data.properties.ubid = '' // Clear UBID
         } else {
           // Update with new coordinates
-          data.geometry.coordinates = [modBuilding.coordinates]
+          data.geometry = { type: 'Polygon', coordinates: [modBuilding.coordinates] }
         }
 
         data.properties.latitude = modBuilding.latitude
@@ -1725,12 +2180,147 @@ export class CblTableComponent implements OnInit, OnDestroy {
   // Column Statistics Modal Methods
   showColumnStatsModal() {
     this.calculateColumnStats()
+    this.buildColumnStatsColDefs()
     this.showColumnStatsDialog = true
   }
 
   closeColumnStatsModal() {
     this.showColumnStatsDialog = false
     this.columnStats = []
+    this.closeColumnStatsContextMenu()
+  }
+
+  onColumnStatsGridReady(event: any) {
+    this.columnStatsGridApi = event.api
+  }
+
+  /**
+   * Build the AG-Grid column definitions for the Column Statistics table, giving it the same
+   * sort/filter/resize capabilities as the main CBL table (instead of a plain static HTML
+   * table), plus a "Visual" population-percentage bar and an "Actions" column for delete.
+   */
+  private buildColumnStatsColDefs(): void {
+    this.columnStatsColDefs = [
+      {
+        field: 'columnName',
+        headerName: 'Column Name',
+        filter: 'agTextColumnFilter',
+        cellClass: 'font-medium text-gray-900',
+      },
+      {
+        field: 'populatedCount',
+        headerName: 'Records with Data',
+        filter: 'agNumberColumnFilter',
+        maxWidth: 180,
+      },
+      {
+        field: 'totalCount',
+        headerName: 'Total Records',
+        filter: 'agNumberColumnFilter',
+        maxWidth: 150,
+      },
+      {
+        field: 'percentage',
+        headerName: 'Population %',
+        filter: 'agNumberColumnFilter',
+        maxWidth: 150,
+        sort: 'desc',
+        cellRenderer: (params: any) => {
+          const span = document.createElement('span')
+          span.className = this.getPercentageClass(params.value)
+          span.textContent = `${params.value}%`
+          return span
+        },
+      },
+      {
+        field: 'percentage',
+        colId: 'visual',
+        headerName: 'Visual',
+        sortable: false,
+        filter: false,
+        maxWidth: 160,
+        cellRenderer: (params: any) => {
+          const wrapper = document.createElement('div')
+          wrapper.className = 'w-full bg-gray-200 rounded-full h-2'
+          const bar = document.createElement('div')
+          bar.className = `h-2 rounded-full transition-all duration-300 ${this.getProgressBarClass(params.value)}`
+          bar.style.width = `${params.value}%`
+          wrapper.appendChild(bar)
+          return wrapper
+        },
+      },
+      {
+        field: 'columnName',
+        colId: 'actions',
+        headerName: 'Actions',
+        sortable: false,
+        filter: false,
+        maxWidth: 130,
+        cellRenderer: (params: any) => {
+          const columnName = params.value
+          if (this.canDeleteColumn(columnName)) {
+            const button = document.createElement('button')
+            button.className =
+              'inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded text-red-700 bg-red-100 hover:bg-red-200 transition-colors'
+            button.title = 'Delete this column from all records'
+            button.textContent = 'Delete'
+            button.addEventListener('click', () => this.deleteColumn(columnName))
+            return button
+          }
+          const span = document.createElement('span')
+          span.className = 'inline-flex items-center px-2 py-1 text-xs font-medium text-gray-400 bg-gray-100 rounded'
+          span.title = 'This column cannot be deleted'
+          span.textContent = 'Protected'
+          return span
+        },
+      },
+    ]
+  }
+
+  /**
+   * Show a custom right-click context menu for a Column Statistics row, offering the same
+   * "Delete Column"/"Merge Columns..." shortcuts as the Actions column, matching the SEED
+   * platform's column statistics table (sort, filter, right-click).
+   */
+  onColumnStatsCellContextMenu(event: any): void {
+    const mouseEvent: MouseEvent = event.event
+    if (!mouseEvent) {
+      return
+    }
+    mouseEvent.preventDefault()
+
+    const columnName = event.data?.columnName
+    if (!columnName) {
+      return
+    }
+
+    this.columnStatsContextMenu = {
+      visible: true,
+      x: mouseEvent.clientX,
+      y: mouseEvent.clientY,
+      columnName,
+    }
+  }
+
+  closeColumnStatsContextMenu(): void {
+    this.columnStatsContextMenu = { visible: false, x: 0, y: 0, columnName: '' }
+  }
+
+  contextMenuDeleteColumn(): void {
+    const columnName = this.columnStatsContextMenu.columnName
+    this.closeColumnStatsContextMenu()
+    if (columnName) {
+      this.deleteColumn(columnName)
+    }
+  }
+
+  contextMenuMergeFromHere(): void {
+    const columnName = this.columnStatsContextMenu.columnName
+    this.closeColumnStatsContextMenu()
+    if (columnName) {
+      this.openMergeDialog()
+      this.mergeConfig.sourceColumn = columnName
+    }
   }
 
   calculateColumnStats() {
@@ -1812,6 +2402,11 @@ export class CblTableComponent implements OnInit, OnDestroy {
 
   trackByColumnName(index: number, item: ColumnStatistic): string {
     return item.columnName
+  }
+
+  // getRowId for the Column Statistics AG-Grid table
+  trackByColumnNameRowId = (params: any): string => {
+    return params.data.columnName
   }
 
   trackByOriginalKey(index: number, item: { originalKey: string; displayName: string }): string {
@@ -2541,7 +3136,10 @@ export class CblTableComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Parse various numeric formats into a number
+   * Parse various numeric formats into a number. Requires the (whitespace/currency-stripped)
+   * string to be ENTIRELY numeric -- unlike parseFloat(), which happily parses just the leading
+   * digits of a string (e.g. parseFloat("12695 E. 39th Ave") === 12695), which previously caused
+   * text columns like "street_address" to be misdetected as numeric.
    */
   private parseNumericValue(value: any): number | null {
     if (value === null || value === undefined || value === '') {
@@ -2553,10 +3151,13 @@ export class CblTableComponent implements OnInit, OnDestroy {
       return value
     }
 
-    // If string, try to parse
+    // If string, try to parse -- but only if the whole (cleaned) string is numeric.
     if (typeof value === 'string') {
-      // Remove common non-numeric characters like commas, dollar signs, etc.
+      // Remove common non-numeric characters like commas, dollar signs, whitespace, etc.
       const cleaned = value.replace(/[$,\s]/g, '')
+      if (!/^-?\d+(\.\d+)?$/.test(cleaned)) {
+        return null
+      }
       const parsed = parseFloat(cleaned)
       return isNaN(parsed) ? null : parsed
     }
@@ -2565,10 +3166,11 @@ export class CblTableComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Get display name for a column (using header mappings if available)
+   * Get display name for a column (using header mappings if available), including its unit
+   * (e.g. "kBtu/ft²") when known, so heatmap field selection makes the scale clear.
    */
   getDisplayName(column: string): string {
-    return this.editableHeaders[column] || column
+    return this.getDisplayHeaderName(column)
   }
 
   /**

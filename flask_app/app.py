@@ -182,6 +182,219 @@ def check_data():
     return jsonify({"message": "success", "user_data": json_data}), 200
 
 
+def _rows_to_geojson_response(file_data: list[dict], data: list[dict[str, Any]]) -> dict:
+    """
+    Merge original uploaded row data with per-row geocode/coordinate results and convert to a
+    GeoJSON FeatureCollection string, in the same shape the frontend (CBL Table) expects.
+    """
+    poor_quality_codes = ["Ambiguous", "No results found", "Less Than 0.90 Confidence"]
+
+    merged_data = []
+    for i in range(len(data)):
+        file_dict = file_data[i]
+        data_dict = data[i]
+
+        if data_dict.get("quality") in poor_quality_codes:
+            data_dict["quality"] = "Poor"
+        elif data_dict.get("quality") is not None:
+            data_dict["quality"] = "Good"
+
+        merged_dict = data_transformation_service.merge_dicts(file_dict, data_dict)
+        merged_data.append(merged_dict)
+
+    columns = ["street_address", "city", "state"]
+    for key in merged_data[0]:
+        if key.lower() not in columns:
+            columns.append(key)
+
+    gdf = gpd.GeoDataFrame(data=merged_data, columns=columns)
+    return file_processing_service.geodataframe_to_json(gdf)
+
+
+@app.route("/api/build_initial_geojson", methods=["POST"])
+def build_initial_geojson():
+    """
+    Build the initial GeoJSON for the CBL Table directly from the uploaded/validated rows,
+    WITHOUT calling any geocoding service or matching footprints. Rows that already contain a
+    valid latitude/longitude get that point; rows without one are placed at (0, 0) with
+    "quality": "Not geocoded", to be resolved later via the "Geocode Addresses" button.
+
+    This lets the Data Validation Table's "Continue to Map" action be fast and side-effect-free
+    (no Amazon API calls, no footprint downloads) -- geocoding and footprint matching are
+    explicit, separate steps the user triggers from the CBL Table.
+    """
+    app.logger.info("function: build_initial_geojson")
+
+    try:
+        json_string = request.json.get("value")
+        file_data = json.loads(json_string)
+    except ValueError:
+        return jsonify({"message": "Something went wrong while reading the edited json"}), 400
+
+    if not file_data:
+        return jsonify({"message": "No data provided"}), 400
+
+    locations = data_transformation_service.generate_locations_list(file_data)
+    for loc in locations:
+        loc["street"] = normalize_address(loc["street"])
+
+    data: list[dict[str, Any]] = []
+    for i, record in enumerate(file_data):
+        coords = data_transformation_service.extract_coordinates(record)
+        if coords is not None:
+            latitude, longitude = coords
+            datum = data_transformation_service.build_provided_coordinate_datum(record, locations[i], latitude, longitude)
+            datum["geometry"] = Point(longitude, latitude)
+            datum["ubid"] = None
+            data.append(datum)
+        else:
+            data.append(
+                {
+                    "quality": "Not geocoded",
+                    "address": locations[i]["street"],
+                    "city": locations[i]["city"],
+                    "state": locations[i]["state"],
+                    "postal_code": None,
+                    "country": None,
+                    "latitude": 0,
+                    "longitude": 0,
+                    "geometry": None,
+                    "ubid": None,
+                }
+            )
+
+    final_geojson = _rows_to_geojson_response(file_data, data)
+    return jsonify({"message": "success", "user_data": final_geojson}), 200
+
+
+@app.route("/api/geocode_missing_addresses", methods=["POST"])
+def geocode_missing_addresses():
+    """
+    Runs when the user clicks "Geocode Addresses" on the CBL Table. Geocodes (via Amazon
+    Location Services) only the currently-selected buildings that don't already have a valid
+    latitude/longitude (quality == "Not geocoded" or address-based rows), leaving buildings
+    that already have coordinates untouched.
+
+    Expected request body: {"value": "<json string of GeoJSON feature properties list>"}
+    Each item should include the address fields (street_address/city/state/postal_code/country)
+    and an "id" the frontend can use to reapply the result to the right row.
+
+    Response: {"message": "success", "results": [{"id": ..., quality, latitude, longitude, ...}]}
+    """
+    app.logger.info("function: geocode_missing_addresses")
+
+    try:
+        json_string = request.json.get("value")
+        rows = json.loads(json_string)
+    except ValueError:
+        return jsonify({"message": "Something went wrong while reading the edited json"}), 400
+
+    if not rows:
+        return jsonify({"message": "No rows provided"}), 400
+
+    locations = data_transformation_service.generate_locations_list(rows)
+    for loc in locations:
+        loc["street"] = normalize_address(loc["street"])
+
+    AMAZON_API_KEY = os.getenv("AMAZON_API_KEY")
+    AMAZON_BASE_URL = os.getenv("AMAZON_BASE_URL") or "https://places.geo.us-east-2.api.aws/v2"
+    AMAZON_APP_ID = os.getenv("AMAZON_APP_ID")
+
+    if not AMAZON_API_KEY:
+        app.logger.warning("Missing Amazon API key")
+
+    try:
+        geocoded_results = geocode_addresses(locations, AMAZON_API_KEY, AMAZON_BASE_URL, AMAZON_APP_ID)
+    except Exception as e:
+        app.logger.warning(f"Geocoding failed for {len(locations)} row(s): {e}")
+        return (
+            jsonify(
+                {
+                    "message": (
+                        f"Geocoding failed for {len(locations)} building(s) (Amazon Location Services API key "
+                        f"is missing, invalid, or at its limit): {e}"
+                    )
+                }
+            ),
+            400,
+        )
+
+    poor_quality_codes = ["Ambiguous", "No results found", "Less Than 0.90 Confidence"]
+    results = []
+    for row, geocoded_result in zip(rows, geocoded_results):
+        result = dict(geocoded_result)
+        result["id"] = row.get("id")
+        result["quality"] = "Poor" if result.get("quality") in poor_quality_codes else "Geocoded"
+        results.append(result)
+
+    return jsonify({"message": "success", "results": results}), 200
+
+
+@app.route("/api/match_footprints", methods=["POST"])
+def match_footprints():
+    """
+    Runs when the user clicks "Match Footprints" on the CBL Table. Matches the currently-selected
+    (already-geocoded) buildings against Microsoft footprint data, batched per MS quadkey tile
+    so tiles are only loaded/read once and spatial-joined against all of their points in a
+    single vectorized operation (rather than one join per building).
+
+    Expected request body: {"value": "<json string of rows>"}, each row a dict with "id",
+    "latitude", and "longitude".
+
+    Response: {"message": "success", "results": [{"id", "geometry", "height", "ubid",
+    "footprint_match"}]}. Rows whose quadkey tile is unavailable, or with no candidate
+    footprints nearby, are omitted from the results.
+    """
+    app.logger.info("function: match_footprints")
+
+    try:
+        json_string = request.json.get("value")
+        rows = json.loads(json_string)
+    except ValueError:
+        return jsonify({"message": "Something went wrong while reading the edited json"}), 400
+
+    if not rows:
+        return jsonify({"message": "No rows provided"}), 400
+
+    points = []
+    for row in rows:
+        try:
+            latitude = float(row["latitude"])
+            longitude = float(row["longitude"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if latitude == 0 and longitude == 0:
+            continue
+        points.append({"index": row.get("id"), "latitude": latitude, "longitude": longitude})
+
+    if not points:
+        return jsonify({"message": "success", "results": []}), 200
+
+    quadkeys = set()
+    for p in points:
+        tile = mercantile.tile(p["longitude"], p["latitude"], 9)
+        quadkeys.add(int(mercantile.quadkey(tile)))
+
+    update_dataset_links()
+    update_quadkeys(list(quadkeys))
+
+    matches = footprint_service.match_points_to_ms_footprints(points)
+
+    results = []
+    for point_index, match in matches.items():
+        results.append(
+            {
+                "id": point_index,
+                "geometry": json.loads(gpd.GeoSeries([match["geometry"]]).to_json())["features"][0]["geometry"],
+                "height": match["height"],
+                "ubid": match["ubid"],
+                "footprint_match": match["footprint_match"],
+            }
+        )
+
+    return jsonify({"message": "success", "results": results}), 200
+
+
 @app.route("/api/generate_cbl", methods=["POST"])
 def generate_cbl():
     """
@@ -200,27 +413,54 @@ def generate_cbl():
 
     locations = data_transformation_service.generate_locations_list(file_data)
 
-    AMAZON_API_KEY = os.getenv("AMAZON_API_KEY")
-    AMAZON_BASE_URL = os.getenv("AMAZON_BASE_URL")
-    AMAZON_APP_ID = os.getenv("AMAZON_APP_ID")
-
-    if not AMAZON_API_KEY:
-        app.logger.warning("Missing Amazon API key")
-
-    if not AMAZON_BASE_URL:
-        app.logger.warning("Missing Amazon base URL. Using default: https://places.geo.us-east-2.api.aws/v2")
-        AMAZON_BASE_URL = "https://places.geo.us-east-2.api.aws/v2"
-
     for loc in locations:
         loc["street"] = normalize_address(loc["street"])
 
-    try:
-        data = geocode_addresses(locations, AMAZON_API_KEY, AMAZON_BASE_URL, AMAZON_APP_ID)
+    # Rows that already include a valid latitude/longitude can skip geocoding entirely and go
+    # straight to footprint matching below, preserving their original (often more accurate)
+    # coordinates instead of having them overwritten by the geocoding service.
+    provided_coordinates = [data_transformation_service.extract_coordinates(record) for record in file_data]
+    geocode_indices = [i for i, coords in enumerate(provided_coordinates) if coords is None]
 
-    except Exception:
-        return jsonify(
-            {"message": "Failed geocoding property states due to Amazon error. Your Amazon API Key is either invalid or at its limit."}
-        ), 400
+    data: list[dict[str, Any]] = [{} for _ in file_data]
+    geocoding_warning: str | None = None
+
+    if geocode_indices:
+        AMAZON_API_KEY = os.getenv("AMAZON_API_KEY")
+        AMAZON_BASE_URL = os.getenv("AMAZON_BASE_URL")
+        AMAZON_APP_ID = os.getenv("AMAZON_APP_ID")
+
+        if not AMAZON_API_KEY:
+            app.logger.warning("Missing Amazon API key")
+
+        if not AMAZON_BASE_URL:
+            app.logger.warning("Missing Amazon base URL. Using default: https://places.geo.us-east-2.api.aws/v2")
+            AMAZON_BASE_URL = "https://places.geo.us-east-2.api.aws/v2"
+
+        locations_to_geocode = [locations[i] for i in geocode_indices]
+
+        try:
+            geocoded_results = geocode_addresses(locations_to_geocode, AMAZON_API_KEY, AMAZON_BASE_URL, AMAZON_APP_ID)
+        except Exception as e:
+            # Don't fail the whole batch just because the rows missing latitude/longitude
+            # couldn't be geocoded (e.g. no/invalid Amazon API key). Mark only those rows as
+            # "Ambiguous" (same as a low-confidence geocode result) so rows that already had
+            # valid provided coordinates still get processed successfully below.
+            app.logger.warning(f"Geocoding failed for {len(locations_to_geocode)} row(s) missing coordinates: {e}")
+            geocoded_results = [{"quality": "Ambiguous"} for _ in locations_to_geocode]
+            geocoding_warning = (
+                f"{len(locations_to_geocode)} building(s) were missing latitude/longitude and could not be "
+                "geocoded (Amazon Location Services API key is missing, invalid, or at its limit). They were "
+                "marked as 'Poor' quality; add a valid API key or provide coordinates manually to resolve them."
+            )
+
+        for i, result in zip(geocode_indices, geocoded_results):
+            data[i] = result
+
+    for i, coords in enumerate(provided_coordinates):
+        if coords is not None:
+            latitude, longitude = coords
+            data[i] = data_transformation_service.build_provided_coordinate_datum(file_data[i], locations[i], latitude, longitude)
 
     poor_quality_codes = ["Ambiguous", "No results found", "Less Than 0.90 Confidence"]
 
@@ -307,7 +547,11 @@ def generate_cbl():
     gdf = gpd.GeoDataFrame(data=merged_data, columns=columns)
     final_geojson = file_processing_service.geodataframe_to_json(gdf)
 
-    return jsonify({"message": "success", "user_data": final_geojson}), 200
+    response_payload = {"message": "success", "user_data": final_geojson}
+    if geocoding_warning:
+        response_payload["warning"] = geocoding_warning
+
+    return jsonify(response_payload), 200
 
 
 # Endpoint to get bounding box for a location name using osmnx
@@ -766,6 +1010,117 @@ def download_osm_footprints():
     except Exception as e:
         log_error_with_context("Unexpected error in download_osm_footprints", e)
         return jsonify({"error": f"Unexpected error: {e}"}), 500
+
+
+@app.route("/api/download_footprints_for_points", methods=["POST"])
+@handle_service_exceptions("download_footprints_for_points")
+def download_footprints_for_points():
+    """
+    Download Microsoft footprints and/or OpenStreetMap building footprints near a set of
+    selected points (typically the currently-selected rows in the CBL Table), and determine
+    which footprints actually overlap (contain) each point.
+
+    Runs when the user clicks "Download Footprints" in the CBL Table toolbar.
+
+    Expected request format:
+    {
+        "points": [{"id": "<row id>", "latitude": <float>, "longitude": <float>}, ...],
+        "sources": ["ms", "osm"],
+        "keep_new": false  # if true, also return footprints that don't overlap any point
+    }
+
+    Response format:
+    {
+        "message": "success",
+        "footprints": [
+            {"type": "Feature", "geometry": {...}, "properties": {..., "matched_point_id": "<row id>" | null}}
+        ],
+        "matched_count": <int>,
+        "new_count": <int>
+    }
+    Only footprints with a non-null "matched_point_id" overlap a selected point; footprints
+    with "matched_point_id" set to null are newly discovered nearby footprints and are only
+    included when "keep_new" is true.
+    """
+    app.logger.info("function: download_footprints_for_points")
+
+    data, error = validate_request_data(["points", "sources"])
+    if error:
+        return error
+
+    points = data["points"]
+    requested_sources = data["sources"]
+    keep_new = bool(data.get("keep_new", False))
+
+    if not points:
+        return jsonify({"error": "No points provided"}), 400
+
+    valid_sources = {"ms", "osm"}
+    sources = [s for s in requested_sources if s in valid_sources]
+    if not sources:
+        return jsonify({"error": "No valid sources provided. Must include 'ms' and/or 'osm'"}), 400
+
+    try:
+        points_gdf = gpd.GeoDataFrame(
+            {"point_id": [str(p["id"]) for p in points]},
+            geometry=[Point(float(p["longitude"]), float(p["latitude"])) for p in points],
+            crs="EPSG:4326",
+        )
+    except (KeyError, TypeError, ValueError) as e:
+        return jsonify({"error": f"Invalid points data: {e}"}), 400
+
+    polygon = footprint_service.build_point_query_polygon(points)
+
+    all_footprints: list[dict] = []
+    matched_count = 0
+    new_count = 0
+
+    if "ms" in sources:
+        quadkeys = footprint_service.get_quadkeys_for_polygon(polygon)
+        footprint_service.update_datasets(quadkeys)
+        ms_gdf = footprint_service.load_ms_footprints(polygon, quadkeys)
+        if len(ms_gdf) > 0:
+            ms_gdf = footprint_service.process_ms_footprints(ms_gdf)
+            matched, unmatched = footprint_service.match_footprints_to_points(points_gdf, ms_gdf)
+
+            matched_features = footprint_service.footprints_to_feature_dicts(matched)
+            all_footprints.extend(matched_features)
+            matched_count += len(matched_features)
+
+            if keep_new:
+                new_features = footprint_service.footprints_to_feature_dicts(unmatched)
+                for feature in new_features:
+                    feature["properties"]["matched_point_id"] = None
+                all_footprints.extend(new_features)
+                new_count += len(new_features)
+
+    if "osm" in sources:
+        osm_gdf = footprint_service.load_osm_footprints(polygon)
+        if len(osm_gdf) > 0:
+            osm_gdf = footprint_service.process_osm_footprints(osm_gdf)
+            matched, unmatched = footprint_service.match_footprints_to_points(points_gdf, osm_gdf)
+
+            matched_features = footprint_service.footprints_to_feature_dicts(matched)
+            all_footprints.extend(matched_features)
+            matched_count += len(matched_features)
+
+            if keep_new:
+                new_features = footprint_service.footprints_to_feature_dicts(unmatched)
+                for feature in new_features:
+                    feature["properties"]["matched_point_id"] = None
+                all_footprints.extend(new_features)
+                new_count += len(new_features)
+
+    app.logger.info(f"download_footprints_for_points: {matched_count} matched, {new_count} new (keep_new={keep_new})")
+
+    return jsonify(
+        {
+            "message": "success",
+            "footprints": all_footprints,
+            "matched_count": matched_count,
+            "new_count": new_count,
+        }
+    ), 200
 
 
 @app.route("/api/assign_target_eui", methods=["POST"])

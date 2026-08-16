@@ -1,0 +1,60 @@
+<div class="bg-opacity-50 fixed inset-0 z-50 flex items-center justify-center bg-black p-4" *ngIf="isOpen">
+  <div class="flex max-h-[85vh] w-full max-w-4xl flex-col rounded-lg bg-white shadow-xl">
+    <div class="flex items-center justify-between rounded-t-lg border-b bg-gray-50 px-6 py-4">
+      <h3 class="text-lg font-semibold text-gray-900">Review Column Mapping</h3>
+      <button class="rounded-md p-2 text-gray-400 hover:bg-gray-200 hover:text-gray-600" (click)="cancel()" type="button" aria-label="Close">
+        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+        </svg>
+      </button>
+    </div>
+
+    <div class="overflow-y-auto px-6 py-4">
+      <p class="mb-4 text-sm text-gray-600">We automatically matched your file's columns to the fields the CBL tool expects. Review the mapping below, check the columns you want to keep, and choose "Keep existing" plus an optional rename for any column that doesn't need to map to one of those fields.</p>
+
+      <div class="mb-3 flex items-center justify-between text-sm">
+        <span class="text-gray-500">{{ includedCount }} of {{ localRows.length }} column{{ localRows.length === 1 ? '' : 's' }} selected</span>
+        <div class="flex gap-3">
+          <button class="font-medium text-blue-600 hover:underline" (click)="toggleAll(true)" type="button">Select all</button>
+          <button class="font-medium text-blue-600 hover:underline" (click)="toggleAll(false)" type="button">Deselect all</button>
+        </div>
+      </div>
+
+      <p class="mb-3 rounded-md border border-red-200 bg-red-50 p-2 text-sm text-red-700" *ngIf="hasDuplicates">Two or more selected columns are mapped to the same field name. Make each mapped field name unique before saving.</p>
+
+      <table class="w-full border-collapse text-sm">
+        <thead>
+          <tr class="border-b text-left text-gray-500">
+            <th class="w-12 py-2">Keep</th>
+            <th class="py-2">Original Column</th>
+            <th class="py-2">Maps To</th>
+            <th class="py-2">Rename (optional)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="border-b" *ngFor="let row of localRows" [class.opacity-50]="!row.include">
+            <td class="py-2">
+              <input type="checkbox" [(ngModel)]="row.include" />
+            </td>
+            <td class="max-w-xs py-2 pr-4 break-words text-gray-800">{{ row.originalHeader }}</td>
+            <td class="py-2">
+              <select class="rounded-md border px-2 py-1" [class.border-red-400]="isDuplicateField(row)" [disabled]="!row.include" [ngModel]="row.useCustomField ? customFieldOption : row.mappedField" (ngModelChange)="onCanonicalFieldChange(row, $event)">
+                <option *ngFor="let field of canonicalFields" [value]="field.value">{{ field.label }}{{ fieldHolder(field.value, row) ? ' (currently: ' + fieldHolder(field.value, row) + ')' : '' }}</option>
+                <option [value]="customFieldOption">Keep existing</option>
+              </select>
+            </td>
+            <td class="py-2">
+              <input *ngIf="row.useCustomField" type="text" class="rounded-md border px-2 py-1" [class.border-red-400]="isDuplicateField(row)" [disabled]="!row.include" [(ngModel)]="row.mappedField" placeholder="Field name" />
+              <span *ngIf="!row.useCustomField" class="text-gray-400 italic">n/a</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="flex justify-end gap-2 rounded-b-lg border-t bg-gray-50 px-6 py-4">
+      <button class="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200" (click)="cancel()" type="button">Cancel</button>
+      <button class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50" [disabled]="hasDuplicates" (click)="save()" type="button">Save Mapping</button>
+    </div>
+  </div>
+</div>

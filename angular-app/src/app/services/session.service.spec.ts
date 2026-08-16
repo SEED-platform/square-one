@@ -85,20 +85,20 @@ describe('SessionService', () => {
 
   describe('Navigation State Methods', () => {
     it('should manage first table loaded state', () => {
-      expect(service.getFirstTableLoaded()).toBeFalse()
+      expect(service.getDataValidationLoaded()).toBeFalse()
 
-      service.setFirstTableLoaded(true)
-      expect(service.getFirstTableLoaded()).toBeTrue()
+      service.setDataValidationLoaded(true)
+      expect(service.getDataValidationLoaded()).toBeTrue()
 
-      service.setFirstTableLoaded(false)
-      expect(service.getFirstTableLoaded()).toBeFalse()
+      service.setDataValidationLoaded(false)
+      expect(service.getDataValidationLoaded()).toBeFalse()
     })
 
     it('should manage current page', () => {
       expect(service.getCurrentPage()).toBe('')
 
-      service.setCurrentPage('first-table')
-      expect(service.getCurrentPage()).toBe('first-table')
+      service.setCurrentPage('data-validation')
+      expect(service.getCurrentPage()).toBe('data-validation')
 
       service.setCurrentPage('cbl-table')
       expect(service.getCurrentPage()).toBe('cbl-table')
@@ -141,11 +141,11 @@ describe('SessionService', () => {
     })
 
     it('should manage first table data', () => {
-      expect(service.getFirstTableData()).toBeNull()
+      expect(service.getDataValidationData()).toBeNull()
 
       const compressedData = 'compressed-data-string'
-      service.setFirstTableData(compressedData)
-      expect(service.getFirstTableData()).toBe(compressedData)
+      service.setDataValidationData(compressedData)
+      expect(service.getDataValidationData()).toBe(compressedData)
     })
 
     it('should manage property names', () => {
@@ -197,7 +197,7 @@ describe('SessionService', () => {
       service.clearNavigationState()
 
       // Navigation state should be cleared
-      expect(service.getFirstTableLoaded()).toBeFalse()
+      expect(service.getDataValidationLoaded()).toBeFalse()
       expect(service.getCurrentPage()).toBe('')
       expect(service.getHomeAccess()).toBeTrue() // default value
 
@@ -207,19 +207,19 @@ describe('SessionService', () => {
     })
 
     it('should clear only data (keep navigation state)', () => {
-      service.setFirstTableLoaded(true)
+      service.setDataValidationLoaded(true)
       service.setCurrentPage('some-page')
 
       service.clearData()
 
       // Navigation state should remain
-      expect(service.getFirstTableLoaded()).toBeTrue()
+      expect(service.getDataValidationLoaded()).toBeTrue()
       expect(service.getCurrentPage()).toBe('some-page')
 
       // Data should be cleared
       expect(service.getGeoJsonData()).toEqual({})
       expect(service.getPropertyNames()).toEqual([])
-      expect(service.getFirstTableData()).toBeNull()
+      expect(service.getDataValidationData()).toBeNull()
       expect(service.getColumnDefinitions()).toEqual([])
       expect(service.getSelectedRow()).toEqual([])
     })
@@ -231,7 +231,7 @@ describe('SessionService', () => {
       expect(allData.currentPage).toBe('test-page')
       expect(allData.geoJsonData).toEqual({ test: 'data' })
       expect(allData.propertyNames).toEqual(['prop1', 'prop2'])
-      expect(allData.firstTableLoaded).toBeDefined()
+      expect(allData.dataValidationLoaded).toBeDefined()
       expect(allData.homeAccess).toBeDefined()
       expect(allData.geoJsonPropertyNames).toBeDefined()
       expect(allData.columnDefinitions).toBeDefined()
@@ -300,7 +300,7 @@ describe('SessionService', () => {
       expect(service.getPropertyNames()).toEqual([])
       expect(service.getColumnDefinitions()).toEqual([])
       expect(service.getGeoJsonData()).toEqual({})
-      expect(service.getFirstTableData()).toBeNull()
+      expect(service.getDataValidationData()).toBeNull()
     })
   })
 
@@ -311,8 +311,8 @@ describe('SessionService', () => {
     })
 
     it('should handle boolean values correctly', () => {
-      service.setFirstTableLoaded(true)
-      expect(service.getFirstTableLoaded()).toBe(true)
+      service.setDataValidationLoaded(true)
+      expect(service.getDataValidationLoaded()).toBe(true)
     })
 
     it('should handle array values correctly', () => {

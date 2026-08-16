@@ -106,6 +106,11 @@ export class GeoJsonService implements OnDestroy {
     return this.geoJsonSubject.asObservable()
   }
 
+  /** Synchronously get the current in-memory GeoJSON value (not the sessionStorage copy). */
+  getCurrentGeoJson(): any {
+    return this.geoJsonSubject.getValue()
+  }
+
   updateGeoJsonFromMap(mapRemovedObject: any): void {
     if (!mapRemovedObject) {
       console.error('Invalid object to remove')
@@ -200,7 +205,14 @@ export class GeoJsonService implements OnDestroy {
     }
 
     features[index].properties.ubid = ubid
-    features[index].geometry.coordinates = [coordinates]
+    if (!coordinates || coordinates.length === 0) {
+      // No polygon ring (e.g. a Point marker was dragged to a new location) - represent this
+      // building as a Point at its new latitude/longitude instead of a Polygon ring, so the map
+      // and any subsequent "Download Footprints"/"Match Footprints" lookups use the new spot.
+      features[index].geometry = { type: 'Point', coordinates: [longitude, latitude] }
+    } else {
+      features[index].geometry.coordinates = [coordinates]
+    }
     features[index].properties.latitude = latitude.toString()
     features[index].properties.longitude = longitude.toString()
 

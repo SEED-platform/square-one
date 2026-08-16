@@ -35,6 +35,35 @@ export class FlaskRequests {
     )
   }
 
+  // Builds the initial CBL Table GeoJSON from validated rows WITHOUT geocoding or footprint
+  // matching (those are explicit, separate steps triggered later from the CBL Table).
+  buildInitialGeoJson(jsonString: string): Observable<any> {
+    return this.http.post<any>(
+      'http://127.0.0.1:5001/api/build_initial_geojson',
+      { value: jsonString },
+      { headers: { 'Content-Type': 'application/json' } },
+    )
+  }
+
+  // Geocodes only the given rows (typically those missing latitude/longitude); rows that
+  // already have valid coordinates should not be sent here.
+  geocodeMissingAddresses(jsonString: string): Observable<any> {
+    return this.http.post<any>(
+      'http://127.0.0.1:5001/api/geocode_missing_addresses',
+      { value: jsonString },
+      { headers: { 'Content-Type': 'application/json' } },
+    )
+  }
+
+  // Matches the given (already-geocoded) rows against Microsoft footprint data.
+  matchFootprints(jsonString: string): Observable<any> {
+    return this.http.post<any>(
+      'http://127.0.0.1:5001/api/match_footprints',
+      { value: jsonString },
+      { headers: { 'Content-Type': 'application/json' } },
+    )
+  }
+
   sendFinalExportJsonData(jsonString: string): Observable<any> {
     return this.http.post<any>(
       'http://127.0.0.1:5001/api/export_geojson',
@@ -81,6 +110,12 @@ export class FlaskRequests {
 
   assignTargetEUI(requestData: any): Observable<any> {
     return this.http.post<any>('http://127.0.0.1:5001/api/assign_target_eui', requestData, {
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
+
+  downloadFootprintsForPoints(requestData: any): Observable<any> {
+    return this.http.post<any>('http://127.0.0.1:5001/api/download_footprints_for_points', requestData, {
       headers: { 'Content-Type': 'application/json' },
     })
   }

@@ -236,6 +236,68 @@ class DataTransformationService:
             log_error_with_context("Error generating locations list", e)
             raise
 
+    def extract_coordinates(self, record: dict) -> tuple[float, float] | None:
+        """
+        Extract a valid (latitude, longitude) pair already present in an uploaded record.
+
+        This lets rows that already contain point coordinates (e.g. a "Latitude"/"Longitude"
+        column) skip geocoding entirely and go straight to footprint matching, instead of
+        having their coordinates overwritten by the geocoding service.
+
+        Args:
+            record: Dictionary to search
+
+        Returns:
+            (latitude, longitude) tuple if the record has a valid, non-zero coordinate pair,
+            otherwise None.
+        """
+        lat_value = self._extract_field(record, "latitude")
+        lon_value = self._extract_field(record, "longitude")
+
+        if lat_value is None or lon_value is None:
+            return None
+
+        try:
+            latitude = float(lat_value)
+            longitude = float(lon_value)
+        except (TypeError, ValueError):
+            return None
+
+        # (0, 0) is used elsewhere in the app as a "no location" sentinel
+        if latitude == 0 and longitude == 0:
+            return None
+
+        if not (-90 <= latitude <= 90) or not (-180 <= longitude <= 180):
+            return None
+
+        return latitude, longitude
+
+    def build_provided_coordinate_datum(self, record: dict, location: Location, latitude: float, longitude: float) -> dict:
+        """
+        Build a geocode-result-shaped dict for a record that already has valid latitude/longitude,
+        so it can flow through the same downstream (quadkey/footprint matching) logic as a
+        geocoded result, without ever calling the geocoding API.
+
+        Args:
+            record: Original uploaded record
+            location: Location dict (street/city/state) generated for this record
+            latitude: Valid latitude extracted from the record
+            longitude: Valid longitude extracted from the record
+
+        Returns:
+            Dict shaped like a geocoding API result
+        """
+        return {
+            "quality": "Provided",
+            "address": location["street"],
+            "longitude": longitude,
+            "latitude": latitude,
+            "postal_code": self._extract_field(record, "postal_code"),
+            "city": location["city"],
+            "state": location["state"],
+            "country": self._extract_field(record, "country"),
+        }
+
     def _extract_field(self, record: dict, field_name: str) -> str | None:
         """
         Extract field value with case-insensitive matching.

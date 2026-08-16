@@ -1,5 +1,6 @@
 import { CommonModule } from '@angular/common'
 import { ChangeDetectorRef, Component, ElementRef, EventEmitter, Input, Output, ViewChild } from '@angular/core'
+import { Router } from '@angular/router'
 import { FlaskRequests } from '../../services/server.service'
 import { SessionService } from '../../services/session.service'
 import { GeoJsonService } from '../../services/geojson.service'
@@ -43,7 +44,7 @@ export class FileUploadDialogComponent {
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>
   @Input() isOpen = false
   @Output() dialogClosed = new EventEmitter<void>()
-  @Output() fileUploaded = new EventEmitter<unknown[] | Record<string, unknown>>()
+  @Output() fileUploaded = new EventEmitter<unknown[] | Record<string, unknown> | GeoJsonFeatureCollection>()
 
   selectedFile: FileItem | null = null
   allowedFileTypes: string[] = [
@@ -63,6 +64,7 @@ export class FileUploadDialogComponent {
     private ref: ChangeDetectorRef,
     private sessionService: SessionService,
     private geoJsonService: GeoJsonService,
+    private router: Router,
   ) {}
 
   /**
@@ -247,10 +249,7 @@ export class FileUploadDialogComponent {
         const parsedData = JSON.parse(response.user_data)
         console.log('parsedData:', parsedData)
         if (parsedData && this.selectedFile && parsedData[this.selectedFile.name]) {
-          // Process the data for the CBL table
-          this.processUploadedData(parsedData[this.selectedFile.name])
-          this.fileUploaded.emit(parsedData[this.selectedFile.name])
-          this.closeDialog()
+          this.routeUploadedData(parsedData[this.selectedFile.name])
         } else {
           this.errorMessage = 'No valid data found in the uploaded file'
         }
@@ -280,6 +279,33 @@ export class FileUploadDialogComponent {
         this.ref.detectChanges()
       },
     )
+  }
+
+  /**
+   * Route freshly uploaded data based on its shape:
+   * - Tabular rows (from CSV/Excel/JSON array uploads) are sent to the Data Validation
+   *   Table (/data-validation) so the user can review the automatic column-name mapping
+   *   (e.g. "Latitude" -> "latitude"), then run geocoding + Microsoft footprint matching
+   *   via "Run CBL Tool".
+   * - Data that's already a GeoJSON FeatureCollection (e.g. re-uploading a previously
+   *   exported CBL) is already in the target format, so it's applied directly.
+   */
+  private routeUploadedData(data: unknown[] | Record<string, unknown> | GeoJsonFeatureCollection) {
+    const isGeoJsonFeatureCollection =
+      !Array.isArray(data) && data && typeof data === 'object' && (data as GeoJsonFeatureCollection).type === 'FeatureCollection'
+
+    if (Array.isArray(data) && data.length > 0 && !isGeoJsonFeatureCollection) {
+      const filename = this.selectedFile?.name ?? 'uploaded_file'
+      this.sessionService.setDataValidationData(JSON.stringify({ [filename]: data }))
+      this.sessionService.setCurrentPage('data-validation')
+      this.closeDialog()
+      this.router.navigate(['/data-validation'])
+      return
+    }
+
+    this.processUploadedData(data)
+    this.fileUploaded.emit(data)
+    this.closeDialog()
   }
 
   private processUploadedData(data: unknown[] | Record<string, unknown> | GeoJsonFeatureCollection) {

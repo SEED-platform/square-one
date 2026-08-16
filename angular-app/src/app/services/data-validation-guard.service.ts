@@ -5,7 +5,7 @@ import { SessionService } from './session.service'
 @Injectable({
   providedIn: 'root',
 })
-export class FirstTableGuardService implements CanActivate {
+export class DataValidationGuardService implements CanActivate {
   constructor(
     private router: Router,
     private sessionService: SessionService,
@@ -26,10 +26,10 @@ export class FirstTableGuardService implements CanActivate {
   }
 
   getLoadedState(): boolean {
-    return this.sessionService.getFirstTableLoaded()
+    return this.sessionService.getDataValidationLoaded()
   }
 
   setLoadedState(loaded: boolean) {
-    this.sessionService.setFirstTableLoaded(loaded)
+    this.sessionService.setDataValidationLoaded(loaded)
   }
 }

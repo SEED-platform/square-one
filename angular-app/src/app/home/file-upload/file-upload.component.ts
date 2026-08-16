@@ -169,11 +169,11 @@ export class FileUploadComponent {
         console.log(response.message)
         this.initialJsonData = response.user_data
         const parsedData = JSON.parse(this.initialJsonData)
-        this.sessionService.setFirstTableData(parsedData) // Store as JSON object, not compressed
+        this.sessionService.setDataValidationData(parsedData) // Store as JSON object, not compressed
         if (parsedData.length !== 0) {
-          this.sessionService.setCurrentPage('first-table')
+          this.sessionService.setCurrentPage('data-validation')
           this.sessionService.setHomeAccess(false)
-          this.router.navigate(['/first-table'])
+          this.router.navigate(['/data-validation'])
         } else {
           alert('No File Submitted')
         }
@@ -186,12 +186,12 @@ export class FileUploadComponent {
         if (!this.fatalErrorArray.includes(errorResponse.error.message) && errorResponse.error.message !== undefined) {
           this.initialJsonData = errorResponse.error.user_data
           const parsedData = JSON.parse(this.initialJsonData)
-          this.sessionService.setFirstTableData(parsedData) // Store as JSON object, not compressed
+          this.sessionService.setDataValidationData(parsedData) // Store as JSON object, not compressed
           setTimeout(() => {
             console.log(this.initialJsonData)
-            this.sessionService.setCurrentPage('first-table')
+            this.sessionService.setCurrentPage('data-validation')
             this.sessionService.setHomeAccess(false)
-            this.router.navigate(['/first-table'])
+            this.router.navigate(['/data-validation'])
           }, 500)
         } else {
           if (errorResponse.error.message === undefined) {

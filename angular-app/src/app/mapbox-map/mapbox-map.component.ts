@@ -1,8 +1,9 @@
-import { Component, ChangeDetectorRef, OnInit, OnDestroy, ViewEncapsulation } from '@angular/core'
+import { Component, ChangeDetectorRef, Input, OnChanges, OnInit, OnDestroy, SimpleChanges, ViewEncapsulation } from '@angular/core'
 import { GeoJsonService } from '../services/geojson.service'
 import { FlaskRequests } from '../services/server.service'
 import { SessionService } from '../services/session.service'
 import { HeatmapService, type HeatmapData, type HeatmapConfig } from '../services/heatmap.service'
+import { CANONICAL_FIELD_UNITS } from '../shared/column-mapping.util'
 import * as mapboxgl from 'mapbox-gl'
 import MapboxDraw from '@mapbox/mapbox-gl-draw'
 import { CommonModule, JsonPipe } from '@angular/common'
@@ -23,13 +24,24 @@ import { InfoButton } from './custom-info-button'
   templateUrl: './mapbox-map.component.html',
   styleUrls: ['./mapbox-map.component.css'],
 })
-export class MapboxMapComponent implements OnInit, OnDestroy {
+export class MapboxMapComponent implements OnInit, OnChanges, OnDestroy {
   map: mapboxgl.Map | undefined
   style = 'mapbox://styles/mapbox/streets-v12'
   satelliteStyle = 'mapbox://styles/mapbox/satellite-v12'
   lat = 30.2672
   lng = -97.7431
   buildingArray: any[] = []
+
+  /**
+   * Whether to show a pin for EVERY building's lat/long (in addition to any footprint
+   * polygons/point markers already drawn), so all buildings remain visible even when zoomed
+   * out past the level where individual footprints/edit markers are visible.
+   */
+  @Input() showAllPins = false
+
+  private static readonly ALL_PINS_SOURCE_ID = 'all-buildings-pins-source'
+  private static readonly ALL_PINS_LAYER_ID = 'all-buildings-pins-layer'
+
   private zoomLevel = 13
   private isFirstLoad = true
   private geoJsonSubscription: Subscription | undefined
@@ -55,6 +67,9 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
   heatmapLegendItems: { color: string; value: number }[] = []
   heatmapMinValue = 0
   heatmapMaxValue = 0
+  // True when the legend's min/max were clamped to exclude extreme outlier values (so the
+  // legend range reflects the colors actually shown on the map, not the raw data's true range).
+  heatmapHasOutliers = false
 
   constructor(
     private cdr: ChangeDetectorRef,
@@ -170,8 +185,29 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
   ngOnInit() {
     this.geoJsonSubscription = this.geoJsonService.getGeoJson().subscribe((geoJsonObject) => {
       this.initializeMapWithGeoJson(geoJsonObject)
+      // If the map/draw layer already exists (this isn't the very first load), make sure any
+      // rows added or updated since then (e.g. "+ New Row", "Download Footprints") are reflected
+      // on the map without requiring a full page reload.
+      this.syncNewFeaturesToDraw(geoJsonObject)
       this.globalGeoJsonObject = geoJsonObject
       this.geoJsonPropertyNames = this.sessionService.getPropertyNames()
+
+      // Keep the "show all pins" layer (if enabled) in sync with the latest data too.
+      if (this.showAllPins) {
+        this.updateAllPinsLayer(geoJsonObject)
+      }
+
+      // syncNewFeaturesToDraw() replaces (delete+add) any feature whose geometry changed (e.g.
+      // a footprint just matched/downloaded for a building that was previously a point marker),
+      // which loses its heatmap portColor/portOpacity in the process. Re-apply the currently
+      // active heatmap (if any) so newly-drawn footprints/points are still colored correctly.
+      const currentHeatmapData = this.heatmapService.getCurrentHeatmapData()
+      if (this.heatmapService.isActive() && currentHeatmapData.length > 0) {
+        this.applyHeatmapColors(currentHeatmapData)
+        if (this.showAllPins) {
+          this.applyHeatmapColorsToPins(currentHeatmapData)
+        }
+      }
     })
 
     // Subscribe to heatmap data changes
@@ -181,6 +217,10 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
         this.applyHeatmapColors(heatmapData)
         this.generateHeatmapLegend(heatmapData)
         this.showHeatmapLegend = true
+
+        if (this.showAllPins) {
+          this.applyHeatmapColorsToPins(heatmapData)
+        }
       }
     })
 
@@ -196,6 +236,10 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
         this.clearHeatmapColors()
         this.showHeatmapLegend = false
         this.heatmapLegendItems = []
+
+        if (this.showAllPins) {
+          this.clearHeatmapColorsFromPins()
+        }
       }
     })
 
@@ -310,6 +354,135 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
     }
   }
 
+  ngOnChanges(changes: SimpleChanges) {
+    if (changes['showAllPins'] && !changes['showAllPins'].firstChange) {
+      if (this.showAllPins) {
+        this.updateAllPinsLayer(this.globalGeoJsonObject)
+      } else {
+        this.removeAllPinsLayer()
+      }
+    }
+  }
+
+  // ===== "SHOW ALL PINS" LAYER =====
+  // A lightweight native Mapbox GL circle layer (independent of MapboxDraw) showing a pin for
+  // every building's lat/long, so buildings remain visible when zoomed out past the level where
+  // individual footprint polygons/edit markers are legible. Uses a GeoJSON source, so it scales
+  // fine to hundreds/thousands of points without the overhead MapboxDraw's per-feature model has.
+
+  /**
+   * Build (or refresh) the "all pins" source/layer from the given GeoJSON data. Every feature
+   * with a valid, non-zero latitude/longitude gets a Point in the pin layer, regardless of
+   * whether it also has a footprint polygon.
+   */
+  private updateAllPinsLayer(geoJsonObject: any): void {
+    if (!this.map) {
+      return
+    }
+
+    const pinFeatures = this.buildPinFeatureCollection(geoJsonObject)
+
+    const applyLayer = () => {
+      if (!this.map) return
+
+      const source = this.map.getSource(MapboxMapComponent.ALL_PINS_SOURCE_ID) as mapboxgl.GeoJSONSource | undefined
+      if (source) {
+        source.setData(pinFeatures as any)
+        return
+      }
+
+      this.map.addSource(MapboxMapComponent.ALL_PINS_SOURCE_ID, {
+        type: 'geojson',
+        data: pinFeatures as any,
+      })
+
+      this.map.addLayer({
+        id: MapboxMapComponent.ALL_PINS_LAYER_ID,
+        type: 'circle',
+        source: MapboxMapComponent.ALL_PINS_SOURCE_ID,
+        paint: {
+          'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 3, 12, 5, 18, 9],
+          'circle-color': ['coalesce', ['get', 'pinColor'], '#e6550d'],
+          'circle-opacity': ['coalesce', ['get', 'pinOpacity'], 0.85],
+          'circle-stroke-width': 1,
+          'circle-stroke-color': '#ffffff',
+        },
+      })
+    }
+
+    if (this.map.isStyleLoaded()) {
+      applyLayer()
+    } else {
+      this.map.once('idle', applyLayer)
+    }
+  }
+
+  /** Remove the "all pins" source/layer entirely (called when the checkbox is unchecked). */
+  private removeAllPinsLayer(): void {
+    if (!this.map) {
+      return
+    }
+    if (this.map.getLayer(MapboxMapComponent.ALL_PINS_LAYER_ID)) {
+      this.map.removeLayer(MapboxMapComponent.ALL_PINS_LAYER_ID)
+    }
+    if (this.map.getSource(MapboxMapComponent.ALL_PINS_SOURCE_ID)) {
+      this.map.removeSource(MapboxMapComponent.ALL_PINS_SOURCE_ID)
+    }
+  }
+
+  /** Build a Point FeatureCollection (for the pin layer) from every building with valid coordinates. */
+  private buildPinFeatureCollection(geoJsonObject: any): GeoJSON.FeatureCollection {
+    const features: GeoJSON.Feature[] = []
+
+    ;(geoJsonObject?.features ?? []).forEach((feature: any) => {
+      const coords = this.extractCoordinatesFromFeature(feature)
+      if (!coords || (coords.latitude === 0 && coords.longitude === 0)) {
+        return
+      }
+
+      features.push({
+        type: 'Feature',
+        id: feature.id,
+        properties: { id: feature.id },
+        geometry: {
+          type: 'Point',
+          coordinates: [coords.longitude, coords.latitude],
+        },
+      })
+    })
+
+    return { type: 'FeatureCollection', features }
+  }
+
+  /** Color each pin according to the current heatmap data (mirrors applyHeatmapColors for Draw features). */
+  private applyHeatmapColorsToPins(heatmapData: HeatmapData[]): void {
+    if (!this.map || !this.map.getSource(MapboxMapComponent.ALL_PINS_SOURCE_ID)) {
+      return
+    }
+
+    const colorById = new Map(heatmapData.map((d) => [String(d.featureId), d]))
+    const pinFeatures = this.buildPinFeatureCollection(this.globalGeoJsonObject)
+
+    pinFeatures.features.forEach((feature) => {
+      const match = colorById.get(String(feature.id))
+      if (match && feature.properties) {
+        feature.properties['pinColor'] = match.color
+        feature.properties['pinOpacity'] = match.opacity
+      }
+    })
+
+    const source = this.map.getSource(MapboxMapComponent.ALL_PINS_SOURCE_ID) as mapboxgl.GeoJSONSource
+    source.setData(pinFeatures as any)
+  }
+
+  /** Reset all pins back to the default color/opacity (mirrors clearHeatmapColors for Draw features). */
+  private clearHeatmapColorsFromPins(): void {
+    if (!this.map || !this.map.getSource(MapboxMapComponent.ALL_PINS_SOURCE_ID)) {
+      return
+    }
+    this.updateAllPinsLayer(this.globalGeoJsonObject)
+  }
+
   ngOnDestroy() {
     this.geoJsonSubscription?.unsubscribe()
     this.featureClickSubscription?.unsubscribe()
@@ -404,6 +577,9 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
       this.map.on('load', () => {
         if (this.map) {
           this.addDrawFeatures(this.map, geoJsonObject)
+          if (this.showAllPins) {
+            this.updateAllPinsLayer(geoJsonObject)
+          }
         }
       })
     }
@@ -469,6 +645,126 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
     } else {
       console.warn('No features found at the click point.')
     }
+  }
+
+  /**
+   * Add a single building feature to the map's draw layer: as its footprint Polygon if it has
+   * one, otherwise as a Point marker at its latitude/longitude (if valid) so buildings without a
+   * matched footprint are still visible on the map instead of being silently omitted.
+   */
+  private addFeatureToDraw(feature: any): void {
+    const coords = this.extractCoordinatesFromFeature(feature)
+    const hasValidCoords = !!coords && coords.latitude !== 0 && coords.longitude !== 0
+
+    const hasValidPolygon =
+      feature.geometry &&
+      feature.geometry.type === 'Polygon' &&
+      Array.isArray(feature.geometry.coordinates) &&
+      Array.isArray(feature.geometry.coordinates[0]) &&
+      feature.geometry.coordinates[0].length >= 3
+
+    if (hasValidPolygon && hasValidCoords) {
+      // For GeoJSON files, we may not have ubid property, so we should still add the feature
+      // Only skip if ubid exists and is explicitly 0 or '0' (which indicates no footprint)
+      const hasValidUbid = !feature.properties?.ubid || (feature.properties.ubid !== 0 && feature.properties.ubid !== '0')
+
+      if (hasValidUbid) {
+        this.draw?.add({
+          id: feature.id,
+          type: 'Feature',
+          properties: feature.properties,
+          geometry: {
+            type: 'Polygon',
+            coordinates: feature.geometry.coordinates,
+          },
+        })
+      }
+    } else if (hasValidCoords) {
+      // No footprint polygon available for this building (e.g. a manually added row, or one
+      // whose footprint lookup didn't find/keep a match) - still show it on the map as a point
+      // marker at its latitude/longitude instead of leaving it invisible.
+      this.draw?.add({
+        id: feature.id,
+        type: 'Feature',
+        properties: feature.properties,
+        geometry: {
+          type: 'Point',
+          coordinates: [coords!.longitude, coords!.latitude],
+        },
+      })
+    }
+  }
+
+  /**
+   * Sync features between geoJsonObject and the map's draw layer: adds any brand-new features
+   * (e.g. rows added via "+ New Row"), and re-draws any existing feature whose geometry has
+   * changed since it was last drawn (e.g. a building that gets a footprint polygon attached via
+   * "Match Footprints" or "Download Footprints" after previously being shown as a point marker,
+   * or vice versa), so the map reflects the latest footprint match without a full page reload.
+   */
+  private syncNewFeaturesToDraw(geoJsonObject: any): void {
+    if (!this.draw || !geoJsonObject?.features) {
+      return
+    }
+
+    const existingFeatures = new Map(this.draw.getAll().features.map((f) => [String(f.id), f]))
+
+    geoJsonObject.features.forEach((feature: any) => {
+      if (feature?.id === undefined) {
+        return
+      }
+
+      const featureId = String(feature.id)
+      const drawnFeature = existingFeatures.get(featureId)
+
+      if (!drawnFeature) {
+        // Brand-new feature not yet on the map at all.
+        this.addFeatureToDraw(feature)
+        return
+      }
+
+      if (this.hasGeometryChanged(drawnFeature, feature)) {
+        // Geometry changed (e.g. a footprint polygon was just matched/downloaded for a building
+        // that was previously only a point marker) - replace the drawn feature so the map
+        // reflects the new footprint instead of the stale point/polygon.
+        this.draw?.delete(featureId)
+        this.addFeatureToDraw(feature)
+      }
+    })
+  }
+
+  /**
+   * Compare a currently-drawn map feature against its latest GeoJSON data to see if the
+   * geometry needs to be redrawn (type changed, e.g. Point -> Polygon after a footprint match,
+   * or the polygon's coordinates themselves changed).
+   */
+  private hasGeometryChanged(drawnFeature: GeoJSON.Feature, latestFeature: any): boolean {
+    const coords = this.extractCoordinatesFromFeature(latestFeature)
+    const hasValidCoords = !!coords && coords.latitude !== 0 && coords.longitude !== 0
+
+    const hasValidPolygon =
+      latestFeature.geometry &&
+      latestFeature.geometry.type === 'Polygon' &&
+      Array.isArray(latestFeature.geometry.coordinates) &&
+      Array.isArray(latestFeature.geometry.coordinates[0]) &&
+      latestFeature.geometry.coordinates[0].length >= 3
+
+    const expectedType = hasValidPolygon && hasValidCoords ? 'Polygon' : hasValidCoords ? 'Point' : null
+    if (expectedType === null) {
+      return false
+    }
+
+    if (drawnFeature.geometry.type !== expectedType) {
+      return true
+    }
+
+    if (expectedType === 'Polygon') {
+      return JSON.stringify(drawnFeature.geometry.coordinates) !== JSON.stringify(latestFeature.geometry.coordinates)
+    }
+
+    // expectedType === 'Point'
+    const drawnCoords = (drawnFeature.geometry as GeoJSON.Point).coordinates
+    return drawnCoords[0] !== coords!.longitude || drawnCoords[1] !== coords!.latitude
   }
 
   addDrawFeatures(map: mapboxgl.Map, geoJsonObject: any) {
@@ -686,8 +982,14 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
           type: 'circle',
           filter: ['all', ['==', '$type', 'Point'], ['has', 'user_portColor']],
           paint: {
-            'circle-radius': 3,
+            // Larger, zoom-scaled radius (matching the "show all pins" layer) so heatmap
+            // colors are actually visible on buildings that are still point markers (i.e.
+            // haven't had a footprint matched yet), not just on polygon footprints.
+            'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 4, 12, 6, 18, 10],
             'circle-color': ['get', 'user_portColor'],
+            'circle-opacity': ['coalesce', ['get', 'user_portOpacity'], 0.85],
+            'circle-stroke-width': 1,
+            'circle-stroke-color': '#ffffff',
           },
         },
       ],
@@ -705,28 +1007,7 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
     map.addControl(addTrashButton, 'top-right')
     map.addControl(addToggleButton, 'bottom-left')
 
-    geoJsonObject.features.forEach((feature: any) => {
-      // Extract coordinates to check if they're valid
-      const coords = this.extractCoordinatesFromFeature(feature)
-
-      if (feature.geometry && feature.geometry.type === 'Polygon' && coords && coords.latitude !== 0 && coords.longitude !== 0) {
-        // For GeoJSON files, we may not have ubid property, so we should still add the feature
-        // Only skip if ubid exists and is explicitly 0 or '0' (which indicates no footprint)
-        const hasValidUbid = !feature.properties?.ubid || (feature.properties.ubid !== 0 && feature.properties.ubid !== '0')
-
-        if (hasValidUbid) {
-          this.draw?.add({
-            id: feature.id,
-            type: 'Feature',
-            properties: feature.properties,
-            geometry: {
-              type: 'Polygon',
-              coordinates: feature.geometry.coordinates,
-            },
-          })
-        }
-      }
-    })
+    geoJsonObject.features.forEach((feature: any) => this.addFeatureToDraw(feature))
 
     map.on('draw.create', (e) => this.handleDrawEvent(e, this.draw))
     // map.on('draw.delete', (e) => this.handleDeleteEvent(e, this.draw, geoJsonObject));
@@ -734,11 +1015,31 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
   }
 
   handleEditEvent(e: any, draw: any) {
-    // console.log('EDIT EVENT BEING CALLED');
-    const newBuildingCoordinates = e.features[0].geometry.coordinates[0]
-    let newBuildingId = ''
+    const editedFeature = e.features[0]
+    const newBuildingId = editedFeature.id
 
-    newBuildingId = e.features[0].id
+    if (editedFeature.geometry.type === 'Point') {
+      // A Point marker (building without a matched footprint yet) was dragged to a new
+      // location. Just update its latitude/longitude directly -- there's no polygon to
+      // recompute a centroid/UBID from. The user can then click "Match Footprints" or
+      // "Download Footprints" to look up a footprint at the new location.
+      const [newLongitude, newLatitude] = editedFeature.geometry.coordinates as [number, number]
+
+      this.geoJsonService.setMapCoordinates(newLatitude, newLongitude)
+      this.geoJsonService.setIsDataSentFromTable(true)
+      this.geoJsonService.modifyBuildingInTable(
+        [], // no polygon coordinates for a point marker
+        newLatitude,
+        newLongitude,
+        '', // moving the pin invalidates any previously-matched footprint/UBID
+        newBuildingId,
+      )
+      return
+    }
+
+    // Polygon footprint was reshaped/moved - recompute centroid lat/lng and UBID from the new
+    // shape via the backend, as before.
+    const newBuildingCoordinates = editedFeature.geometry.coordinates[0]
 
     const jsonData = {
       coordinates: newBuildingCoordinates,
@@ -1156,7 +1457,10 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
   // ===== HEATMAP LEGEND METHODS =====
 
   /**
-   * Generate heatmap legend items from heatmap data
+   * Generate heatmap legend items from heatmap data. Uses the HeatmapService's actual
+   * color-mapping range (post outlier-clipping) rather than recomputing the raw min/max from
+   * heatmapData, so the legend never shows a misleading value (e.g. "6.4M") that doesn't match
+   * any color actually visible on the map.
    */
   generateHeatmapLegend(heatmapData: HeatmapData[]): void {
     if (!heatmapData || heatmapData.length === 0) {
@@ -1171,9 +1475,18 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
       return
     }
 
-    const values = validData.map((d) => d.value).sort((a, b) => a - b)
-    this.heatmapMinValue = Math.min(...values)
-    this.heatmapMaxValue = Math.max(...values)
+    const range = this.heatmapService.getCurrentHeatmapRange()
+    if (range) {
+      this.heatmapMinValue = range.min
+      this.heatmapMaxValue = range.max
+      this.heatmapHasOutliers = range.hasOutliers
+    } else {
+      // Fallback (shouldn't normally happen once a heatmap is active): use raw min/max.
+      const values = validData.map((d) => d.value)
+      this.heatmapMinValue = Math.min(...values)
+      this.heatmapMaxValue = Math.max(...values)
+      this.heatmapHasOutliers = false
+    }
 
     // Create legend items - show a representative sample
     const numLegendItems = Math.min(5, validData.length)
@@ -1222,16 +1535,20 @@ export class MapboxMapComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Get display name for a field (same logic as in table component)
+   * Get display name for a field (same logic as in table component), including its known unit
+   * (e.g. "kBtu/ft²") when available so the legend's field label makes the value scale clear.
    */
   getFieldDisplayName(field: string): string {
     if (!field) return ''
 
     // Convert field name to a more readable format
-    return field
+    const titleCased = field
       .replace(/_/g, ' ')
       .replace(/([A-Z])/g, ' $1')
       .replace(/\b\w/g, (l) => l.toUpperCase())
       .trim()
+
+    const unit = CANONICAL_FIELD_UNITS[field]
+    return unit ? `${titleCased} (${unit})` : titleCased
   }
 }

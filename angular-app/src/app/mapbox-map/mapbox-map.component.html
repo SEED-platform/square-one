@@ -32,6 +32,7 @@
         <span>Min: {{ formatLegendValue(heatmapMinValue) }}</span>
         <span>Max: {{ formatLegendValue(heatmapMaxValue) }}</span>
       </div>
+      <p class="mt-1 text-xs text-amber-600" *ngIf="heatmapHasOutliers">Range excludes extreme outlier value(s); those buildings use the darkest/lightest color.</p>
     </div>
   </div>
 </div>
