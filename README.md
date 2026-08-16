@@ -75,7 +75,7 @@ Note that if an environment key for AMAZON_API_KEY, AMAZON_BASE_URL, and AMAZON_
    - One in the root directory (or angular-app directory) and running `npm start` to start the Angular development server
    - Another with the working directory as flask_app (in your virtual environment) and running `python app.py`
 
-2. After connecting to the web application using the following link <http://localhost:4200/>, upload a file in the format of a json (example below) or excel/csv with columns for street_address, city, and state:
+2. After connecting to the web application using the following link <http://localhost:4201/>, upload a file in the format of a json (example below) or excel/csv with columns for street_address, city, and state:
 
    ```json
    [
