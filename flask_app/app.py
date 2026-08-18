@@ -21,6 +21,7 @@ import numpy as np
 from building_data_utilities.common import Location
 from building_data_utilities.geocode_addresses import geocode_addresses
 from building_data_utilities.normalize_address import normalize_address
+from building_data_utilities.open_street_map import get_location_bbox
 from building_data_utilities.ubid import encode_ubid
 from building_data_utilities.update_dataset_links import update_dataset_links
 from building_data_utilities.update_quadkeys import update_quadkeys
@@ -30,7 +31,6 @@ from flask_cors import CORS
 from shapely.geometry import Point
 
 import flask_app.config as config
-from flask_app.osm_location import get_location_bbox
 from flask_app.services.common_service import (
     create_geojson_response,
     handle_service_exceptions,

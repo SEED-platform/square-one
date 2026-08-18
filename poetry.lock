@@ -239,25 +239,31 @@ name = "building-data-utilities"
 version = "0.1.0"
 description = "Utilities for parsing and understanding building-related data to support covered building list development."
 optional = false
-python-versions = "<3.13,>=3.9"
+python-versions = ">=3.9, <3.13"
 groups = ["main"]
-files = [
-    {file = "building_data_utilities-0.1.0-py3-none-any.whl", hash = "sha256:9e13e29f4083acd41498eadf93c9ba48efd63ac3c31ef78a6f72fbba6c282c4c"},
-    {file = "building_data_utilities-0.1.0.tar.gz", hash = "sha256:f661b332608c012c6008191251445d8181ad1fa7704056d05ee8d7033bba5fac"},
-]
+files = []
+develop = false
 
 [package.dependencies]
-buildingid-nrel = ">=2.2.0,<3.0.0"
+buildingid-nrel = "^2.2"
+click = "<8.2"
 geopandas = ">=1.0.1,<2.0.0"
-geopy = ">=2.4.1,<3.0.0"
-mercantile = ">=1.2.1,<2.0.0"
-nominatim = ">=0.1,<0.2"
-python-dotenv = ">=1.0.1,<2.0.0"
-requests = ">=2.32.5,<3.0.0"
-setuptools = ">=80.9.0,<81.0.0"
-shapely = ">=2.0.6,<3.0.0"
+geopy = "^2.4.1"
+mercantile = "^1.2.1"
+nominatim = "^0.1"
+osmnx = "^2.0.7"
+python-dotenv = "^1.0.1"
+requests = "^2.32.5"
+setuptools = "^80.9.0"
+shapely = "^2.0.6"
 street-address = "0.4.0"
 usaddress = "0.5.16"
+
+[package.source]
+type = "git"
+url = "https://github.com/seed-platform/building-data-utilities.git"
+reference = "extract-cbl-footprint-location-utilities"
+resolved_reference = "0ce67b611a173e6e58d7ec20805ee18ee77470d0"
 
 [[package]]
 name = "buildingid-nrel"
@@ -2174,7 +2180,7 @@ version = "3.4.2"
 description = "Python package for creating and manipulating graphs and networks"
 optional = false
 python-versions = ">=3.10"
-groups = ["dev", "devgit"]
+groups = ["main", "dev", "devgit"]
 markers = "python_version == \"3.10\""
 files = [
     {file = "networkx-3.4.2-py3-none-any.whl", hash = "sha256:df5d4365b724cf81b8c6a7312509d0c22386097011ad1abe274afd5e9d3bbc5f"},
@@ -2195,7 +2201,7 @@ version = "3.6.1"
 description = "Python package for creating and manipulating graphs and networks"
 optional = false
 python-versions = "!=3.14.1,>=3.11"
-groups = ["dev", "devgit"]
+groups = ["main", "dev", "devgit"]
 markers = "python_version >= \"3.11\""
 files = [
     {file = "networkx-3.6.1-py3-none-any.whl", hash = "sha256:d47fbf302e7d9cbbb9e2555a0d267983d2aa476bac30e90dfbe5669bd57f3762"},
@@ -2537,7 +2543,7 @@ version = "2.0.7"
 description = "Download, model, analyze, and visualize street networks and other geospatial features from OpenStreetMap"
 optional = false
 python-versions = ">=3.9"
-groups = ["dev", "devgit"]
+groups = ["main", "dev", "devgit"]
 markers = "python_version == \"3.10\""
 files = [
     {file = "osmnx-2.0.7-py3-none-any.whl", hash = "sha256:1aec19d3dc614279f36f4ead7b493adbc45f53bc99a43a76067a6f15c1fcac97"},
@@ -2565,7 +2571,7 @@ version = "2.1.1"
 description = "Download, model, analyze, and visualize street networks and other geospatial features from OpenStreetMap"
 optional = false
 python-versions = ">=3.11"
-groups = ["dev", "devgit"]
+groups = ["main", "dev", "devgit"]
 markers = "python_version >= \"3.11\""
 files = [
     {file = "osmnx-2.1.1-py3-none-any.whl", hash = "sha256:6680c98312a8c327dea01da8ec59328bf1d7b0e0cab42db6ce500d0cb83b87e5"},
@@ -4429,4 +4435,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10, <3.13"
-content-hash = "bf6eeb82b8a19c7c73c6b500b3ac51e45a80f3a69feaa2d3acc99dfa9c6fca40"
+content-hash = "8dd6319afa76a96b32c710093516ef8ce76610a3b1ee4b5ade485a76a1c60057"
