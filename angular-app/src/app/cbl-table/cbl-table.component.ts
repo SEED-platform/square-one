@@ -1314,7 +1314,8 @@ export class CblTableComponent implements OnInit, OnDestroy {
     selectedData.forEach((building: any) => {
       const lat = Number(building.properties?.latitude)
       const lng = Number(building.properties?.longitude)
-      if (lat && lng && lat !== 0 && lng !== 0) {
+      const hasValidCoords = Number.isFinite(lat) && Number.isFinite(lng) && !(lat === 0 && lng === 0)
+      if (hasValidCoords) {
         points.push({ id: String(building.id), latitude: lat, longitude: lng })
       } else {
         skipped.push(building.properties?.street_address || building.id)
