@@ -239,7 +239,7 @@ name = "building-data-utilities"
 version = "0.1.0"
 description = "Utilities for parsing and understanding building-related data to support covered building list development."
 optional = false
-python-versions = ">=3.9, <3.13"
+python-versions = ">=3.10, <3.14"
 groups = ["main"]
 files = []
 develop = false
@@ -254,7 +254,7 @@ nominatim = "^0.1"
 osmnx = "^2.0.7"
 python-dotenv = "^1.0.1"
 requests = "^2.32.5"
-setuptools = "^80.9.0"
+setuptools = ">=80.9,<85.0"
 shapely = "^2.0.6"
 street-address = "0.4.0"
 usaddress = "0.5.16"
@@ -262,8 +262,8 @@ usaddress = "0.5.16"
 [package.source]
 type = "git"
 url = "https://github.com/seed-platform/building-data-utilities.git"
-reference = "extract-cbl-footprint-location-utilities"
-resolved_reference = "0ce67b611a173e6e58d7ec20805ee18ee77470d0"
+reference = "develop"
+resolved_reference = "899e0ef46bafd0e2378fc66ef45a717bb85987cc"
 
 [[package]]
 name = "buildingid-nrel"
@@ -4435,4 +4435,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10, <3.13"
-content-hash = "f386a45c568a3618be055fca20b63acc8bd6efad9ffcc9303cd65e314158d2fd"
+content-hash = "2c501711b425cc13da607768c5dee4a7203e3891503e835d33aacca4f69d13e8"
