@@ -196,7 +196,9 @@ def _rows_to_geojson_response(file_data: list[dict], data: list[dict[str, Any]])
 
         if data_dict.get("quality") in poor_quality_codes:
             data_dict["quality"] = "Poor"
-        elif data_dict.get("quality") is not None:
+        elif data_dict.get("quality") in (None, "Not geocoded", "Provided", "Geocoded", "Poor", "Good"):
+            pass
+        else:
             data_dict["quality"] = "Good"
 
         merged_dict = data_transformation_service.merge_dicts(file_dict, data_dict)
