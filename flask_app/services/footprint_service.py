@@ -128,7 +128,7 @@ class FootprintService:
         """
         return footprints.build_point_query_polygon(points, buffer_degrees)
 
-    def match_points_to_ms_footprints(self, points: list[dict]) -> dict[int, dict]:
+    def match_points_to_ms_footprints(self, points: list[dict]) -> dict:
         """
         Batched matching of a (potentially large) list of geocoded points to Microsoft footprints.
 
