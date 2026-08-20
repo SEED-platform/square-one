@@ -19,7 +19,15 @@ import { ColumnMappingModalComponent, type ColumnMappingRow } from './column-map
   selector: 'app-data-validation',
   templateUrl: './data-validation.component.html',
   styleUrl: 'data-validation.component.css',
-  imports: [AgGridAngular, FormsModule, CommonModule, NavigationComponent, TopMenuComponent, ColumnMappingModalComponent],
+  imports: [
+    AgGridAngular,
+    FormsModule,
+    CommonModule,
+    NavigationComponent,
+    TopMenuComponent,
+    ColumnMappingModalComponent,
+    CustomHeaderComponent,
+  ],
 })
 export class DataValidationComponent implements OnInit {
   private _userList: any[] = []
@@ -92,7 +100,11 @@ export class DataValidationComponent implements OnInit {
     suppressMovable: true,
     headerComponent: CustomHeaderComponent, //allows editable headers
   }
-  private gridApi!: GridApi
+  private gridApi?: GridApi
+
+  get canContinue(): boolean {
+    return this.gridApi !== undefined && !this.isLoading
+  }
 
   // Column mapping review modal state
   columnMappingRows: ColumnMappingRow[] = []
@@ -159,7 +171,6 @@ export class DataValidationComponent implements OnInit {
   onGridReady(event: GridReadyEvent) {
     this.gridApi = event.api
     this.gridApi.sizeColumnsToFit()
-    this.getUser()
   }
 
   ngOnInit() {
@@ -209,6 +220,10 @@ export class DataValidationComponent implements OnInit {
   }
 
   convertAgGridDataToJson() {
+    if (!this.gridApi) {
+      return JSON.stringify([], null, 2)
+    }
+
     const csvUserData = this.gridApi.getDataAsCsv() ?? ''
     const columnDefinitions: ColDef[] = this.sessionService.getColumnDefinitions()
     const { data: parsedCsvData } = Papa.parse(csvUserData, { header: true })
@@ -233,6 +248,10 @@ export class DataValidationComponent implements OnInit {
   }
 
   checkData() {
+    if (!this.gridApi) {
+      return
+    }
+
     this.isLoading = true
     const finalUserJson = this.convertAgGridDataToJson()
 

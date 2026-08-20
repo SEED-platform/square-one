@@ -2,7 +2,11 @@
   "name": "angular-app",
   "version": "0.0.0",
   "scripts": {
+    "postinstall": "npm run copy:mapbox-worker",
+    "copy:mapbox-worker": "node -e \"require('fs').copyFileSync(require.resolve('mapbox-gl/dist/mapbox-gl-csp-worker.js'), 'public/mapbox-gl-csp-worker.js')\"",
+    "prestart": "npm run copy:mapbox-worker",
     "start": "ng serve -o",
+    "prebuild": "npm run copy:mapbox-worker",
     "build": "ng build",
     "build:stats": "ng build --stats-json",
     "watch": "ng build --watch --configuration development",

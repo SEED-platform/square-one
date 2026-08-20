@@ -11,6 +11,9 @@
 npm-debug.log
 yarn-error.log
 
+# Generated at install/build time (see package.json "copy:mapbox-worker")
+/public/mapbox-gl-csp-worker.js
+
 # IDEs and editors
 .idea/
 .project
