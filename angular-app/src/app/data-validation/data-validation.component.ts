@@ -252,8 +252,8 @@ export class DataValidationComponent implements OnInit {
     )
   }
 
-  // Builds the initial CBL Table GeoJSON (no geocoding/footprint matching yet -- those are
-  // separate, explicit steps the user triggers from the CBL Table) and navigates there.
+  // Builds the initial Square One Table GeoJSON (no geocoding/footprint matching yet -- those are
+  // separate, explicit steps the user triggers from the Square One Table) and navigates there.
   buildInitialGeoJsonAndContinue() {
     this.apiHandler.buildInitialGeoJson(this.ValidatedJsonString).subscribe(
       (response) => {
@@ -264,10 +264,10 @@ export class DataValidationComponent implements OnInit {
         this.geoJsonService.setGeoJson(geoJson)
         // Store as JSON object, not compressed. sessionStorage has a size quota (a few MB); very
         // large uploads may fail to persist here even though the in-memory data (just set above)
-        // is fine. Warn the user since a hard refresh of /cbl-table would then lose the data.
+        // is fine. Warn the user since a hard refresh of /square-one-table would then lose the data.
         const persisted = this.sessionService.setGeoJsonData(geoJson)
-        this.sessionService.setCurrentPage('cbl-table')
-        this.router.navigate(['/cbl-table'])
+        this.sessionService.setCurrentPage('square-one-table')
+        this.router.navigate(['/square-one-table'])
         this.isLoading = false
         this.cdr.detectChanges()
         if (!persisted) {

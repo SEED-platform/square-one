@@ -1,5 +1,5 @@
 /**
- * Utility for automatically suggesting canonical CBL field names for the columns of an
+ * Utility for automatically suggesting canonical Square One field names for the columns of an
  * uploaded file (e.g. "Building Street Address (ESPM)" -> "street_address").
  *
  * The goal is to let most files map "automatically" while still leaving the final decision
@@ -21,7 +21,7 @@ export interface CanonicalFieldOption {
   label: string
 }
 
-/** Canonical CBL fields offered in the column-mapping review modal, in a sensible display order. */
+/** Canonical Square One fields offered in the column-mapping review modal, in a sensible display order. */
 export const CANONICAL_FIELDS: CanonicalFieldOption[] = [
   { value: 'street_address', label: 'Street Address' },
   { value: 'city', label: 'City' },

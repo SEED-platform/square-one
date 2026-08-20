@@ -26,7 +26,7 @@ export class NavigationComponent {
       }
     }
 
-    if (currentRoute === '/cbl-table') {
+    if (currentRoute === '/square-one-table') {
       const confirmLeave = confirm('Are you sure you want to go back to the beginning? You will lose your current work.')
       if (!confirmLeave) {
         return

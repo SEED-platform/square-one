@@ -1,10 +1,10 @@
 """
-Custom exceptions for the CBL Web Tool application.
+Custom exceptions for the Square One application.
 """
 
 
-class CBLWebToolError(Exception):
-    """Base exception class for CBL Web Tool."""
+class SquareOneError(Exception):
+    """Base exception class for Square One."""
 
     def __init__(self, message: str, details: str | None = None):
         self.message = message
@@ -12,25 +12,25 @@ class CBLWebToolError(Exception):
         super().__init__(self.message)
 
 
-class FileProcessingError(CBLWebToolError):
+class FileProcessingError(SquareOneError):
     """Raised when file processing operations fail."""
 
 
-class DataValidationError(CBLWebToolError):
+class DataValidationError(SquareOneError):
     """Raised when data validation fails."""
 
 
-class LocationError(CBLWebToolError):
+class LocationError(SquareOneError):
     """Raised when location processing fails."""
 
 
-class GeoccodingError(CBLWebToolError):
+class GeoccodingError(SquareOneError):
     """Raised when geocoding operations fail."""
 
 
-class FootprintError(CBLWebToolError):
+class FootprintError(SquareOneError):
     """Raised when footprint processing fails."""
 
 
-class ConfigurationError(CBLWebToolError):
+class ConfigurationError(SquareOneError):
     """Raised when configuration is invalid or missing."""

@@ -1,6 +1,6 @@
 # Data Input Formats
 
-The CBL Web Tool accepts data in these formats:
+Square One accepts data in these formats:
 
 1. Excel spreadsheet: .xlsx
 1. Comma-separated values: .csv

@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "cbl_web_tool"
+name = "square_one"
 version = "0.1.0"
 description = ""
 authors = ["Alex Swindler <axelstudios>", "Nicholas Long <nllong>", "Katherine Fleming <kflemin>", "Roger Braun <roger.braun@nrel.gov>", "Rahman Mian <rahman.mian@nrel.gov>", "Devin Brady <devin.brady@nrel.gov>"]
