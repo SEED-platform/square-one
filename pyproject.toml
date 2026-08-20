@@ -16,8 +16,8 @@ flask-cors = "^6.0.2"
 openpyxl = "^3.1.5"
 tqdm = "^4.67.3"
 
-building-data-utilities = "~0.1.0"
-# building-data-utilities = { git = "https://github.com/seed-platform/building-data-utilities.git", rev = "develop" }
+building-data-utilities = { git = "https://github.com/seed-platform/building-data-utilities.git", rev = "develop" }
+# building-data-utilities = "~0.1.0"
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^4.3.0"

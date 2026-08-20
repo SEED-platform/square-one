@@ -76,6 +76,62 @@ class TestDataTransformationService(unittest.TestCase):
 
         self.assertIsNone(result)
 
+    def test_extract_coordinates_valid(self):
+        """Test extracting a valid latitude/longitude pair."""
+        record = {"Latitude": "39.7392", "Longitude": "-104.9903"}
+
+        result = self.service.extract_coordinates(record)
+
+        self.assertEqual(result, (39.7392, -104.9903))
+
+    def test_extract_coordinates_missing(self):
+        """Test extracting coordinates when latitude/longitude are absent."""
+        record = {"street_address": "123 Main St"}
+
+        result = self.service.extract_coordinates(record)
+
+        self.assertIsNone(result)
+
+    def test_extract_coordinates_zero_sentinel(self):
+        """Test that (0, 0) is treated as a missing/sentinel coordinate."""
+        record = {"latitude": "0", "longitude": "0"}
+
+        result = self.service.extract_coordinates(record)
+
+        self.assertIsNone(result)
+
+    def test_extract_coordinates_out_of_range(self):
+        """Test that out-of-range coordinates are rejected."""
+        record = {"latitude": "200", "longitude": "-104.99"}
+
+        result = self.service.extract_coordinates(record)
+
+        self.assertIsNone(result)
+
+    def test_extract_coordinates_non_numeric(self):
+        """Test that non-numeric latitude/longitude values are rejected."""
+        record = {"latitude": "unknown", "longitude": "-104.99"}
+
+        result = self.service.extract_coordinates(record)
+
+        self.assertIsNone(result)
+
+    def test_build_provided_coordinate_datum(self):
+        """Test building a geocode-result-shaped dict from a record with provided coordinates."""
+        record = {"postal_code": "80202", "country": "US"}
+        location = {"street": "123 Main St", "city": "Denver", "state": "CO"}
+
+        result = self.service.build_provided_coordinate_datum(record, location, 39.7392, -104.9903)
+
+        self.assertEqual(result["quality"], "Provided")
+        self.assertEqual(result["address"], "123 Main St")
+        self.assertEqual(result["latitude"], 39.7392)
+        self.assertEqual(result["longitude"], -104.9903)
+        self.assertEqual(result["city"], "Denver")
+        self.assertEqual(result["state"], "CO")
+        self.assertEqual(result["postal_code"], "80202")
+        self.assertEqual(result["country"], "US")
+
     def test_normalize_state_full_name(self):
         """Test state normalization with full state names."""
         test_cases = [

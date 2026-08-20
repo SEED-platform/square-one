@@ -19,7 +19,7 @@ export class NavigationComponent {
   navigateToHome(): void {
     const currentRoute = this.router.url
 
-    if (currentRoute === '/first-table') {
+    if (currentRoute === '/data-validation') {
       const confirmLeave = confirm('Are you sure you want to go back to the beginning? You will lose your current work.')
       if (!confirmLeave) {
         return

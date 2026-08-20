@@ -7,6 +7,10 @@ import logging
 import os
 
 from building_data_utilities.common import Location
+from building_data_utilities.generate_locations_list import generate_locations_list
+from building_data_utilities.merge_dicts import merge_dicts
+from building_data_utilities.normalize_state import normalize_state
+from building_data_utilities.standardize_address_fields import standardize_address_fields
 
 from flask_app.services.logging_utils import log_error_with_context
 
@@ -149,61 +153,6 @@ class DataTransformationService:
             "1,000,000+",  # 1,000,000+ sq ft
         }
 
-        # US state abbreviations mapping
-        self.state_abbreviations = {
-            "alabama": "AL",
-            "alaska": "AK",
-            "arizona": "AZ",
-            "arkansas": "AR",
-            "california": "CA",
-            "colorado": "CO",
-            "connecticut": "CT",
-            "delaware": "DE",
-            "florida": "FL",
-            "georgia": "GA",
-            "hawaii": "HI",
-            "idaho": "ID",
-            "illinois": "IL",
-            "indiana": "IN",
-            "iowa": "IA",
-            "kansas": "KS",
-            "kentucky": "KY",
-            "louisiana": "LA",
-            "maine": "ME",
-            "maryland": "MD",
-            "massachusetts": "MA",
-            "michigan": "MI",
-            "minnesota": "MN",
-            "mississippi": "MS",
-            "missouri": "MO",
-            "montana": "MT",
-            "nebraska": "NE",
-            "nevada": "NV",
-            "new hampshire": "NH",
-            "new jersey": "NJ",
-            "new mexico": "NM",
-            "new york": "NY",
-            "north carolina": "NC",
-            "north dakota": "ND",
-            "ohio": "OH",
-            "oklahoma": "OK",
-            "oregon": "OR",
-            "pennsylvania": "PA",
-            "rhode island": "RI",
-            "south carolina": "SC",
-            "south dakota": "SD",
-            "tennessee": "TN",
-            "texas": "TX",
-            "utah": "UT",
-            "vermont": "VT",
-            "virginia": "VA",
-            "washington": "WA",
-            "west virginia": "WV",
-            "wisconsin": "WI",
-            "wyoming": "WY",
-            "district of columbia": "DC",
-        }
-
     def generate_locations_list(self, json_dict_list: list[dict]) -> list[Location]:
         """
         Generate a list of Location objects from user input data.
@@ -215,26 +164,75 @@ class DataTransformationService:
             List of Location objects
         """
         try:
-            locations = []
-
-            for record in json_dict_list:
-                street = self._extract_field(record, "street_address")
-                city = self._extract_field(record, "city")
-                state = self._extract_field(record, "state")
-
-                # Normalize state if needed
-                if state:
-                    state = self.normalize_state(state)
-
-                loc_dict = {"street": street or "", "city": city or "", "state": state or ""}
-                locations.append(loc_dict)
-
+            locations = generate_locations_list(json_dict_list)
             self.logger.info(f"Generated {len(locations)} location objects")
             return locations
 
         except Exception as e:
             log_error_with_context("Error generating locations list", e)
             raise
+
+    def extract_coordinates(self, record: dict) -> tuple[float, float] | None:
+        """
+        Extract a valid (latitude, longitude) pair already present in an uploaded record.
+
+        This lets rows that already contain point coordinates (e.g. a "Latitude"/"Longitude"
+        column) skip geocoding entirely and go straight to footprint matching, instead of
+        having their coordinates overwritten by the geocoding service.
+
+        Args:
+            record: Dictionary to search
+
+        Returns:
+            (latitude, longitude) tuple if the record has a valid, non-zero coordinate pair,
+            otherwise None.
+        """
+        lat_value = self._extract_field(record, "latitude")
+        lon_value = self._extract_field(record, "longitude")
+
+        if lat_value is None or lon_value is None:
+            return None
+
+        try:
+            latitude = float(lat_value)
+            longitude = float(lon_value)
+        except (TypeError, ValueError):
+            return None
+
+        # (0, 0) is used elsewhere in the app as a "no location" sentinel
+        if latitude == 0 and longitude == 0:
+            return None
+
+        if not (-90 <= latitude <= 90) or not (-180 <= longitude <= 180):
+            return None
+
+        return latitude, longitude
+
+    def build_provided_coordinate_datum(self, record: dict, location: Location, latitude: float, longitude: float) -> dict:
+        """
+        Build a geocode-result-shaped dict for a record that already has valid latitude/longitude,
+        so it can flow through the same downstream (quadkey/footprint matching) logic as a
+        geocoded result, without ever calling the geocoding API.
+
+        Args:
+            record: Original uploaded record
+            location: Location dict (street/city/state) generated for this record
+            latitude: Valid latitude extracted from the record
+            longitude: Valid longitude extracted from the record
+
+        Returns:
+            Dict shaped like a geocoding API result
+        """
+        return {
+            "quality": "Provided",
+            "address": location["street"],
+            "longitude": longitude,
+            "latitude": latitude,
+            "postal_code": self._extract_field(record, "postal_code"),
+            "city": location["city"],
+            "state": location["state"],
+            "country": self._extract_field(record, "country"),
+        }
 
     def _extract_field(self, record: dict, field_name: str) -> str | None:
         """
@@ -262,17 +260,7 @@ class DataTransformationService:
         Returns:
             Standardized state abbreviation
         """
-        if not state_name:
-            return ""
-
-        state_lower = state_name.lower().strip()
-
-        # If it's already an abbreviation, return uppercase
-        if len(state_lower) == 2 and state_lower.isalpha():
-            return state_lower.upper()
-
-        # Look up full name
-        return self.state_abbreviations.get(state_lower, state_name.upper())
+        return normalize_state(state_name)
 
     def merge_location_data(self, file_dict: dict, api_dict: dict) -> dict:
         """
@@ -349,9 +337,7 @@ class DataTransformationService:
             Merged dictionary with dict2 values overriding dict1 values
         """
         try:
-            merged = dict1.copy()
-            merged.update(dict2)
-            return merged
+            return merge_dicts(dict1, dict2)
         except Exception as e:
             log_error_with_context("Error merging dictionaries", e)
             raise
@@ -367,30 +353,7 @@ class DataTransformationService:
             List of dictionaries with standardized field names
         """
         try:
-            standardized_data = []
-
-            for record in data:
-                standardized = {}
-
-                for key, value in record.items():
-                    # Standardize common field variations
-                    lower_key = key.lower()
-                    if lower_key in ["street_address", "street_addr", "address"]:
-                        standardized["street_address"] = value
-                    elif lower_key in ["city", "municipality"]:
-                        standardized["city"] = value
-                    elif lower_key in ["state", "province", "region"]:
-                        standardized["state"] = self.normalize_state(str(value)) if value else ""
-                    elif lower_key in ["zip", "zipcode", "postal_code", "postcode"]:
-                        standardized["postal_code"] = value
-                    elif lower_key in ["country", "nation"]:
-                        standardized["country"] = value
-                    else:
-                        # Keep other fields as-is
-                        standardized[key] = value
-
-                standardized_data.append(standardized)
-
+            standardized_data = standardize_address_fields(data)
             self.logger.info(f"Standardized {len(standardized_data)} records")
             return standardized_data
 

@@ -1,50 +1,50 @@
 version: 2
 updates:
-  - package-ecosystem: 'pip'
-    directory: '/'
+  - package-ecosystem: "pip"
+    directory: "/"
     schedule:
-      interval: 'weekly'
+      interval: "weekly"
     allow:
-      - dependency-type: 'direct'
+      - dependency-type: "direct"
     groups:
       dev-deps:
-        dependency-type: 'development'
+        dependency-type: "development"
       prod-deps:
-        dependency-type: 'production'
+        dependency-type: "production"
     open-pull-requests-limit: 5
     commit-message:
-      prefix: 'deps'
-  - package-ecosystem: 'npm'
-    directory: '/angular-app'
+      prefix: "deps"
+  - package-ecosystem: "npm"
+    directory: "/angular-app"
     schedule:
-      interval: 'weekly'
+      interval: "weekly"
     groups:
       npm-dev-deps:
-        dependency-type: 'development'
+        dependency-type: "development"
       npm-prod-deps:
-        dependency-type: 'production'
+        dependency-type: "production"
     open-pull-requests-limit: 5
     commit-message:
-      prefix: 'deps'
+      prefix: "deps"
     ignore:
-      - dependency-name: 'prettier'
-        update-types: ['version-update:semver-major']
-      - dependency-name: 'prettier'
-        versions: ['alpha', 'beta', 'rc']
-      - dependency-name: 'tailwindcss'
-        update-types: ['version-update:semver-major']
-      - dependency-name: 'typescript'
-        versions: ['>=5.9.0']
-  - package-ecosystem: 'github-actions'
-    directory: '/'
+      - dependency-name: "prettier"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "prettier"
+        versions: ["alpha", "beta", "rc"]
+      - dependency-name: "tailwindcss"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "typescript"
+        versions: [">=5.9.0"]
+  - package-ecosystem: "github-actions"
+    directory: "/"
     schedule:
-      interval: 'weekly'
+      interval: "weekly"
     groups:
       actions-deps:
         patterns:
-          - '*'
+          - "*"
     open-pull-requests-limit: 5
     commit-message:
-      prefix: 'ci'
+      prefix: "ci"
     labels:
-      - 'Do not publish'
+      - "Do not publish"

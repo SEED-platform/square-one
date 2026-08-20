@@ -189,6 +189,17 @@ export class MapWorkflowComponent implements AfterViewInit {
   statusMessage = ''
   isError = false
 
+  // "Actions" hamburger menu (secondary/less-common controls), matching the CBL Table page.
+  isActionsMenuOpen = false
+
+  toggleActionsMenu(): void {
+    this.isActionsMenuOpen = !this.isActionsMenuOpen
+  }
+
+  closeActionsMenu(): void {
+    this.isActionsMenuOpen = false
+  }
+
   // Microsoft footprints data
   private msFootprintsData: any = null
   hasMsFootprints = false

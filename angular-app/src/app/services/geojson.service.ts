@@ -20,6 +20,7 @@ export class GeoJsonService implements OnDestroy {
   private isSentFromTable = false // Flag to track selection source
   private geoJsonSubject: BehaviorSubject<any> = new BehaviorSubject<any>({})
   private shouldAutoSave = true // Flag to control auto-save behavior
+  private readonly unloadHandler = (event: BeforeUnloadEvent) => this.handleUnload(event)
 
   private clickEventSubject = new BehaviorSubject<{ latitude: number; longitude: number; id: string; isShiftClick?: boolean } | null>(null)
   public clickEvent$: Observable<{ latitude: number; longitude: number; id: string; isShiftClick?: boolean } | null> =
@@ -53,12 +54,12 @@ export class GeoJsonService implements OnDestroy {
     this.geoJsonSubject.next(this.getGeoJsonFromSessionStorage())
 
     // Listen for the beforeunload event to save the data
-    window.addEventListener('beforeunload', this.handleUnload.bind(this))
+    window.addEventListener('beforeunload', this.unloadHandler)
   }
 
   ngOnDestroy() {
     // Clean up the event listener when the component is destroyed
-    window.removeEventListener('beforeunload', this.handleUnload.bind(this))
+    window.removeEventListener('beforeunload', this.unloadHandler)
   }
 
   handleUnload(event: BeforeUnloadEvent) {
@@ -104,6 +105,11 @@ export class GeoJsonService implements OnDestroy {
 
   getGeoJson(): Observable<any> {
     return this.geoJsonSubject.asObservable()
+  }
+
+  /** Synchronously get the current in-memory GeoJSON value (not the sessionStorage copy). */
+  getCurrentGeoJson(): any {
+    return this.geoJsonSubject.getValue()
   }
 
   updateGeoJsonFromMap(mapRemovedObject: any): void {
@@ -200,7 +206,14 @@ export class GeoJsonService implements OnDestroy {
     }
 
     features[index].properties.ubid = ubid
-    features[index].geometry.coordinates = [coordinates]
+    if (!coordinates || coordinates.length === 0) {
+      // No polygon ring (e.g. a Point marker was dragged to a new location) - represent this
+      // building as a Point at its new latitude/longitude instead of a Polygon ring, so the map
+      // and any subsequent "Download Footprints"/"Match Footprints" lookups use the new spot.
+      features[index].geometry = { type: 'Point', coordinates: [longitude, latitude] }
+    } else {
+      features[index].geometry.coordinates = [coordinates]
+    }
     features[index].properties.latitude = latitude.toString()
     features[index].properties.longitude = longitude.toString()
 

@@ -23,7 +23,9 @@ export class CustomHeaderComponent implements IHeaderAngularComp {
   agInit(params: IHeaderParams): void {
     const columnId = params.column.getId()
     this.field = columnId
-    this.headerName = columnId
+    // Respect a pre-filled headerName (e.g. from automatic column mapping) if one was set;
+    // otherwise fall back to the raw column id, preserving prior behavior.
+    this.headerName = params.column.getColDef().headerName ?? columnId
   }
 
   onInputChange(updatedHeaderName: string) {

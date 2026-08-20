@@ -14,22 +14,22 @@ module.exports = tseslint.config(
         {
           type: 'attribute',
           prefix: 'app',
-          style: 'camelCase',
-        },
+          style: 'camelCase'
+        }
       ],
       '@angular-eslint/component-selector': [
         'error',
         {
           type: 'element',
           prefix: 'app',
-          style: 'kebab-case',
-        },
+          style: 'kebab-case'
+        }
       ],
       '@typescript-eslint/no-unused-vars': [
         'error',
         {
-          argsIgnorePattern: '^_',
-        },
+          argsIgnorePattern: '^_'
+        }
       ],
       quotes: ['error', 'single'],
       'max-len': [
@@ -38,14 +38,14 @@ module.exports = tseslint.config(
           code: 140,
           ignoreUrls: true,
           ignoreStrings: true,
-          ignoreTemplateLiterals: true,
-        },
-      ],
-    },
+          ignoreTemplateLiterals: true
+        }
+      ]
+    }
   },
   {
     files: ['**/*.html'],
     extends: [...angular.configs.templateRecommended, ...angular.configs.templateAccessibility],
-    rules: {},
-  },
+    rules: {}
+  }
 )
