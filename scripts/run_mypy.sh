@@ -1,5 +1,5 @@
 #!/bin/bash
-# Run mypy type checking for CBL Web Tool
+# Run mypy type checking for Square One
 
 echo "Running mypy type checking..."
 cd "$(dirname "$0")/.."

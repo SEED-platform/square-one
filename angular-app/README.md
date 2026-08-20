@@ -1,4 +1,4 @@
-# CBL Web Tool UI
+# Square One UI
 
 ## Development server
 

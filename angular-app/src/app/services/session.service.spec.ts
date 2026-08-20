@@ -100,8 +100,8 @@ describe('SessionService', () => {
       service.setCurrentPage('data-validation')
       expect(service.getCurrentPage()).toBe('data-validation')
 
-      service.setCurrentPage('cbl-table')
-      expect(service.getCurrentPage()).toBe('cbl-table')
+      service.setCurrentPage('square-one-table')
+      expect(service.getCurrentPage()).toBe('square-one-table')
     })
 
     it('should manage home access', () => {

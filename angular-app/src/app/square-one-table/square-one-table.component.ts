@@ -34,7 +34,7 @@ interface MergeColumnConfig {
 }
 
 @Component({
-  selector: 'app-cbl-table',
+  selector: 'app-square-one-table',
   imports: [
     AgGridAngular,
     CommonModule,
@@ -45,11 +45,11 @@ interface MergeColumnConfig {
     FooterComponent,
     FileUploadDialogComponent,
   ],
-  templateUrl: './cbl-table.component.html',
-  styleUrl: './cbl-table.component.css',
+  templateUrl: './square-one-table.component.html',
+  styleUrl: './square-one-table.component.css',
   encapsulation: ViewEncapsulation.None,
 })
-export class CblTableComponent implements OnInit, OnDestroy {
+export class SquareOneTableComponent implements OnInit, OnDestroy {
   featuresArray: any[] = []
   colDefs: ColDef[] = []
   geoJson: any
@@ -365,7 +365,7 @@ export class CblTableComponent implements OnInit, OnDestroy {
 
   ngOnInit() {
     // Only force a reload from session storage if we don't already have valid data in memory.
-    // This handles a genuine fresh page load / hard refresh of /cbl-table (where in-memory state
+    // This handles a genuine fresh page load / hard refresh of /square-one-table (where in-memory state
     // is empty and session storage is the only source of truth), WITHOUT clobbering data that
     // was just navigated in from the Data Validation Table via geoJsonService.setGeoJson() --
     // which is especially important for large uploads, where session storage may have failed to
@@ -1977,7 +1977,7 @@ export class CblTableComponent implements OnInit, OnDestroy {
         const worksheet = XLSX.utils.json_to_sheet(result.data)
         const workbook = XLSX.utils.book_new()
         XLSX.utils.book_append_sheet(workbook, worksheet, 'Sheet 1')
-        XLSX.writeFile(workbook, 'cbl_list.xlsx')
+        XLSX.writeFile(workbook, 'square_one_list.xlsx')
       },
     })
   }
@@ -2004,7 +2004,7 @@ export class CblTableComponent implements OnInit, OnDestroy {
     if (link.download !== undefined) {
       const url = URL.createObjectURL(blob)
       link.setAttribute('href', url)
-      link.setAttribute('download', 'cbl_list.csv')
+      link.setAttribute('download', 'square_one_list.csv')
       link.style.visibility = 'hidden'
       document.body.appendChild(link)
       link.click()
@@ -2076,7 +2076,7 @@ export class CblTableComponent implements OnInit, OnDestroy {
     if (link.download !== undefined) {
       const url = URL.createObjectURL(blob)
       link.setAttribute('href', url)
-      link.setAttribute('download', 'cbl_list.geojson')
+      link.setAttribute('download', 'square_one_list.geojson')
       link.style.visibility = 'hidden'
       document.body.appendChild(link)
       link.click()
@@ -2104,7 +2104,7 @@ export class CblTableComponent implements OnInit, OnDestroy {
     if (link.download !== undefined) {
       const url = URL.createObjectURL(blob)
       link.setAttribute('href', url)
-      link.setAttribute('download', 'cbl_list.json')
+      link.setAttribute('download', 'square_one_list.json')
       link.style.visibility = 'hidden'
       document.body.appendChild(link)
       link.click()
@@ -2197,7 +2197,7 @@ export class CblTableComponent implements OnInit, OnDestroy {
 
   /**
    * Build the AG-Grid column definitions for the Column Statistics table, giving it the same
-   * sort/filter/resize capabilities as the main CBL table (instead of a plain static HTML
+   * sort/filter/resize capabilities as the main Square One table (instead of a plain static HTML
    * table), plus a "Visual" population-percentage bar and an "Actions" column for delete.
    */
   private buildColumnStatsColDefs(): void {
