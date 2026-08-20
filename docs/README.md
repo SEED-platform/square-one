@@ -1,16 +1,16 @@
 # How to Use This Tool
 
-Welcome to the Covered Buildings List Web Tool!
+Welcome to Square One!
 
 ## Mission Statement
 
-The goal of this tool is to enhance your data about buildings with additional sources, give you tools to edit this mix of data, and export a clean Covered Buildings List for a new building efficiency program in your jurisdiction.
+The goal of this tool is to enhance your data about buildings with additional sources, give you tools to edit this mix of data, and export a clean Square One list for a new building efficiency program in your jurisdiction.
 
-## Stages of CBL Workflow
+## Stages of Square One Workflow
 
 ### 1. Upload data
 
-Data can be uploaded into the CBL Web Tool in these formats.
+Data can be uploaded into Square One in these formats.
 
 1. Excel spreadsheet: .xlsx
 1. Comma-separated values: .csv

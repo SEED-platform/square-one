@@ -1,6 +1,6 @@
 """
 SEED Platform (TM), Copyright (c) Alliance for Sustainable Energy, LLC, and other contributors.
-See also https://github.com/SEED-platform/cbl-web-tool/blob/main/LICENSE.md
+See also https://github.com/SEED-platform/square-one/blob/main/LICENSE.md
 """
 
 import json

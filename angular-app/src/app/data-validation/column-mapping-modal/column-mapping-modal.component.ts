@@ -19,7 +19,7 @@ export interface ColumnMappingRow {
 
 /**
  * Modal for reviewing and tweaking the automatically-suggested ("magic mapped") column names
- * for an uploaded file: the user can rename any column to a canonical CBL field (or a custom
+ * for an uploaded file: the user can rename any column to a canonical Square One field (or a custom
  * name), and choose which columns to keep before saving.
  */
 @Component({

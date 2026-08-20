@@ -29,14 +29,14 @@ export class FlaskRequests {
 
   sendJsonData(jsonString: string): Observable<any> {
     return this.http.post<any>(
-      'http://127.0.0.1:5001/api/generate_cbl',
+      'http://127.0.0.1:5001/api/generate_square_one',
       { value: jsonString }, // Send JSON object with 'value' key
       { headers: { 'Content-Type': 'application/json' } },
     )
   }
 
-  // Builds the initial CBL Table GeoJSON from validated rows WITHOUT geocoding or footprint
-  // matching (those are explicit, separate steps triggered later from the CBL Table).
+  // Builds the initial Square One Table GeoJSON from validated rows WITHOUT geocoding or footprint
+  // matching (those are explicit, separate steps triggered later from the Square One Table).
   buildInitialGeoJson(jsonString: string): Observable<any> {
     return this.http.post<any>(
       'http://127.0.0.1:5001/api/build_initial_geojson',

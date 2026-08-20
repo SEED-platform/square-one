@@ -3,7 +3,7 @@
 
 <div class="mt-2 flex w-[100vw] flex-col items-center justify-center">
   <div class="mb-2 w-[90%]">
-    <p class="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-gray-600">Draw or upload an area of interest, load Microsoft/OpenStreetMap building footprints within it, then continue to the CBL Table. Type a location in the search box to center the map, then draw a polygon (or use "Retrieve Bounding Box" for a quick area around a searched location).</p>
+    <p class="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-gray-600">Draw or upload an area of interest, load Microsoft/OpenStreetMap building footprints within it, then continue to the Square One Table. Type a location in the search box to center the map, then draw a polygon (or use "Retrieve Bounding Box" for a quick area around a searched location).</p>
   </div>
 
   <!-- Search Header -->
@@ -45,7 +45,7 @@
       <button class="inline-flex justify-center gap-x-1.5 rounded-md px-3 py-2 text-sm font-semibold text-white shadow-sm transition-colors" [class.bg-red-600]="hasPolygon" [class.hover:bg-red-700]="hasPolygon" [class.bg-gray-400]="!hasPolygon" [class.cursor-not-allowed]="!hasPolygon" [disabled]="!hasPolygon" (click)="loadMSFootprints()" title="Load Microsoft Building Footprints within the drawn area">Load MS Footprints</button>
       <button class="inline-flex justify-center gap-x-1.5 rounded-md px-3 py-2 text-sm font-semibold text-white shadow-sm transition-colors" [class.bg-blue-600]="hasPolygon" [class.hover:bg-blue-700]="hasPolygon" [class.bg-gray-400]="!hasPolygon" [class.cursor-not-allowed]="!hasPolygon" [disabled]="!hasPolygon" (click)="loadOSMFootprints()" title="Load OpenStreetMap building footprints within the drawn area">Load OSM Footprints</button>
       <button class="inline-flex justify-center gap-x-1.5 rounded-md px-3 py-2 text-sm font-semibold text-white shadow-sm transition-colors" [class.bg-orange-600]="hasMsFootprints && hasOsmFootprints" [class.hover:bg-orange-700]="hasMsFootprints && hasOsmFootprints" [class.bg-gray-400]="!(hasMsFootprints && hasOsmFootprints)" [class.cursor-not-allowed]="!(hasMsFootprints && hasOsmFootprints)" [disabled]="!(hasMsFootprints && hasOsmFootprints)" (click)="mergeFootprints()" title="Merge the loaded MS and OSM footprints">Merge Footprints</button>
-      <button class="inline-flex justify-center gap-x-1.5 rounded-md px-3 py-2 text-sm font-semibold text-white shadow-sm transition-colors" [class.bg-green-600]="hasAnyFootprints" [class.hover:bg-green-700]="hasAnyFootprints" [class.bg-gray-400]="!hasAnyFootprints" [class.cursor-not-allowed]="!hasAnyFootprints" [disabled]="!hasAnyFootprints" (click)="proceedToCBLTable()" title="Continue to the CBL Table with the loaded footprints">Proceed to CBL Table</button>
+      <button class="inline-flex justify-center gap-x-1.5 rounded-md px-3 py-2 text-sm font-semibold text-white shadow-sm transition-colors" [class.bg-green-600]="hasAnyFootprints" [class.hover:bg-green-700]="hasAnyFootprints" [class.bg-gray-400]="!hasAnyFootprints" [class.cursor-not-allowed]="!hasAnyFootprints" [disabled]="!hasAnyFootprints" (click)="proceedToSquareOneTable()" title="Continue to the Square One Table with the loaded footprints">Proceed to Square One Table</button>
     </div>
   </div>
 

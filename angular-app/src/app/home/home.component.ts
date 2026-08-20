@@ -54,8 +54,8 @@ export class HomeComponent implements OnInit, OnDestroy {
     return !obj || (Object.keys(obj).length === 0 && obj.constructor === Object)
   }
 
-  // navigate directly to CBL table
-  navigateToCBLTable() {
-    this.router.navigate(['/cbl-table'])
+  // navigate directly to Square One table
+  navigateToSquareOneTable() {
+    this.router.navigate(['/square-one-table'])
   }
 }

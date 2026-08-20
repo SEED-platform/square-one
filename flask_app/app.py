@@ -1,6 +1,6 @@
 """
 SEED Platform (TM), Copyright (c) Alliance for Sustainable Energy, LLC, and other contributors.
-See also https://github.com/SEED-platform/cbl-web-tool/blob/main/LICENSE.md
+See also https://github.com/SEED-platform/square-one/blob/main/LICENSE.md
 """
 
 import gzip
@@ -185,7 +185,7 @@ def check_data():
 def _rows_to_geojson_response(file_data: list[dict], data: list[dict[str, Any]]) -> dict:
     """
     Merge original uploaded row data with per-row geocode/coordinate results and convert to a
-    GeoJSON FeatureCollection string, in the same shape the frontend (CBL Table) expects.
+    GeoJSON FeatureCollection string, in the same shape the frontend (Square One Table) expects.
     """
     poor_quality_codes = ["Ambiguous", "No results found", "Less Than 0.90 Confidence"]
 
@@ -216,14 +216,14 @@ def _rows_to_geojson_response(file_data: list[dict], data: list[dict[str, Any]])
 @app.route("/api/build_initial_geojson", methods=["POST"])
 def build_initial_geojson():
     """
-    Build the initial GeoJSON for the CBL Table directly from the uploaded/validated rows,
+    Build the initial GeoJSON for the Square One Table directly from the uploaded/validated rows,
     WITHOUT calling any geocoding service or matching footprints. Rows that already contain a
     valid latitude/longitude get that point; rows without one are placed at (0, 0) with
     "quality": "Not geocoded", to be resolved later via the "Geocode Addresses" button.
 
     This lets the Data Validation Table's "Continue to Map" action be fast and side-effect-free
     (no Amazon API calls, no footprint downloads) -- geocoding and footprint matching are
-    explicit, separate steps the user triggers from the CBL Table.
+    explicit, separate steps the user triggers from the Square One Table.
     """
     app.logger.info("function: build_initial_geojson")
 
@@ -272,7 +272,7 @@ def build_initial_geojson():
 @app.route("/api/geocode_missing_addresses", methods=["POST"])
 def geocode_missing_addresses():
     """
-    Runs when the user clicks "Geocode Addresses" on the CBL Table. Geocodes (via Amazon
+    Runs when the user clicks "Geocode Addresses" on the Square One Table. Geocodes (via Amazon
     Location Services) only the currently-selected buildings that don't already have a valid
     latitude/longitude (quality == "Not geocoded" or address-based rows), leaving buildings
     that already have coordinates untouched.
@@ -335,7 +335,7 @@ def geocode_missing_addresses():
 @app.route("/api/match_footprints", methods=["POST"])
 def match_footprints():
     """
-    Runs when the user clicks "Match Footprints" on the CBL Table. Matches the currently-selected
+    Runs when the user clicks "Match Footprints" on the Square One Table. Matches the currently-selected
     (already-geocoded) buildings against Microsoft footprint data, batched per MS quadkey tile
     so tiles are only loaded/read once and spatial-joined against all of their points in a
     single vectorized operation (rather than one join per building).
@@ -397,12 +397,12 @@ def match_footprints():
     return jsonify({"message": "success", "results": results}), 200
 
 
-@app.route("/api/generate_cbl", methods=["POST"])
-def generate_cbl():
+@app.route("/api/generate_square_one", methods=["POST"])
+def generate_square_one():
     """
-    Runs when user clicks "Generate CBL" button.
+    Runs when user clicks "Generate Square One" button.
     """
-    app.logger.info("function: generate_cbl")
+    app.logger.info("function: generate_square_one")
 
     file_data = []
     locations: list[Location] = []
@@ -1019,10 +1019,10 @@ def download_osm_footprints():
 def download_footprints_for_points():
     """
     Download Microsoft footprints and/or OpenStreetMap building footprints near a set of
-    selected points (typically the currently-selected rows in the CBL Table), and determine
+    selected points (typically the currently-selected rows in the Square One Table), and determine
     which footprints actually overlap (contain) each point.
 
-    Runs when the user clicks "Download Footprints" in the CBL Table toolbar.
+    Runs when the user clicks "Download Footprints" in the Square One Table toolbar.
 
     Expected request format:
     {

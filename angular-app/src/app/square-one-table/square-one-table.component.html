@@ -102,7 +102,7 @@
       <app-mapbox-map [showAllPins]="showAllPins"></app-mapbox-map>
     </div>
 
-    <div class="cbl-table-container h-[65vh] w-full mt-20">
+    <div class="square-one-table-container h-[65vh] w-full mt-20">
       <ag-grid-angular class="ag-theme-quartz" [columnDefs]="colDefs" [defaultColDef]="defaultColDef" [rowData]="rowData" [rowSelection]="{ mode: 'multiRow' }" [getRowId]="getRowId" (gridReady)="onGridReady($event)" (rowClicked)="onRowClicked($event)" (selectionChanged)="onSelectionChanged($event)" theme="legacy" style="height: 100%; width: 100%" />
     </div>
   </div>
