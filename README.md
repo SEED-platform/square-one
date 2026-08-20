@@ -1,12 +1,12 @@
-# Covered Buildings List Web Tool
+# Square One
 
-The Covered Buildings List (CBL) Web Tool is a web-based application to enhance user building data with additional sources, give user tools to edit this mix of data, and export a clean Covered Buildings List for a new building efficiency program in their district, jurisdiction, or community.
+Square One is a web-based application to enhance user building data with additional sources, give user tools to edit this mix of data, and export a clean Square One list for a new building efficiency program in their district, jurisdiction, or community.
 
-There are multiple workflows for generating or validating a covered buildings list including:
+There are multiple workflows for generating or validating a Square One list including:
 
 - Starting from scratch and leverage open data sources to gather as much data as possible including OpenStreetMap and Microsoft Footprint data
-- City-level data available from ArcGIS (or similar) platform that can be exported and imported into the CBL Web Tool for cleaning, validating, and enhancing (add additional data sources, geospatially merge, etc.)
-- Existing benchmarking or efficiency programming data, including existing CBLs. The CBL Web Tool can import and clean, validate, and enhance (add additional data sources, geospatially merge, etc.)
+- City-level data available from ArcGIS (or similar) platform that can be exported and imported into Square One for cleaning, validating, and enhancing (add additional data sources, geospatially merge, etc.)
+- Existing benchmarking or efficiency programming data, including existing building lists. Square One can import and clean, validate, and enhance (add additional data sources, geospatially merge, etc.)
 - Data normalization and geocoding given a list of addresses uploaded in JSON, CSV, or Excel format.
 
 ## Geocoding Workflow
@@ -18,13 +18,13 @@ There are multiple workflows for generating or validating a covered buildings li
 - Generate the UBID for each footprint
 - Display the results of the workflow in a table on the webpage or export the resulting data as csv and GeoJSON
 
-## Developing the CBL Web Tool
+## Developing Square One
 
 ### Prerequisites
 
-### CBL Workflow package
+### Square One Workflow package
 
-The CBL Web Tool depends on a general [Building Data Utilities package](https://github.com/SEED-platform/building-data-utilities). For development, it is recommended to checkout this dependency locally at the same directory level as the cbl-web-tool. The package will be automatically installed when running poetry update in the CBL web tool.
+Square One depends on a general [Building Data Utilities package](https://github.com/SEED-platform/building-data-utilities). For development, it is recommended to checkout this dependency locally at the same directory level as square-one. The package will be automatically installed when running poetry update in Square One.
 
 ```bash
 git clone git@github.com:SEED-platform/building-data-utilities.git
@@ -100,7 +100,7 @@ Note that if an environment key for AMAZON_API_KEY, AMAZON_BASE_URL, and AMAZON_
 
 3. Once the file is uploaded and your data appears in a table on the web page, click the `Check Data` button to ensure that the data in the file meets the format requirements for the tool. There are three required column names that can be edited in the table: street_address, city, and state.
 
-4. If the data conforms to the data check requirements, a button labeled `Run CBL Workflow` will appear. Click this button to generate a covered buildings list. Note: it will take some time to generate the list and display it.
+4. If the data conforms to the data check requirements, a button labeled `Run Square One Workflow` will appear. Click this button to generate a Square One list. Note: it will take some time to generate the list and display it.
 
 5. Once the list is generated, a table and map with highlighted building footprints will appear side-by-side on the web page. In this menu, there are a multitude of functions to utilize:
    - The user can select on a row in the table and fly to a specific building, as well as edit data in the rows of the table.
@@ -133,7 +133,7 @@ Note that if an environment key for AMAZON_API_KEY, AMAZON_BASE_URL, and AMAZON_
 - supporting multiple files
 - flagging duplicate buildings, selecting which building to use (in some cases a dataset will have different building boundaries)
 - adding building heights from heuristics and multiple datasets
-- reimporting CBL lists
+- reimporting Square One lists
 
 ## Development
 
@@ -148,7 +148,7 @@ Note that if an environment key for AMAZON_API_KEY, AMAZON_BASE_URL, and AMAZON_
 ## Releasing
 
 - These instructions are not yet complete
-- Release CBL workflow
+- Release Square One workflow
 - Update this repo's `pyproject.toml` to point to the building-data-utilities version on PyPi
 - Update CHANGELOG by running auto generation on GitHub.
 - Tag on GitHub

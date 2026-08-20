@@ -1,5 +1,5 @@
 """
-Logging utilities for the CBL Web Tool services.
+Logging utilities for the Square One services.
 """
 
 import logging

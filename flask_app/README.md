@@ -1,6 +1,6 @@
-# CBL Workflow
+# Square One Workflow
 
-> Covered Building List Workflow
+> Building List Workflow
 
 Given a list of addresses, this workflow will automatically:
 

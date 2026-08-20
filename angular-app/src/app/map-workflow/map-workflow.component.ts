@@ -140,7 +140,7 @@ export class MapWorkflowComponent implements AfterViewInit {
                 },
               })
 
-              // Store the merged data for potential use in "Proceed to CBL Table"
+              // Store the merged data for potential use in "Proceed to Square One Table"
               this.msFootprintsData = response.merged_geojson
               this.osmFootprintsData = null // Clear OSM data since it's now merged
 
@@ -189,7 +189,7 @@ export class MapWorkflowComponent implements AfterViewInit {
   statusMessage = ''
   isError = false
 
-  // "Actions" hamburger menu (secondary/less-common controls), matching the CBL Table page.
+  // "Actions" hamburger menu (secondary/less-common controls), matching the Square One Table page.
   isActionsMenuOpen = false
 
   toggleActionsMenu(): void {
@@ -713,7 +713,7 @@ export class MapWorkflowComponent implements AfterViewInit {
     }
   }
 
-  proceedToCBLTable(): void {
+  proceedToSquareOneTable(): void {
     if (this.msFootprintsData || this.osmFootprintsData) {
       // Merge both datasets if available
       let combinedData = null
@@ -734,14 +734,14 @@ export class MapWorkflowComponent implements AfterViewInit {
       }
 
       if (combinedData) {
-        console.log('Map workflow: Sending data to cbl-table with', combinedData.features?.length || 0, 'features')
+        console.log('Map workflow: Sending data to square-one-table with', combinedData.features?.length || 0, 'features')
 
         // Store the combined data in both the GeoJsonService and session storage
         this.geoJsonService.setGeoJson(combinedData)
         this.sessionService.setGeoJsonData(combinedData) // Store as JSON object in session
         console.log('COMBINED DATA:', combinedData)
-        // Navigate to the cbl-table page
-        this.router.navigate(['/cbl-table'])
+        // Navigate to the square-one-table page
+        this.router.navigate(['/square-one-table'])
       }
     } else {
       this.showStatusMessage('Please load footprints first (Microsoft or OpenStreetMap)', true)

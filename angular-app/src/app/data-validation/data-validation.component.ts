@@ -19,7 +19,15 @@ import { ColumnMappingModalComponent, type ColumnMappingRow } from './column-map
   selector: 'app-data-validation',
   templateUrl: './data-validation.component.html',
   styleUrl: 'data-validation.component.css',
-  imports: [AgGridAngular, FormsModule, CommonModule, NavigationComponent, TopMenuComponent, ColumnMappingModalComponent],
+  imports: [
+    AgGridAngular,
+    FormsModule,
+    CommonModule,
+    NavigationComponent,
+    TopMenuComponent,
+    ColumnMappingModalComponent,
+    CustomHeaderComponent,
+  ],
 })
 export class DataValidationComponent implements OnInit {
   private _userList: any[] = []
@@ -92,7 +100,11 @@ export class DataValidationComponent implements OnInit {
     suppressMovable: true,
     headerComponent: CustomHeaderComponent, //allows editable headers
   }
-  private gridApi!: GridApi
+  private gridApi?: GridApi
+
+  get canContinue(): boolean {
+    return this.gridApi !== undefined && !this.isLoading
+  }
 
   // Column mapping review modal state
   columnMappingRows: ColumnMappingRow[] = []
@@ -159,7 +171,6 @@ export class DataValidationComponent implements OnInit {
   onGridReady(event: GridReadyEvent) {
     this.gridApi = event.api
     this.gridApi.sizeColumnsToFit()
-    this.getUser()
   }
 
   ngOnInit() {
@@ -209,6 +220,10 @@ export class DataValidationComponent implements OnInit {
   }
 
   convertAgGridDataToJson() {
+    if (!this.gridApi) {
+      return JSON.stringify([], null, 2)
+    }
+
     const csvUserData = this.gridApi.getDataAsCsv() ?? ''
     const columnDefinitions: ColDef[] = this.sessionService.getColumnDefinitions()
     const { data: parsedCsvData } = Papa.parse(csvUserData, { header: true })
@@ -233,6 +248,10 @@ export class DataValidationComponent implements OnInit {
   }
 
   checkData() {
+    if (!this.gridApi) {
+      return
+    }
+
     this.isLoading = true
     const finalUserJson = this.convertAgGridDataToJson()
 
@@ -252,8 +271,8 @@ export class DataValidationComponent implements OnInit {
     )
   }
 
-  // Builds the initial CBL Table GeoJSON (no geocoding/footprint matching yet -- those are
-  // separate, explicit steps the user triggers from the CBL Table) and navigates there.
+  // Builds the initial Square One Table GeoJSON (no geocoding/footprint matching yet -- those are
+  // separate, explicit steps the user triggers from the Square One Table) and navigates there.
   buildInitialGeoJsonAndContinue() {
     this.apiHandler.buildInitialGeoJson(this.ValidatedJsonString).subscribe(
       (response) => {
@@ -264,10 +283,10 @@ export class DataValidationComponent implements OnInit {
         this.geoJsonService.setGeoJson(geoJson)
         // Store as JSON object, not compressed. sessionStorage has a size quota (a few MB); very
         // large uploads may fail to persist here even though the in-memory data (just set above)
-        // is fine. Warn the user since a hard refresh of /cbl-table would then lose the data.
+        // is fine. Warn the user since a hard refresh of /square-one-table would then lose the data.
         const persisted = this.sessionService.setGeoJsonData(geoJson)
-        this.sessionService.setCurrentPage('cbl-table')
-        this.router.navigate(['/cbl-table'])
+        this.sessionService.setCurrentPage('square-one-table')
+        this.router.navigate(['/square-one-table'])
         this.isLoading = false
         this.cdr.detectChanges()
         if (!persisted) {

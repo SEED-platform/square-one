@@ -286,9 +286,9 @@ export class FileUploadDialogComponent {
    * - Tabular rows (from CSV/Excel/JSON array uploads) are sent to the Data Validation
    *   Table (/data-validation) so the user can review the automatic column-name mapping
    *   (e.g. "Latitude" -> "latitude"), then run geocoding + Microsoft footprint matching
-   *   via "Run CBL Tool".
+   *   via "Run Square One Tool".
    * - Data that's already a GeoJSON FeatureCollection (e.g. re-uploading a previously
-   *   exported CBL) is already in the target format, so it's applied directly.
+   *   exported Square One list) is already in the target format, so it's applied directly.
    */
   private routeUploadedData(data: unknown[] | Record<string, unknown> | GeoJsonFeatureCollection) {
     const isGeoJsonFeatureCollection =
