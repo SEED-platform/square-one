@@ -38,6 +38,10 @@ from flask_app.services.common_service import (
     parse_polygon_from_request,
     validate_request_data,
 )
+from flask_app.services.composite_building_load_service import (
+    list_espm_building_types,
+    pull_building_load_profiles,
+)
 from flask_app.services.data_transformation_service import DataTransformationService
 from flask_app.services.file_processing_service import FileProcessingService
 from flask_app.services.footprint_service import FootprintService
@@ -1179,6 +1183,70 @@ def assign_target_eui():
     except Exception as e:
         log_error_with_context("Error in assign_target_eui endpoint", e)
         return jsonify({"error": f"Failed to assign target EUI data: {e!s}"}), 500
+
+
+@app.route("/api/espm_building_types", methods=["GET"])
+@handle_service_exceptions("espm_building_types")
+def espm_building_types():
+    """
+    List every packaged ENERGY STAR Portfolio Manager (ESPM) property type and its crosswalk to a
+    BuildStock (ComStock/ResStock) building type, for populating the "Assign Building Types" picker.
+    """
+    return jsonify({"success": True, "building_types": list_espm_building_types()})
+
+
+@app.route("/api/download_composite_building_load_profiles", methods=["POST"])
+@handle_service_exceptions("download_composite_building_load_profiles")
+def download_composite_building_load_profiles():
+    """
+    Download a composite building load profile (from the `building-energy-profiles` ComStock/ResStock
+    dataset) for each selected building, based on the ESPM building type(s) assigned to it via 'Assign
+    Building Types'. A building with a single assigned building type gets that building type's own
+    representative time series; a building with 2-3 assigned building types (primary/secondary/tertiary,
+    each with a floor-area weight) gets a floor-area-weighted composite ("mixed-use") time series.
+
+    Expected request format:
+    {
+        "buildings": [
+            {
+                "id": "building_id",
+                "properties": {
+                    "state": "CO",
+                    "county": "Denver County",
+                    "gross_floor_area": "50000",
+                    "espm_building_type_primary": "Bank Branch",
+                    "espm_building_type_primary_weight": 70,
+                    "espm_building_type_secondary": "Strip Mall",
+                    "espm_building_type_secondary_weight": 30
+                }
+            }
+        ],
+        "resample": "native" | "hourly"
+    }
+
+    Each building's result is returned independently (`success: true/false`) so one building's failure
+    (e.g. missing state, an unmapped ESPM type, or no matching BuildStock sample buildings) doesn't stop
+    the rest of the batch's profiles from downloading. On success, a building's result includes its
+    resolved BuildStock `components` and the resulting time series as CSV text (`csv`), which the client
+    downloads directly (as one CSV) or bundles into a ZIP (for multiple buildings).
+    """
+    if not request.json:
+        return jsonify({"error": "No JSON data provided"}), 400
+
+    buildings_data = request.json.get("buildings", [])
+    if not buildings_data:
+        return jsonify({"error": "No buildings data provided"}), 400
+
+    resample = request.json.get("resample", "native")
+    results = pull_building_load_profiles(buildings_data, resample=resample)
+
+    return jsonify(
+        {
+            "success": True,
+            "message": f"Processed composite building load profiles for {len(results)} building(s)",
+            "results": results,
+        }
+    )
 
 
 def return_one():

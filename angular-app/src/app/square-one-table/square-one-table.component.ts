@@ -7,7 +7,9 @@ import { AgGridAngular } from 'ag-grid-angular'
 import type { ColDef, ValueGetterParams, ValueSetterParams } from 'ag-grid-community'
 import Papa from 'papaparse'
 import * as XLSX from 'xlsx'
+import JSZip from 'jszip'
 import type { Subscription } from 'rxjs'
+import { firstValueFrom } from 'rxjs'
 import { MapboxMapComponent } from '../mapbox-map/mapbox-map.component'
 import { NavigationComponent } from '../shared/navigation/navigation.component'
 import { TopMenuComponent } from '../shared/top-menu/top-menu.component'
@@ -31,6 +33,38 @@ interface MergeColumnConfig {
   targetColumn: string
   sourceColumn: string
   priorityColumn: string // 'target' or 'source' - which column takes priority when both have data
+}
+
+// One ENERGY STAR Portfolio Manager (ESPM) property type and its crosswalk to a BuildStock
+// (ComStock/ResStock) building type, as returned by GET /api/espm_building_types.
+interface EspmBuildingType {
+  property_type: string
+  buildstock_product: string | null
+  buildstock_building_type: string | null
+  match_quality: 'exact' | 'approximate' | 'unmapped'
+  notes: string
+}
+
+// The three building-type "slots" a building can be assigned, in priority order.
+type BuildingTypeSlotName = 'primary' | 'secondary' | 'tertiary'
+const BUILDING_TYPE_SLOTS: BuildingTypeSlotName[] = ['primary', 'secondary', 'tertiary']
+
+// One row's editable state in the "Assign Building Types" dialog.
+interface BuildingTypeAssignmentRow {
+  id: string
+  label: string
+  row: any // the underlying ag-grid row (GeoJSON feature) being edited
+  slots: { [slot in BuildingTypeSlotName]: { type: string; weight: number } }
+}
+
+// One building's result from POST /api/download_composite_building_load_profiles.
+interface CompositeLoadProfileResult {
+  id: string
+  success: boolean
+  error?: string
+  csv?: string
+  row_count?: number
+  components?: { buildstock_product: string; buildstock_building_type: string; fraction: number }[]
 }
 
 @Component({
@@ -186,6 +220,36 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
   }
   availableColumnsForBulkEdit: string[] = []
 
+  // ENERGY STAR Portfolio Manager (ESPM) building type crosswalk, loaded once from the backend and used
+  // by both the "Assign Building Types" and "Download Composite Building Load Profiles" dialogs.
+  espmBuildingTypes: EspmBuildingType[] = []
+  private espmBuildingTypesByPropertyType: { [propertyType: string]: EspmBuildingType } = {}
+
+  // "Assign Building Types" dialog properties. Lets a user assign up to 3 ESPM building types (primary/
+  // secondary/tertiary) with floor-area weights to each selected building, previewed as a stacked bar.
+  showAssignBuildingTypesDialog = false
+  assignBuildingTypesRows: BuildingTypeAssignmentRow[] = []
+  readonly buildingTypeSlots = BUILDING_TYPE_SLOTS
+
+  // "Download Composite Building Load Profiles" dialog properties.
+  showDownloadCompositeProfilesDialog = false
+  isDownloadingCompositeProfiles = false
+  compositeProfilesConfig: { resample: 'native' | 'hourly' } = { resample: 'hourly' }
+  compositeProfilesResults: CompositeLoadProfileResult[] = []
+  compositeProfilesSelectedCount = 0
+  // Live progress shown in the download dialog -- these downloads hit the OEDI S3 dataset per building
+  // and can take a while, so buildings are processed one at a time (rather than one big batch call) to
+  // give the user real "X of N" feedback instead of a single opaque spinner.
+  compositeProfilesProgress: { completed: number; total: number; currentLabel: string } = { completed: 0, total: 0, currentLabel: '' }
+  compositeProfilesElapsedSeconds = 0
+  private compositeProfilesTimerId: ReturnType<typeof setInterval> | null = null
+  private compositeProfilesCancelled = false
+  private compositeProfilesLabelById: { [id: string]: string } = {}
+
+  // Cached "Actions" menu enabled states (see updateSelectedRowsInfo()).
+  cachedCanAssignBuildingTypes = false
+  cachedCanDownloadCompositeProfiles = false
+
   // Header editing properties
   private editableHeaders: { [originalKey: string]: string } = {} // Maps original property names to display names
   private isEditingHeader = false
@@ -202,6 +266,13 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
     'climate_zone',
     'gross_floor_area',
     'weekly_hours',
+    // ESPM building type(s) assigned via "Assign Building Types" -- see BUILDING_TYPE_SLOTS.
+    'espm_building_type_primary',
+    'espm_building_type_primary_weight',
+    'espm_building_type_secondary',
+    'espm_building_type_secondary_weight',
+    'espm_building_type_tertiary',
+    'espm_building_type_tertiary_weight',
   ]
 
   // getRowId function for AG-Grid to properly identify rows using the feature's own stable id
@@ -236,6 +307,14 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
     climate_zone: '',
     gross_floor_area: null,
     weekly_hours: '',
+    // ESPM building type(s) assigned via "Assign Building Types" (see BUILDING_TYPE_SLOTS) -- used to
+    // download composite building load profiles from the building-energy-profiles package.
+    espm_building_type_primary: '',
+    espm_building_type_primary_weight: 100,
+    espm_building_type_secondary: '',
+    espm_building_type_secondary_weight: 0,
+    espm_building_type_tertiary: '',
+    espm_building_type_tertiary_weight: 0,
     // Additional common properties
     BUILD_ID: null,
     HEIGHT: null,
@@ -276,6 +355,8 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
       this.cachedCanDeleteRecords = false
       this.cachedCanReverseGeocode = false
       this.cachedCanDownloadFootprints = false
+      this.cachedCanAssignBuildingTypes = false
+      this.cachedCanDownloadCompositeProfiles = false
       return
     }
 
@@ -294,6 +375,8 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
     this.cachedCanDeleteRecords = selectedRows.length >= 1
     this.cachedCanReverseGeocode = selectedRows.length >= 1
     this.cachedCanDownloadFootprints = selectedRows.length >= 1
+    this.cachedCanAssignBuildingTypes = selectedRows.length >= 1
+    this.cachedCanDownloadCompositeProfiles = selectedRows.length >= 1
   }
 
   /**
@@ -364,6 +447,10 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit() {
+    // Load the ENERGY STAR -> BuildStock building-type crosswalk once, used to populate the "Assign
+    // Building Types" picker and to flag unmapped types before a composite load profile download.
+    this.loadEspmBuildingTypes()
+
     // Only force a reload from session storage if we don't already have valid data in memory.
     // This handles a genuine fresh page load / hard refresh of /square-one-table (where in-memory state
     // is empty and session storage is the only source of truth), WITHOUT clobbering data that
@@ -501,6 +588,7 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
     if (this.heatmapSubscription) {
       this.heatmapSubscription.unsubscribe()
     }
+    this.stopCompositeProfilesTimer()
   }
   onGridReady(params: any) {
     this.gridApi = params.api
@@ -1374,7 +1462,16 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
     // Fields NOT to copy onto an already-existing matched row: address/location fields (the
     // row's own address/point should stay authoritative, not be overwritten by the footprint
     // dataset's usually-blank address fields), and the internal matching bookkeeping field.
-    const excludedFieldsForExistingRows = new Set(['matched_point_id', 'street_address', 'city', 'state', 'postal_code', 'country', 'latitude', 'longitude'])
+    const excludedFieldsForExistingRows = new Set([
+      'matched_point_id',
+      'street_address',
+      'city',
+      'state',
+      'postal_code',
+      'country',
+      'latitude',
+      'longitude',
+    ])
 
     footprints.forEach((footprint) => {
       const matchedPointId = footprint.properties?.matched_point_id
@@ -3085,6 +3182,375 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
       value: this.bulkEditConfig.value,
       updatedCount: updatedCount,
     })
+  }
+
+  // ===== ENERGY STAR / COMPOSITE BUILDING LOAD PROFILE METHODS =====
+
+  private loadEspmBuildingTypes(): void {
+    this.apiHandler.getEspmBuildingTypes().subscribe(
+      (response: { building_types?: EspmBuildingType[] }) => {
+        this.espmBuildingTypes = response.building_types ?? []
+        this.espmBuildingTypesByPropertyType = {}
+        this.espmBuildingTypes.forEach((buildingType) => {
+          this.espmBuildingTypesByPropertyType[buildingType.property_type] = buildingType
+        })
+      },
+      (errorResponse: any) => {
+        console.error('Failed to load ESPM building types:', errorResponse)
+      },
+    )
+  }
+
+  getEspmBuildingTypeInfo(propertyType: string): EspmBuildingType | undefined {
+    return propertyType ? this.espmBuildingTypesByPropertyType[propertyType] : undefined
+  }
+
+  // Badge shown next to a selected ESPM building type reflecting how well it maps to a BuildStock
+  // building type (see building_energy_profiles.energy_star_crosswalk).
+  getMatchQualityLabel(propertyType: string): string {
+    const info = this.getEspmBuildingTypeInfo(propertyType)
+    if (!info) return ''
+    if (info.match_quality === 'exact') return 'Exact BuildStock match'
+    if (info.match_quality === 'approximate') return `Approximate match (${info.buildstock_building_type})`
+    return 'No BuildStock equivalent'
+  }
+
+  getMatchQualityClass(propertyType: string): string {
+    const info = this.getEspmBuildingTypeInfo(propertyType)
+    if (!info) return ''
+    if (info.match_quality === 'exact') return 'text-green-700 bg-green-50'
+    if (info.match_quality === 'approximate') return 'text-amber-700 bg-amber-50'
+    return 'text-red-700 bg-red-50'
+  }
+
+  openAssignBuildingTypesDialog(): void {
+    if (!this.gridApi) {
+      alert('Grid not initialized')
+      return
+    }
+
+    const selectedRows = this.gridApi.getSelectedRows()
+    if (selectedRows.length === 0) {
+      alert('Please select at least one building to assign building types to')
+      return
+    }
+
+    this.assignBuildingTypesRows = selectedRows.map((row: any) => ({
+      id: String(row.id),
+      label: row.properties?.street_address || row.properties?.PROP_ADDR || `Building ${row.id}`,
+      row,
+      slots: {
+        primary: {
+          type: row.properties?.espm_building_type_primary || '',
+          weight: Number(row.properties?.espm_building_type_primary_weight) || (row.properties?.espm_building_type_primary ? 100 : 0),
+        },
+        secondary: {
+          type: row.properties?.espm_building_type_secondary || '',
+          weight: Number(row.properties?.espm_building_type_secondary_weight) || 0,
+        },
+        tertiary: {
+          type: row.properties?.espm_building_type_tertiary || '',
+          weight: Number(row.properties?.espm_building_type_tertiary_weight) || 0,
+        },
+      },
+    }))
+
+    this.showAssignBuildingTypesDialog = true
+  }
+
+  closeAssignBuildingTypesDialog(): void {
+    this.showAssignBuildingTypesDialog = false
+    this.assignBuildingTypesRows = []
+  }
+
+  // Called when a slot's building type changes: clears its weight when the type is cleared, and gives a
+  // freshly-picked first slot a sensible 100% default so a user assigning only a primary type doesn't
+  // have to also type in a weight.
+  onAssignBuildingTypeChange(assignmentRow: BuildingTypeAssignmentRow, slot: BuildingTypeSlotName): void {
+    const current = assignmentRow.slots[slot]
+    if (!current.type) {
+      current.weight = 0
+      return
+    }
+    const anyOtherSlotHasWeight = BUILDING_TYPE_SLOTS.some((otherSlot) => otherSlot !== slot && assignmentRow.slots[otherSlot].weight > 0)
+    if (!current.weight && !anyOtherSlotHasWeight) {
+      current.weight = 100
+    }
+  }
+
+  getRowTotalWeight(assignmentRow: BuildingTypeAssignmentRow): number {
+    return BUILDING_TYPE_SLOTS.reduce(
+      (total, slot) => total + (assignmentRow.slots[slot].type ? Number(assignmentRow.slots[slot].weight) || 0 : 0),
+      0,
+    )
+  }
+
+  // Live stacked-bar visualization width for one slot, as a percentage of this row's *current* total
+  // weight (so the preview always fills the bar, even before the user has normalized to exactly 100%).
+  getSlotPercent(assignmentRow: BuildingTypeAssignmentRow, slot: BuildingTypeSlotName): number {
+    const total = this.getRowTotalWeight(assignmentRow)
+    const slotState = assignmentRow.slots[slot]
+    if (!slotState.type || total <= 0) return 0
+    return (Number(slotState.weight) / total) * 100
+  }
+
+  // Rescales a row's filled-slot weights to sum to exactly 100, e.g. after entering 70/25 (rounding
+  // artifacts from a percentage split that doesn't quite add up).
+  normalizeRowWeights(assignmentRow: BuildingTypeAssignmentRow): void {
+    const total = this.getRowTotalWeight(assignmentRow)
+    if (total <= 0) return
+    BUILDING_TYPE_SLOTS.forEach((slot) => {
+      const slotState = assignmentRow.slots[slot]
+      if (slotState.type) {
+        slotState.weight = Math.round((slotState.weight / total) * 1000) / 10
+      }
+    })
+  }
+
+  isAssignmentRowValid(assignmentRow: BuildingTypeAssignmentRow): boolean {
+    return !!assignmentRow.slots.primary.type && this.getRowTotalWeight(assignmentRow) > 0
+  }
+
+  canSaveBuildingTypeAssignments(): boolean {
+    return (
+      this.assignBuildingTypesRows.length > 0 &&
+      this.assignBuildingTypesRows.every((assignmentRow) => this.isAssignmentRowValid(assignmentRow))
+    )
+  }
+
+  saveBuildingTypeAssignments(): void {
+    if (!this.canSaveBuildingTypeAssignments()) {
+      alert('Every building needs at least a primary building type with a weight greater than 0 before saving.')
+      return
+    }
+
+    const updatedRows: any[] = []
+    this.assignBuildingTypesRows.forEach((assignmentRow) => {
+      const { row } = assignmentRow
+      if (!row.properties) return
+      BUILDING_TYPE_SLOTS.forEach((slot) => {
+        row.properties[`espm_building_type_${slot}`] = assignmentRow.slots[slot].type
+        row.properties[`espm_building_type_${slot}_weight`] = assignmentRow.slots[slot].type ? assignmentRow.slots[slot].weight : 0
+      })
+      updatedRows.push(row)
+    })
+
+    if (updatedRows.length > 0) {
+      this.gridApi.applyTransaction({ update: updatedRows })
+      this.geoJsonService.setGeoJson(this.geoJson)
+      this.sessionService.setGeoJsonData(this.geoJson)
+      this.updateTable()
+    }
+
+    alert(`Assigned building types for ${updatedRows.length} building${updatedRows.length === 1 ? '' : 's'}.`)
+    this.closeAssignBuildingTypesDialog()
+  }
+
+  // Number of currently-selected buildings that already have a primary building type assigned --
+  // shown in the download dialog as a hint to run "Assign Building Types" first if it's 0.
+  countSelectedWithBuildingTypeAssigned(): number {
+    if (!this.gridApi) return 0
+    return this.gridApi.getSelectedRows().filter((row: any) => !!row.properties?.espm_building_type_primary).length
+  }
+
+  openDownloadCompositeProfilesDialog(): void {
+    if (!this.gridApi) {
+      alert('Grid not initialized')
+      return
+    }
+
+    const selectedRows = this.gridApi.getSelectedRows()
+    if (selectedRows.length === 0) {
+      alert('Please select at least one building to download composite building load profiles for')
+      return
+    }
+
+    this.compositeProfilesResults = []
+    this.compositeProfilesSelectedCount = selectedRows.length
+    this.compositeProfilesProgress = { completed: 0, total: 0, currentLabel: '' }
+    this.compositeProfilesElapsedSeconds = 0
+    this.compositeProfilesCancelled = false
+    this.showDownloadCompositeProfilesDialog = true
+  }
+
+  closeDownloadCompositeProfilesDialog(): void {
+    if (this.isDownloadingCompositeProfiles) {
+      // Let a running download finish its current building and stop before closing, rather than
+      // abandoning it silently.
+      this.cancelCompositeProfilesDownload()
+      return
+    }
+    this.showDownloadCompositeProfilesDialog = false
+    this.compositeProfilesResults = []
+  }
+
+  cancelCompositeProfilesDownload(): void {
+    this.compositeProfilesCancelled = true
+  }
+
+  private sanitizeFilename(value: string): string {
+    return (value || 'building').replace(/[^a-z0-9-_]+/gi, '_').slice(0, 80)
+  }
+
+  private startCompositeProfilesTimer(): void {
+    this.compositeProfilesElapsedSeconds = 0
+    this.stopCompositeProfilesTimer()
+    this.compositeProfilesTimerId = setInterval(() => {
+      this.compositeProfilesElapsedSeconds += 1
+      this.cdr.detectChanges()
+    }, 1000)
+  }
+
+  private stopCompositeProfilesTimer(): void {
+    if (this.compositeProfilesTimerId !== null) {
+      clearInterval(this.compositeProfilesTimerId)
+      this.compositeProfilesTimerId = null
+    }
+  }
+
+  getCompositeProfilesProgressPercent(): number {
+    const { completed, total } = this.compositeProfilesProgress
+    return total > 0 ? (completed / total) * 100 : 0
+  }
+
+  // Downloads a composite building load profile (from the building-energy-profiles package) for each
+  // selected building, based on the ESPM building type(s) assigned via "Assign Building Types". Buildings
+  // are downloaded one at a time (rather than a single batch call) -- each hits the OEDI S3 dataset and
+  // can take a while, so this lets the progress box show real "X of N" feedback (and a running results
+  // list) as each building finishes, instead of one opaque spinner for the whole batch. A single
+  // successful building downloads directly as a CSV; multiple buildings are bundled into a ZIP alongside
+  // a summary.csv describing every building's resolved components and any that failed.
+  async downloadCompositeBuildingLoadProfiles(): Promise<void> {
+    const selectedRows = this.gridApi.getSelectedRows()
+    if (selectedRows.length === 0) {
+      alert('Please select at least one building to download composite building load profiles for')
+      return
+    }
+
+    this.compositeProfilesLabelById = {}
+    selectedRows.forEach((row: any) => {
+      this.compositeProfilesLabelById[String(row.id)] = row.properties?.street_address || row.properties?.PROP_ADDR || `building_${row.id}`
+    })
+
+    this.isDownloadingCompositeProfiles = true
+    this.compositeProfilesCancelled = false
+    this.compositeProfilesResults = []
+    this.compositeProfilesProgress = { completed: 0, total: selectedRows.length, currentLabel: '' }
+    this.startCompositeProfilesTimer()
+
+    for (const row of selectedRows) {
+      if (this.compositeProfilesCancelled) break
+
+      const buildingId = String(row.id)
+      this.compositeProfilesProgress.currentLabel = this.buildingLabelFor(buildingId)
+      this.cdr.detectChanges()
+
+      const requestData = {
+        buildings: [{ id: buildingId, properties: row.properties }],
+        resample: this.compositeProfilesConfig.resample,
+      }
+
+      try {
+        const response = await firstValueFrom(this.apiHandler.downloadCompositeBuildingLoadProfiles(requestData))
+        const result = response?.results?.[0]
+        this.compositeProfilesResults.push(result || { id: buildingId, success: false, error: 'No result returned' })
+      } catch (errorResponse: any) {
+        console.error(`Download composite building load profile failed for building ${buildingId}:`, errorResponse)
+        this.compositeProfilesResults.push({
+          id: buildingId,
+          success: false,
+          error: errorResponse?.error?.message || errorResponse?.error?.error || 'Unknown error',
+        })
+      }
+
+      this.compositeProfilesProgress.completed += 1
+      this.cdr.detectChanges()
+    }
+
+    this.stopCompositeProfilesTimer()
+    this.isDownloadingCompositeProfiles = false
+    this.compositeProfilesProgress.currentLabel = ''
+    this.cdr.detectChanges()
+
+    const wasCancelled = this.compositeProfilesCancelled
+    const successes = this.compositeProfilesResults.filter((result) => result.success)
+    const failures = this.compositeProfilesResults.filter((result) => !result.success)
+
+    if (wasCancelled && successes.length === 0) {
+      return
+    }
+
+    if (successes.length === 0) {
+      alert('No composite building load profiles could be downloaded. See the errors listed below for details.')
+      return
+    }
+
+    this.saveCompositeProfileFiles(successes, failures)
+    if (wasCancelled) {
+      alert(`Download cancelled after ${this.compositeProfilesProgress.completed} of ${this.compositeProfilesProgress.total} building(s).`)
+    }
+  }
+
+  private buildingLabelFor(id: string): string {
+    return this.compositeProfilesLabelById[id] || `building_${id}`
+  }
+
+  private saveCompositeProfileFiles(successes: CompositeLoadProfileResult[], failures: CompositeLoadProfileResult[]): void {
+    if (successes.length === 1 && failures.length === 0) {
+      const only = successes[0]
+      const filename = `${this.sanitizeFilename(this.buildingLabelFor(only.id))}_composite_load_profile.csv`
+      this.downloadCsvBlob(only.csv || '', filename)
+      return
+    }
+
+    const zip = new JSZip()
+    successes.forEach((result) => {
+      const filename = `${this.sanitizeFilename(this.buildingLabelFor(result.id))}_${result.id}.csv`
+      zip.file(filename, result.csv || '')
+    })
+
+    const summaryLines = [
+      'id,building,success,components,error',
+      ...successes.map(
+        (result) =>
+          `${result.id},"${this.buildingLabelFor(result.id)}",true,"${(result.components || [])
+            .map((component) => `${component.buildstock_building_type} (${Math.round(component.fraction * 100)}%)`)
+            .join('; ')}",`,
+      ),
+      ...failures.map((result) => `${result.id},"${this.buildingLabelFor(result.id)}",false,,"${(result.error || '').replace(/"/g, "'")}"`),
+    ]
+    zip.file('summary.csv', summaryLines.join('\n'))
+
+    zip.generateAsync({ type: 'blob' }).then((blob) => {
+      const link = document.createElement('a')
+      const url = URL.createObjectURL(blob)
+      link.setAttribute('href', url)
+      link.setAttribute('download', 'composite_building_load_profiles.zip')
+      link.style.visibility = 'hidden'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+
+      if (failures.length > 0) {
+        alert(
+          `Downloaded ${successes.length} composite building load profile(s). ${failures.length} building${failures.length === 1 ? '' : 's'} failed -- see summary.csv in the ZIP for details.`,
+        )
+      }
+    })
+  }
+
+  private downloadCsvBlob(csvText: string, filename: string): void {
+    const blob = new Blob([csvText], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    link.setAttribute('href', url)
+    link.setAttribute('download', filename)
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
   }
 
   // ===== HEATMAP METHODS =====
