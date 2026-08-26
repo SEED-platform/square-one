@@ -98,13 +98,17 @@
       </div>
     </div>
   </div>
-  <div class="mt-0 flex h-[100vh] w-[90%] flex-col justify-center p-0" id="data-container" *ngIf="hasValidGeoJsonData">
+  <div #dataContainer class="map-table-container mt-0 flex w-[90%] flex-col p-0" [class.is-resizing]="isResizingMapTable" id="data-container" *ngIf="hasValidGeoJsonData">
     <!-- Map Section -->
-    <div class="mb-4 h-[60vh] min-h-[400px] w-full">
+    <div class="map-panel w-full" [style.flex-basis.%]="mapPanelPercent">
       <app-mapbox-map [showAllPins]="showAllPins"></app-mapbox-map>
     </div>
 
-    <div class="square-one-table-container h-[65vh] w-full mt-20">
+    <div class="map-table-splitter" role="separator" tabindex="0" aria-label="Resize map and table" aria-orientation="horizontal" aria-valuemin="20" aria-valuemax="80" [attr.aria-valuenow]="mapPanelPercent | number: '1.0-0'" title="Drag to resize the map and table; use the arrow keys for precise adjustments" (pointerdown)="onMapTableSplitterPointerDown($event)" (pointermove)="onMapTableSplitterPointerMove($event)" (pointerup)="onMapTableSplitterPointerUp($event)" (pointercancel)="onMapTableSplitterPointerUp($event)" (keydown)="onMapTableSplitterKeydown($event)">
+      <span class="map-table-splitter-handle" aria-hidden="true"></span>
+    </div>
+
+    <div class="square-one-table-container min-h-0 w-full flex-1">
       <ag-grid-angular class="ag-theme-quartz" [columnDefs]="colDefs" [defaultColDef]="defaultColDef" [rowData]="rowData" [rowSelection]="{ mode: 'multiRow' }" [getRowId]="getRowId" (gridReady)="onGridReady($event)" (rowClicked)="onRowClicked($event)" (selectionChanged)="onSelectionChanged($event)" theme="legacy" style="height: 100%; width: 100%" />
     </div>
   </div>
@@ -410,7 +414,7 @@
     <p class="mb-4 text-sm text-gray-600">Assign up to 3 ENERGY STAR Portfolio Manager (ESPM) building types per building -- primary, secondary, and tertiary -- with a floor-area weight for each. A building with more than one assigned type is downloaded as a floor-area-weighted composite ("mixed-use") load profile; a badge next to each type shows how well it maps to a BuildStock building type.</p>
 
     <div class="flex-1 space-y-4 overflow-y-auto pr-1">
-      <div class="rounded-lg border border-gray-200 p-4" *ngFor="let assignmentRow of assignBuildingTypesRows">
+      <div class="rounded-lg border border-gray-200 p-4" *ngFor="let assignmentRow of assignBuildingTypesRows; let rowIndex = index">
         <div class="mb-3 flex items-center justify-between">
           <h4 class="text-sm font-semibold text-gray-900">{{ assignmentRow.label }}</h4>
           <button class="text-xs font-medium text-blue-600 hover:text-blue-800" (click)="normalizeRowWeights(assignmentRow)" title="Rescale weights to sum to exactly 100%">Normalize to 100%</button>
@@ -426,10 +430,10 @@
         <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div *ngFor="let slot of buildingTypeSlots">
             <label class="mb-1 block text-xs font-medium text-gray-500 capitalize">{{ slot }}{{ slot === 'primary' ? ' (required)' : ' (optional)' }}</label>
-            <select class="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200" [(ngModel)]="assignmentRow.slots[slot].type" (ngModelChange)="onAssignBuildingTypeChange(assignmentRow, slot)">
-              <option value="">None</option>
-              <option *ngFor="let buildingType of espmBuildingTypes" [value]="buildingType.property_type">{{ buildingType.property_type }}</option>
-            </select>
+            <input class="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200" type="search" autocomplete="off" placeholder="Search building types..." [attr.list]="'building-types-' + rowIndex + '-' + slot" [attr.aria-label]="slot + ' building type'" [(ngModel)]="assignmentRow.slots[slot].type" (ngModelChange)="onAssignBuildingTypeChange(assignmentRow, slot)" />
+            <datalist [id]="'building-types-' + rowIndex + '-' + slot">
+              <option *ngFor="let buildingType of espmBuildingTypes" [value]="buildingType.property_type"></option>
+            </datalist>
             <div class="mt-1 flex items-center gap-2">
               <input class="w-20 rounded-md border border-gray-300 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200" type="number" min="0" max="100" [disabled]="!assignmentRow.slots[slot].type" [(ngModel)]="assignmentRow.slots[slot].weight" />
               <span class="text-xs text-gray-500">% weight</span>
@@ -440,7 +444,7 @@
           </div>
         </div>
 
-        <p class="mt-2 text-xs" [class.text-gray-500]="getRowTotalWeight(assignmentRow) > 0" [class.text-red-600]="getRowTotalWeight(assignmentRow) === 0">Total weight: {{ getRowTotalWeight(assignmentRow) }}% <span *ngIf="!isAssignmentRowValid(assignmentRow)">-- assign at least a primary building type with a weight greater than 0.</span></p>
+        <p class="mt-2 text-xs" [class.text-gray-500]="isAssignmentRowValid(assignmentRow)" [class.text-red-600]="!isAssignmentRowValid(assignmentRow)">Total weight: {{ getRowTotalWeight(assignmentRow) }}% <span *ngIf="!isAssignmentRowValid(assignmentRow)">-- select valid building types from the searchable lists and assign the primary type a weight greater than 0.</span></p>
       </div>
     </div>
 
@@ -464,6 +468,11 @@
     </div>
 
     <p class="mb-2 text-sm text-gray-600">Downloads a representative annual load profile (from the <code>building-energy-profiles</code> ComStock/ResStock dataset) for each selected building, based on its assigned ESPM building type(s). Each building also needs a 2-letter <code>state</code>.</p>
+
+    <div class="mb-4 rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900">
+      <p><strong>Scaled to building size:</strong> When a building has a positive <code>gross_floor_area</code>, the profile is scaled to that floor area. If gross floor area is missing or invalid, the representative sample profile is downloaded without size scaling.</p>
+      <p class="mt-2"><strong>Server copy:</strong> Each successful profile is also saved under <code>flask_app/data/load_profiles</code>. Its full path and the representative BuildStock building ID(s) are recorded in the row's load-profile columns.</p>
+    </div>
 
     <div class="mb-4 rounded-lg border p-3 text-sm" [class.border-amber-200]="countSelectedWithBuildingTypeAssigned() === 0" [class.bg-amber-50]="countSelectedWithBuildingTypeAssigned() === 0" [class.border-blue-200]="countSelectedWithBuildingTypeAssigned() > 0" [class.bg-blue-50]="countSelectedWithBuildingTypeAssigned() > 0">
       {{ countSelectedWithBuildingTypeAssigned() }} of {{ compositeProfilesSelectedCount }} selected building(s) have a building type assigned.
@@ -501,7 +510,13 @@
       <ul class="space-y-1">
         <li class="rounded px-2 py-1 text-xs" *ngFor="let result of compositeProfilesResults" [class.bg-green-50]="result.success" [class.text-green-800]="result.success" [class.bg-red-50]="!result.success" [class.text-red-800]="!result.success">
           <span class="font-medium">{{ result.id }}:</span>
-          <span *ngIf="result.success">Downloaded ({{ result.row_count }} rows{{ result.components && result.components.length > 1 ? ', composite of ' + result.components.length + ' building types' : '' }}).</span>
+          <span *ngIf="result.success"
+            >Downloaded ({{ result.row_count }} rows{{ result.components && result.components.length > 1 ? ', composite of ' + result.components.length + ' building types' : '' }}).
+            <span *ngIf="result.file_path"
+              >Saved on server: <code class="break-all">{{ result.file_path }}</code></span
+            >
+            <span *ngIf="result.representative_buildings?.length"> Representative building(s): {{ formatRepresentativeBuildingIds(result) }}.</span></span
+          >
           <span *ngIf="!result.success">{{ result.error }}</span>
         </li>
       </ul>

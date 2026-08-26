@@ -2,7 +2,7 @@
 name = "square_one"
 version = "0.1.0"
 description = ""
-authors = ["Alex Swindler <axelstudios>", "Nicholas Long <nllong>", "Katherine Fleming <kflemin>", "Roger Braun <roger.braun@nrel.gov>", "Rahman Mian <rahman.mian@nrel.gov>", "Devin Brady <devin.brady@nrel.gov>"]
+authors = ["Alex Swindler <axelstudios>", "Nicholas Long <nllong>", "Katherine Fleming <kflemin>", "Roger Braun <roger.braun@nlr.gov>", "Rahman Mian <rahman.mian@nlr.gov>", "Devin Brady <devin.brady@nlr.gov>"]
 readme = "README.md"
 packages = [
     { include = "flask_app" }

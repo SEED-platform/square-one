@@ -3,6 +3,8 @@ Tests for the composite building load profile service.
 """
 
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 import pandas as pd
@@ -19,6 +21,7 @@ from flask_app.services.composite_building_load_service import (
 
 _SAMPLE_TIME_SERIES = pd.DataFrame(
     {
+        "bldg_id": [101, 101, 101, 101],
         "timestamp": pd.date_range("2018-01-01", periods=4, freq="15min"),
         "out.electricity.total.energy_consumption": [1.0, 2.0, 3.0, 4.0],
     }
@@ -115,11 +118,18 @@ class TestPullBuildingLoadProfile(unittest.TestCase):
         self.assertEqual(result["row_count"], 4)
         self.assertEqual(len(result["components"]), 1)
         self.assertEqual(result["components"][0]["buildstock_building_type"], "SmallOffice")
+        self.assertEqual(result["representative_buildings"][0]["building_id"], "101")
         self.assertIn("out.electricity.total.energy_consumption", result["csv"])
 
     @patch("flask_app.services.composite_building_load_service.pull_composite_time_series")
     def test_multiple_building_types_uses_composite_path(self, mock_pull_composite):
-        mock_pull_composite.return_value = (_SAMPLE_TIME_SERIES, {})
+        mock_pull_composite.return_value = (
+            _SAMPLE_TIME_SERIES,
+            {
+                ("comstock", "SmallOffice"): _SAMPLE_TIME_SERIES,
+                ("comstock", "RetailStripmall"): _SAMPLE_TIME_SERIES.assign(bldg_id=202),
+            },
+        )
 
         result = pull_building_load_profile(
             {
@@ -134,6 +144,7 @@ class TestPullBuildingLoadProfile(unittest.TestCase):
         mock_pull_composite.assert_called_once()
         self.assertEqual(len(result["components"]), 2)
         self.assertAlmostEqual(sum(c["fraction"] for c in result["components"]), 1.0)
+        self.assertEqual([building["building_id"] for building in result["representative_buildings"]], ["101", "202"])
 
     @patch("flask_app.services.composite_building_load_service._pull_single_component_time_series")
     def test_hourly_resample_reduces_row_count(self, mock_pull_single):
@@ -163,12 +174,40 @@ class TestPullBuildingLoadProfiles(unittest.TestCase):
             {"id": "2", "properties": {"state": ""}},  # missing state -> should fail without affecting building 1
         ]
 
-        results = pull_building_load_profiles(buildings)
+        with TemporaryDirectory() as output_dir:
+            results = pull_building_load_profiles(buildings, output_dir=Path(output_dir))
 
         self.assertEqual(len(results), 2)
         self.assertTrue(results[0]["success"])
+        self.assertTrue(Path(results[0]["file_path"]).is_absolute())
         self.assertFalse(results[1]["success"])
         self.assertIn("state", results[1]["error"])
+
+    @patch("flask_app.services.composite_building_load_service._pull_single_component_time_series")
+    def test_saves_successful_profile_in_requested_output_directory(self, mock_pull_single):
+        mock_pull_single.return_value = _SAMPLE_TIME_SERIES
+
+        with TemporaryDirectory() as output_dir:
+            results = pull_building_load_profiles(
+                [
+                    {
+                        "id": "building/1",
+                        "properties": {
+                            "street_address": "123 Main St.",
+                            "state": "CO",
+                            "espm_building_type_primary": "Bank Branch",
+                            "espm_building_type_primary_weight": 100,
+                        },
+                    }
+                ],
+                resample="hourly",
+                output_dir=Path(output_dir),
+            )
+
+            saved_path = Path(results[0]["file_path"])
+            self.assertEqual(saved_path.parent, Path(output_dir).resolve())
+            self.assertEqual(saved_path.name, "123_Main_St_building_1_hourly_load_profile.csv")
+            self.assertEqual(saved_path.read_text(encoding="utf-8"), results[0]["csv"])
 
     @patch("flask_app.services.composite_building_load_service._pull_single_component_time_series")
     def test_unexpected_exception_is_caught_and_reported(self, mock_pull_single):

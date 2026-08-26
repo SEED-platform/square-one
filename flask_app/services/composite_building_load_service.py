@@ -19,6 +19,7 @@ and `pull_building_load_profile()` for the per-building download/combine entry p
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import Path
 from typing import Any
 
@@ -32,6 +33,10 @@ logger = logging.getLogger(__name__)
 # Where downloaded BuildStock metadata/time series get cached between requests, keyed by
 # state/county/building-type/upgrade -- see `building_energy_profiles.BuildStockProcessor`.
 CACHE_DIR = Path(__file__).resolve().parent.parent / "cache" / "building_energy_profiles"
+
+# Durable server-side copies of generated profiles. Unlike CACHE_DIR, this location represents user
+# output and is not part of the package's disposable download cache.
+LOAD_PROFILE_OUTPUT_DIR = Path(__file__).resolve().parent.parent / "data" / "load_profiles"
 
 # The building-type "slots" a Square One building can be assigned, in priority order. Each slot is stored
 # on the building's properties as `espm_building_type_<slot>` (an ENERGY STAR property type string) and
@@ -121,6 +126,32 @@ def _to_positive_float(value: Any) -> float | None:
     return number if number > 0 else None
 
 
+def _safe_filename_part(value: Any, fallback: str) -> str:
+    """Return a short, filesystem-safe filename component without allowing path traversal."""
+    cleaned = re.sub(r"[^a-zA-Z0-9_-]+", "_", str(value or "")).strip("_")
+    return cleaned[:80] or fallback
+
+
+def _save_profile_csv(
+    building: dict[str, Any],
+    csv_text: str,
+    resample: str,
+    output_dir: Path,
+) -> Path:
+    """Persist one generated profile in the shared server output directory and return its path."""
+    building_id = _safe_filename_part(building.get("id"), "building")
+    properties = building.get("properties") or {}
+    label = properties.get("street_address") or properties.get("PROP_ADDR") or "building"
+    building_label = _safe_filename_part(label, "building")
+    resolution = _safe_filename_part(resample, "native")
+    filename = f"{building_label}_{building_id}_{resolution}_load_profile.csv"
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / filename
+    output_path.write_text(csv_text, encoding="utf-8")
+    return output_path.resolve()
+
+
 def _build_processor(product: str, state: str, county_name: str, building_type: str) -> ComStockProcessor | ResStockProcessor:
     processor_cls = ComStockProcessor if product == "comstock" else ResStockProcessor
     base_dir = CACHE_DIR / product
@@ -181,6 +212,29 @@ def _resample_hourly(data_frame: pd.DataFrame, timestamp_column: str = "timestam
     return indexed.resample("1h").mean().reset_index()
 
 
+def _representative_building(
+    product: str,
+    building_type: str,
+    time_series: pd.DataFrame,
+) -> dict[str, str] | None:
+    """Describe the BuildStock sample building represented by a downloaded component time series."""
+    if time_series.empty or "bldg_id" not in time_series.columns:
+        return None
+
+    raw_building_id = time_series["bldg_id"].iloc[0]
+    if pd.isna(raw_building_id):
+        return None
+    if isinstance(raw_building_id, (int, float)) and float(raw_building_id).is_integer():
+        building_id = str(int(raw_building_id))
+    else:
+        building_id = str(raw_building_id)
+    return {
+        "buildstock_product": product,
+        "buildstock_building_type": building_type,
+        "building_id": building_id,
+    }
+
+
 def pull_building_load_profile(properties: dict[str, Any], resample: str = "native") -> dict[str, Any]:
     """Download (and, when 2-3 building types are assigned, combine) one Square One building's composite
     building load profile, based on its assigned ESPM building type(s)/weight(s), `state`, and (optional)
@@ -193,8 +247,8 @@ def pull_building_load_profile(properties: dict[str, Any], resample: str = "nati
         resample: `"native"` (~15-minute intervals, as published) or `"hourly"`.
 
     Returns:
-        A dict with the resolved `components` (BuildStock product/building type/normalized weight actually
-        used), `state`, `county`, `row_count`, and the resulting time series as `csv` text.
+        A dict with the resolved `components`, the representative BuildStock building ID used for each
+        component, `state`, `county`, `row_count`, and the resulting time series as `csv` text.
 
     Raises:
         CompositeBuildingLoadError: for any user-fixable problem (missing state, no building type
@@ -220,15 +274,22 @@ def pull_building_load_profile(properties: dict[str, Any], resample: str = "nati
     if len(fractions) == 1:
         (product, building_type), _fraction = next(iter(fractions.items()))
         combined = _pull_single_component_time_series(product, building_type, state, county_name, target_sqft)
+        representative = _representative_building(product, building_type, combined)
+        representative_buildings = [representative] if representative else []
     else:
         composite = CompositeBuildingType.from_fractions("square-one composite", fractions)
-        combined, _component_series = pull_composite_time_series(
+        combined, component_series = pull_composite_time_series(
             composite,
             save_dir=CACHE_DIR,
             state=state,
             county_name=county_name,
             total_sqft=target_sqft,
         )
+        representative_buildings = [
+            representative
+            for (product, building_type), time_series in component_series.items()
+            if (representative := _representative_building(product, building_type, time_series)) is not None
+        ]
 
     if resample == "hourly":
         combined = _resample_hourly(combined)
@@ -240,23 +301,30 @@ def pull_building_load_profile(properties: dict[str, Any], resample: str = "nati
         ],
         "state": state,
         "county": county_name,
+        "representative_buildings": representative_buildings,
         "row_count": len(combined),
         "csv": combined.to_csv(index=False),
     }
 
 
-def pull_building_load_profiles(buildings: list[dict[str, Any]], resample: str = "native") -> list[dict[str, Any]]:
+def pull_building_load_profiles(
+    buildings: list[dict[str, Any]],
+    resample: str = "native",
+    output_dir: Path | None = None,
+) -> list[dict[str, Any]]:
     """Download a composite building load profile for each of `buildings` (`[{"id", "properties"}, ...]`),
-    isolating failures per-building so one bad building (missing state, no sample data, etc.) doesn't stop
-    the rest of the batch from downloading successfully.
+    save each successful CSV in a shared server directory, and isolate failures per building so one bad
+    building (missing state, no sample data, etc.) doesn't stop the rest of the batch.
     """
+    destination = output_dir or LOAD_PROFILE_OUTPUT_DIR
     results: list[dict[str, Any]] = []
     for building in buildings:
         building_id = str(building.get("id", ""))
         properties = building.get("properties") or {}
         try:
             profile = pull_building_load_profile(properties, resample=resample)
-            results.append({"id": building_id, "success": True, **profile})
+            file_path = _save_profile_csv(building, profile["csv"], resample, destination)
+            results.append({"id": building_id, "success": True, "file_path": str(file_path), **profile})
         except CompositeBuildingLoadError as e:
             results.append({"id": building_id, "success": False, "error": str(e)})
         except Exception as e:

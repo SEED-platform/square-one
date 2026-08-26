@@ -1226,9 +1226,11 @@ def download_composite_building_load_profiles():
 
     Each building's result is returned independently (`success: true/false`) so one building's failure
     (e.g. missing state, an unmapped ESPM type, or no matching BuildStock sample buildings) doesn't stop
-    the rest of the batch's profiles from downloading. On success, a building's result includes its
-    resolved BuildStock `components` and the resulting time series as CSV text (`csv`), which the client
-    downloads directly (as one CSV) or bundles into a ZIP (for multiple buildings).
+    the rest of the batch's profiles from downloading. On success, the server saves the generated CSV in
+    its shared load-profile output directory and returns that absolute `file_path`, the BuildStock sample
+    building ID used for each representative component, the resolved `components`, and CSV text. The client
+    records the path/representative IDs on the building row and also offers the usual browser download (as
+    one CSV or a ZIP for multiple buildings).
     """
     if not request.json:
         return jsonify({"error": "No JSON data provided"}), 400

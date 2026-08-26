@@ -1,7 +1,7 @@
 import { CommonModule } from '@angular/common'
 import { FormsModule } from '@angular/forms'
 import type { OnDestroy, OnInit } from '@angular/core'
-import { ChangeDetectorRef, Component, ViewEncapsulation } from '@angular/core'
+import { ChangeDetectorRef, Component, ElementRef, ViewChild, ViewEncapsulation } from '@angular/core'
 import { Router } from '@angular/router'
 import { AgGridAngular } from 'ag-grid-angular'
 import type { ColDef, ValueGetterParams, ValueSetterParams } from 'ag-grid-community'
@@ -48,6 +48,7 @@ interface EspmBuildingType {
 // The three building-type "slots" a building can be assigned, in priority order.
 type BuildingTypeSlotName = 'primary' | 'secondary' | 'tertiary'
 const BUILDING_TYPE_SLOTS: BuildingTypeSlotName[] = ['primary', 'secondary', 'tertiary']
+const LOAD_PROFILE_COLUMN_NAMES = ['load_profile_file_path', 'load_profile_representative_building_ids']
 
 // One row's editable state in the "Assign Building Types" dialog.
 interface BuildingTypeAssignmentRow {
@@ -63,8 +64,10 @@ interface CompositeLoadProfileResult {
   success: boolean
   error?: string
   csv?: string
+  file_path?: string
   row_count?: number
   components?: { buildstock_product: string; buildstock_building_type: string; fraction: number }[]
+  representative_buildings?: { buildstock_product: string; buildstock_building_type: string; building_id: string }[]
 }
 
 @Component({
@@ -84,6 +87,9 @@ interface CompositeLoadProfileResult {
   encapsulation: ViewEncapsulation.None,
 })
 export class SquareOneTableComponent implements OnInit, OnDestroy {
+  @ViewChild('dataContainer') private dataContainer?: ElementRef<HTMLElement>
+  @ViewChild(MapboxMapComponent) private mapboxMap?: MapboxMapComponent
+
   featuresArray: any[] = []
   colDefs: ColDef[] = []
   geoJson: any
@@ -206,6 +212,12 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
   // visible when zoomed out (in addition to any footprint polygons/edit markers already shown).
   showAllPins = false
 
+  // The map and table share a fixed-height workspace. The horizontal splitter changes the
+  // percentage assigned to the map; the table consumes the remainder.
+  mapPanelPercent = 48
+  isResizingMapTable = false
+  private resizeMapFrameId: number | null = null
+
   // Record merging properties
   showRecordMergeDialog = false
   selectedRecordsForMerge: any[] = []
@@ -273,6 +285,7 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
     'espm_building_type_secondary_weight',
     'espm_building_type_tertiary',
     'espm_building_type_tertiary_weight',
+    ...LOAD_PROFILE_COLUMN_NAMES,
   ]
 
   // getRowId function for AG-Grid to properly identify rows using the feature's own stable id
@@ -315,6 +328,8 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
     espm_building_type_secondary_weight: 0,
     espm_building_type_tertiary: '',
     espm_building_type_tertiary_weight: 0,
+    load_profile_file_path: '',
+    load_profile_representative_building_ids: '',
     // Additional common properties
     BUILD_ID: null,
     HEIGHT: null,
@@ -481,6 +496,7 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
       // Only process if we have valid data
       if (data && data.features && data.features.length > 0) {
         console.log('Processing valid data with', data.features.length, 'features')
+        this.ensureLoadProfileColumns(data.features)
         if (this.initialLoad) {
           // keeps it from rendering every change..better performance
           if (this.sessionService.getPropertyNames().length === 0) {
@@ -589,7 +605,75 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
       this.heatmapSubscription.unsubscribe()
     }
     this.stopCompositeProfilesTimer()
+    if (this.resizeMapFrameId !== null) {
+      cancelAnimationFrame(this.resizeMapFrameId)
+    }
   }
+
+  onMapTableSplitterPointerDown(event: PointerEvent): void {
+    if (!event.isPrimary || event.button !== 0) return
+
+    event.preventDefault()
+    this.isResizingMapTable = true
+    const splitter = event.currentTarget as HTMLElement
+    splitter.setPointerCapture(event.pointerId)
+    this.updateMapTableSplit(event.clientY)
+  }
+
+  onMapTableSplitterPointerMove(event: PointerEvent): void {
+    if (!this.isResizingMapTable) return
+    this.updateMapTableSplit(event.clientY)
+  }
+
+  onMapTableSplitterPointerUp(event: PointerEvent): void {
+    if (!this.isResizingMapTable) return
+
+    this.isResizingMapTable = false
+    const splitter = event.currentTarget as HTMLElement
+    if (splitter.hasPointerCapture(event.pointerId)) {
+      splitter.releasePointerCapture(event.pointerId)
+    }
+    this.scheduleMapResize()
+  }
+
+  onMapTableSplitterKeydown(event: KeyboardEvent): void {
+    const step = event.shiftKey ? 10 : 2
+    if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      this.mapPanelPercent = Math.max(20, this.mapPanelPercent - step)
+    } else if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      this.mapPanelPercent = Math.min(80, this.mapPanelPercent + step)
+    } else {
+      return
+    }
+    this.scheduleMapResize()
+  }
+
+  private updateMapTableSplit(pointerY: number): void {
+    const container = this.dataContainer?.nativeElement
+    if (!container) return
+
+    const bounds = container.getBoundingClientRect()
+    const splitterHeight = 12
+    const availableHeight = Math.max(1, bounds.height - splitterHeight)
+    const minimumPanelHeight = availableHeight * 0.2
+    const mapHeight = Math.min(
+      availableHeight - minimumPanelHeight,
+      Math.max(minimumPanelHeight, pointerY - bounds.top - splitterHeight / 2),
+    )
+    this.mapPanelPercent = (mapHeight / availableHeight) * 100
+    this.scheduleMapResize()
+  }
+
+  private scheduleMapResize(): void {
+    if (this.resizeMapFrameId !== null) return
+    this.resizeMapFrameId = requestAnimationFrame(() => {
+      this.resizeMapFrameId = null
+      this.mapboxMap?.resize()
+    })
+  }
+
   onGridReady(params: any) {
     this.gridApi = params.api
     this.gridApi.sizeColumnsToFit()
@@ -1012,10 +1096,16 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
         keys.push(col)
       }
     })
+    // Keep generated-profile metadata immediately after the Footprint column instead of burying it at
+    // the far right of wide imported datasets.
+    keys = [...LOAD_PROFILE_COLUMN_NAMES, ...keys.filter((key) => !LOAD_PROFILE_COLUMN_NAMES.includes(key))]
+    // Persist essential fields too. Previously they were only added to this local array, which meant
+    // new profile columns could disappear when an existing session supplied its own property-name list.
+    this.sessionService.setPropertyNames(keys)
 
     keys.push('coordinates')
 
-    const nonEditableKeys = ['ubid', 'longitude', 'latitude', 'hasFootprint', 'footprint_area_ft2']
+    const nonEditableKeys = ['ubid', 'longitude', 'latitude', 'hasFootprint', 'footprint_area_ft2', ...LOAD_PROFILE_COLUMN_NAMES]
 
     // Add the hasFootprint column at the beginning (after selection)
     this.colDefs = [
@@ -3308,7 +3398,15 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
   }
 
   isAssignmentRowValid(assignmentRow: BuildingTypeAssignmentRow): boolean {
-    return !!assignmentRow.slots.primary.type && this.getRowTotalWeight(assignmentRow) > 0
+    const allEnteredTypesAreKnown = BUILDING_TYPE_SLOTS.every((slot) => {
+      const propertyType = assignmentRow.slots[slot].type
+      return !propertyType || !!this.getEspmBuildingTypeInfo(propertyType)
+    })
+    return (
+      !!this.getEspmBuildingTypeInfo(assignmentRow.slots.primary.type) &&
+      allEnteredTypesAreKnown &&
+      this.getRowTotalWeight(assignmentRow) > 0
+    )
   }
 
   canSaveBuildingTypeAssignments(): boolean {
@@ -3476,6 +3574,8 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
     const successes = this.compositeProfilesResults.filter((result) => result.success)
     const failures = this.compositeProfilesResults.filter((result) => !result.success)
 
+    this.recordCompositeProfileMetadata(selectedRows, successes)
+
     if (wasCancelled && successes.length === 0) {
       return
     }
@@ -3495,6 +3595,38 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
     return this.compositeProfilesLabelById[id] || `building_${id}`
   }
 
+  private ensureLoadProfileColumns(features: any[]): void {
+    features.forEach((feature) => {
+      if (!feature.properties) feature.properties = {}
+      LOAD_PROFILE_COLUMN_NAMES.forEach((columnName) => {
+        if (!Object.prototype.hasOwnProperty.call(feature.properties, columnName)) {
+          feature.properties[columnName] = ''
+        }
+      })
+    })
+  }
+
+  formatRepresentativeBuildingIds(result: CompositeLoadProfileResult): string {
+    return (result.representative_buildings || [])
+      .map((building) => `${building.building_id} (${building.buildstock_product}/${building.buildstock_building_type})`)
+      .join('; ')
+  }
+
+  private recordCompositeProfileMetadata(selectedRows: any[], successes: CompositeLoadProfileResult[]): void {
+    const resultByBuildingId = new Map(successes.map((result) => [result.id, result]))
+    const updatedRows = selectedRows.filter((row: any) => {
+      const result = resultByBuildingId.get(String(row.id))
+      if (!result || !row.properties) return false
+      row.properties.load_profile_file_path = result.file_path || ''
+      row.properties.load_profile_representative_building_ids = this.formatRepresentativeBuildingIds(result)
+      return true
+    })
+
+    if (updatedRows.length === 0) return
+    this.gridApi.applyTransaction({ update: updatedRows })
+    this.sessionService.setGeoJsonData(this.geoJson)
+  }
+
   private saveCompositeProfileFiles(successes: CompositeLoadProfileResult[], failures: CompositeLoadProfileResult[]): void {
     if (successes.length === 1 && failures.length === 0) {
       const only = successes[0]
@@ -3510,14 +3642,16 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
     })
 
     const summaryLines = [
-      'id,building,success,components,error',
+      'id,building,success,components,representative_building_ids,file_path,error',
       ...successes.map(
         (result) =>
           `${result.id},"${this.buildingLabelFor(result.id)}",true,"${(result.components || [])
             .map((component) => `${component.buildstock_building_type} (${Math.round(component.fraction * 100)}%)`)
-            .join('; ')}",`,
+            .join('; ')}","${this.formatRepresentativeBuildingIds(result)}","${(result.file_path || '').replace(/"/g, "'")}",`,
       ),
-      ...failures.map((result) => `${result.id},"${this.buildingLabelFor(result.id)}",false,,"${(result.error || '').replace(/"/g, "'")}"`),
+      ...failures.map(
+        (result) => `${result.id},"${this.buildingLabelFor(result.id)}",false,,,,"${(result.error || '').replace(/"/g, "'")}"`,
+      ),
     ]
     zip.file('summary.csv', summaryLines.join('\n'))
 

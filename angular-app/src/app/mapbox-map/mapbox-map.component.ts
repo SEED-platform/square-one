@@ -345,6 +345,11 @@ export class MapboxMapComponent implements OnInit, OnChanges, OnDestroy {
     }
   }
 
+  /** Recalculate the Mapbox canvas after its parent panel is resized by the map/table splitter. */
+  resize(): void {
+    this.map?.resize()
+  }
+
   updateZoomLevelForDeletion() {
     if (this.map) {
       // Keep current center but adjust zoom if needed
