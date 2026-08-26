@@ -13,6 +13,7 @@ import time
 import traceback
 import warnings
 from collections import OrderedDict
+from pathlib import Path
 from typing import Any
 
 import geopandas as gpd
@@ -39,6 +40,7 @@ from flask_app.services.common_service import (
     validate_request_data,
 )
 from flask_app.services.composite_building_load_service import (
+    LOAD_PROFILE_OUTPUT_DIR,
     list_espm_building_types,
     pull_building_load_profiles,
 )
@@ -1144,6 +1146,7 @@ def assign_target_eui():
                     "climate_zone": "4A",
                     "year_built": "1990",
                     "gross_floor_area": "50000",
+                    "weather_normalized_site_eui": "52.4",
                     "hours_of_operation": "60"
                 }
             }
@@ -1203,7 +1206,11 @@ def download_composite_building_load_profiles():
     dataset) for each selected building, based on the ESPM building type(s) assigned to it via 'Assign
     Building Types'. A building with a single assigned building type gets that building type's own
     representative time series; a building with 2-3 assigned building types (primary/secondary/tertiary,
-    each with a floor-area weight) gets a floor-area-weighted composite ("mixed-use") time series.
+    each with a floor-area weight) gets a floor-area-weighted composite ("mixed-use") time series. In
+    both cases, the representative sample is selected using gross floor area and annual site EUI when
+    both are available, the one available metric when only one is present, or a random sample from the
+    middle 50% of candidates when neither is present. Profiles are scaled only when gross floor area is
+    available.
 
     Expected request format:
     {
@@ -1221,7 +1228,7 @@ def download_composite_building_load_profiles():
                 }
             }
         ],
-        "resample": "native" | "hourly"
+        "resample": "native" (optional; native interval is always used)
     }
 
     Each building's result is returned independently (`success: true/false`) so one building's failure
@@ -1239,8 +1246,7 @@ def download_composite_building_load_profiles():
     if not buildings_data:
         return jsonify({"error": "No buildings data provided"}), 400
 
-    resample = request.json.get("resample", "native")
-    results = pull_building_load_profiles(buildings_data, resample=resample)
+    results = pull_building_load_profiles(buildings_data, resample="native")
 
     return jsonify(
         {
@@ -1249,6 +1255,19 @@ def download_composite_building_load_profiles():
             "results": results,
         }
     )
+
+
+@app.route("/api/load_profile", methods=["POST"])
+@handle_service_exceptions("load_profile")
+def load_profile():
+    """Read a previously generated server-side load profile for the row viewer."""
+    file_path = Path(str((request.json or {}).get("file_path", ""))).resolve()
+    output_root = LOAD_PROFILE_OUTPUT_DIR.resolve()
+    if file_path.suffix.lower() != ".csv" or output_root not in file_path.parents:
+        return jsonify({"error": "Invalid load profile path."}), 400
+    if not file_path.is_file():
+        return jsonify({"error": "Load profile file not found."}), 404
+    return jsonify({"success": True, "file_path": str(file_path), "csv": file_path.read_text(encoding="utf-8")})
 
 
 def return_one():

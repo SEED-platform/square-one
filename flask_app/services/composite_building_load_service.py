@@ -20,12 +20,13 @@ from __future__ import annotations
 
 import logging
 import re
+import secrets
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
 from building_energy_profiles import CompositeBuildingType, ComStockProcessor, ResStockProcessor, pull_composite_time_series
-from building_energy_profiles.composite import find_nearest_sqft_bldg_id, normalize_time_series_columns
+from building_energy_profiles.composite import normalize_time_series_columns
 from building_energy_profiles.energy_star_crosswalk import energy_star_crosswalk, map_energy_star_property_type
 
 logger = logging.getLogger(__name__)
@@ -44,6 +45,7 @@ LOAD_PROFILE_OUTPUT_DIR = Path(__file__).resolve().parent.parent / "data" / "loa
 BUILDING_TYPE_SLOTS = ("primary", "secondary", "tertiary")
 
 BASELINE_UPGRADE = "0"
+EUI_PROPERTY_FIELDS = ("weather_normalized_site_eui", "site_eui", "P25 target EUI")
 
 
 class CompositeBuildingLoadError(ValueError):
@@ -126,6 +128,121 @@ def _to_positive_float(value: Any) -> float | None:
     return number if number > 0 else None
 
 
+def _target_eui(properties: dict[str, Any]) -> tuple[float | None, str | None]:
+    for field in EUI_PROPERTY_FIELDS:
+        value = _to_positive_float(properties.get(field))
+        if value is not None:
+            return value, field
+    return None, None
+
+
+def _metadata_column(columns: pd.Index, prefix: str) -> str | None:
+    return next((str(column) for column in columns if column == prefix or str(column).startswith(prefix + "..")), None)
+
+
+def _select_representative_metadata_row(
+    metadata: pd.DataFrame,
+    target_sqft: float | None,
+    target_eui: float | None,
+) -> pd.Series:
+    sqft_column = _metadata_column(metadata.columns, "in.sqft")
+    energy_column = _metadata_column(metadata.columns, "out.site_energy.total.energy_consumption")
+    if target_sqft is not None and not sqft_column:
+        raise CompositeBuildingLoadError("BuildStock metadata is missing the floor-area field needed for representative selection.")
+    if target_eui is not None and (not sqft_column or not energy_column):
+        raise CompositeBuildingLoadError(
+            "BuildStock metadata is missing the floor-area or annual site-energy field needed for EUI selection."
+        )
+
+    sqft = pd.to_numeric(metadata[sqft_column], errors="coerce") if sqft_column else pd.Series(pd.NA, index=metadata.index, dtype="Float64")
+    energy = (
+        pd.to_numeric(metadata[energy_column], errors="coerce")
+        if energy_column
+        else pd.Series(pd.NA, index=metadata.index, dtype="Float64")
+    )
+    eui = (energy * 3.412141633 / sqft).replace([float("inf"), float("-inf")], pd.NA)
+
+    if target_sqft is not None and target_eui is not None:
+        valid = metadata[(sqft > 0) & (eui > 0)].copy()
+        scores = (sqft.loc[valid.index] - target_sqft).abs() / target_sqft + (eui.loc[valid.index] - target_eui).abs() / target_eui
+        selection_method = "floor_area_and_eui"
+    elif target_sqft is not None:
+        valid = metadata[sqft > 0].copy()
+        scores = (sqft.loc[valid.index] - target_sqft).abs() / target_sqft
+        selection_method = "floor_area_only"
+    elif target_eui is not None:
+        valid = metadata[eui > 0].copy()
+        scores = (eui.loc[valid.index] - target_eui).abs() / target_eui
+        selection_method = "eui_only"
+    else:
+        valid = metadata[(sqft > 0) & (eui > 0)].copy()
+        if valid.empty:
+            valid = metadata[sqft > 0].copy()
+        if valid.empty:
+            valid = metadata.copy()
+        scores = pd.Series(pd.NA, index=valid.index, dtype="Float64")
+        selection_method = "random_interquartile"
+
+    if valid.empty:
+        raise CompositeBuildingLoadError("No BuildStock samples are available for representative selection.")
+
+    eligible_count = len(valid)
+    if selection_method == "random_interquartile":
+        middle = valid
+        if sqft_column and sqft.loc[valid.index].notna().any():
+            sqft_low, sqft_high = sqft.loc[valid.index].quantile([0.25, 0.75])
+            middle = middle[(sqft.loc[middle.index] >= sqft_low) & (sqft.loc[middle.index] <= sqft_high)]
+        if energy_column and not middle.empty and eui.loc[middle.index].notna().any():
+            eui_low, eui_high = eui.loc[valid.index].quantile([0.25, 0.75])
+            middle = middle[(eui.loc[middle.index] >= eui_low) & (eui.loc[middle.index] <= eui_high)]
+        if middle.empty:
+            middle = valid
+        eligible_count = len(middle)
+        selected = middle.iloc[secrets.randbelow(len(middle))].copy()
+        selection_score: float | None = None
+    else:
+        selected_index = scores.astype(float).idxmin()
+        selected = valid.loc[selected_index].copy()
+        selection_score = float(scores.loc[selected_index])
+
+    sample_sqft = float(sqft.loc[selected.name]) if pd.notna(sqft.loc[selected.name]) and float(sqft.loc[selected.name]) > 0 else None
+    sample_eui = float(eui.loc[selected.name]) if pd.notna(eui.loc[selected.name]) and float(eui.loc[selected.name]) > 0 else None
+    selected["_selection_method"] = selection_method
+    selected["_selection_score"] = selection_score
+    selected["_sample_floor_area_ft2"] = sample_sqft
+    selected["_sample_site_eui_kbtu_ft2"] = sample_eui
+    selected["_target_floor_area_ft2"] = target_sqft
+    selected["_target_site_eui_kbtu_ft2"] = target_eui
+    selected["_candidate_count"] = len(valid)
+    selected["_eligible_candidate_count"] = eligible_count
+    return selected
+
+
+def _selection_audit(selected: pd.Series) -> dict[str, Any]:
+    """Return the inputs and score that make a representative choice independently auditable."""
+    target_sqft = _to_positive_float(selected["_target_floor_area_ft2"])
+    sample_sqft = _to_positive_float(selected["_sample_floor_area_ft2"])
+    target_eui = _to_positive_float(selected["_target_site_eui_kbtu_ft2"])
+    sample_eui = _to_positive_float(selected["_sample_site_eui_kbtu_ft2"])
+    score = selected["_selection_score"]
+    return {
+        "selection_method": str(selected["_selection_method"]),
+        "target_floor_area_ft2": round(target_sqft, 2) if target_sqft is not None else None,
+        "sample_floor_area_ft2": round(sample_sqft, 2) if sample_sqft is not None else None,
+        "target_site_eui_kbtu_ft2": round(target_eui, 4) if target_eui is not None else None,
+        "sample_site_eui_kbtu_ft2": round(sample_eui, 4) if sample_eui is not None else None,
+        "floor_area_relative_difference_pct": round(abs(sample_sqft - target_sqft) / target_sqft * 100, 2)
+        if sample_sqft is not None and target_sqft is not None
+        else None,
+        "site_eui_relative_difference_pct": round(abs(sample_eui - target_eui) / target_eui * 100, 2)
+        if sample_eui is not None and target_eui is not None
+        else None,
+        "combined_relative_distance": round(float(score), 6) if score is not None and pd.notna(score) else None,
+        "candidate_count": int(selected["_candidate_count"]),
+        "eligible_candidate_count": int(selected["_eligible_candidate_count"]),
+    }
+
+
 def _safe_filename_part(value: Any, fallback: str) -> str:
     """Return a short, filesystem-safe filename component without allowing path traversal."""
     cleaned = re.sub(r"[^a-zA-Z0-9_-]+", "_", str(value or "")).strip("_")
@@ -137,6 +254,7 @@ def _save_profile_csv(
     csv_text: str,
     resample: str,
     output_dir: Path,
+    representative_buildings: list[dict[str, Any]] | None = None,
 ) -> Path:
     """Persist one generated profile in the shared server output directory and return its path."""
     building_id = _safe_filename_part(building.get("id"), "building")
@@ -144,7 +262,11 @@ def _save_profile_csv(
     label = properties.get("street_address") or properties.get("PROP_ADDR") or "building"
     building_label = _safe_filename_part(label, "building")
     resolution = _safe_filename_part(resample, "native")
-    filename = f"{building_label}_{building_id}_{resolution}_load_profile.csv"
+    representative_ids = "-".join(
+        _safe_filename_part(representative.get("building_id"), "unknown") for representative in (representative_buildings or [])
+    )
+    representative_suffix = f"_buildstock_{representative_ids}" if representative_ids else ""
+    filename = f"{building_label}_{building_id}{representative_suffix}_{resolution}_load_profile.csv"
 
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / filename
@@ -165,7 +287,8 @@ def _pull_single_component_time_series(
     state: str,
     county_name: str,
     target_sqft: float | None,
-) -> pd.DataFrame:
+    target_eui: float | None,
+) -> tuple[pd.DataFrame, dict[str, Any]]:
     """Download one representative building's time series for a building with only one assigned
     (mapped) building type -- `CompositeBuildingType` requires 2+ components, so this bypasses it.
     """
@@ -175,13 +298,9 @@ def _pull_single_component_time_series(
         raise CompositeBuildingLoadError(f"No BuildStock sample buildings found for '{building_type}' ({product}) in state '{state}'.")
 
     sqft_column = next((column for column in metadata.columns if column.startswith("in.sqft")), None)
-    if target_sqft and sqft_column:
-        # Pick a real building already close in size to the target, rather than an arbitrary "first
-        # found" one that then gets linearly rescaled -- see find_nearest_sqft_bldg_id().
-        bldg_id = find_nearest_sqft_bldg_id(metadata, target_sqft, sqft_column=sqft_column)
-        sample = metadata[metadata["bldg_id"] == bldg_id]
-    else:
-        sample = metadata.head(1)
+    selected = _select_representative_metadata_row(metadata, target_sqft, target_eui)
+    bldg_id = selected["bldg_id"]
+    sample = metadata[metadata["bldg_id"] == bldg_id]
 
     sample_sqft = float(sample[sqft_column].iloc[0]) if sqft_column and not sample.empty else None
 
@@ -203,7 +322,7 @@ def _pull_single_component_time_series(
         combined = combined.copy()
         combined[numeric_columns] = combined[numeric_columns] * scale
 
-    return combined
+    return combined, _selection_audit(selected)
 
 
 def _resample_hourly(data_frame: pd.DataFrame, timestamp_column: str = "timestamp") -> pd.DataFrame:
@@ -216,7 +335,8 @@ def _representative_building(
     product: str,
     building_type: str,
     time_series: pd.DataFrame,
-) -> dict[str, str] | None:
+    selection_audit: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
     """Describe the BuildStock sample building represented by a downloaded component time series."""
     if time_series.empty or "bldg_id" not in time_series.columns:
         return None
@@ -232,6 +352,7 @@ def _representative_building(
         "buildstock_product": product,
         "buildstock_building_type": building_type,
         "building_id": building_id,
+        **(selection_audit or {}),
     }
 
 
@@ -244,7 +365,7 @@ def pull_building_load_profile(properties: dict[str, Any], resample: str = "nati
         properties: the building's row properties, expected to include `state` (2-letter), optionally
             `county` and `gross_floor_area`, and up to 3 `espm_building_type_<slot>`/
             `espm_building_type_<slot>_weight` pairs (see `BUILDING_TYPE_SLOTS`).
-        resample: `"native"` (~15-minute intervals, as published) or `"hourly"`.
+        resample: retained for compatibility; output is always at the native interval.
 
     Returns:
         A dict with the resolved `components`, the representative BuildStock building ID used for each
@@ -268,31 +389,46 @@ def pull_building_load_profile(properties: dict[str, Any], resample: str = "nati
     fractions = _resolve_components(slots)
     county_name = str(properties.get("county", "") or "").strip() or "All"
     target_sqft = _to_positive_float(properties.get("gross_floor_area"))
+    target_eui, eui_field = _target_eui(properties)
 
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
     if len(fractions) == 1:
         (product, building_type), _fraction = next(iter(fractions.items()))
-        combined = _pull_single_component_time_series(product, building_type, state, county_name, target_sqft)
-        representative = _representative_building(product, building_type, combined)
+        combined, selection_audit = _pull_single_component_time_series(product, building_type, state, county_name, target_sqft, target_eui)
+        representative = _representative_building(product, building_type, combined, selection_audit)
         representative_buildings = [representative] if representative else []
     else:
         composite = CompositeBuildingType.from_fractions("square-one composite", fractions)
+        representative_ids: dict[tuple[str, str], int] = {}
+        selection_audits: dict[tuple[str, str], dict[str, Any]] = {}
+        for (product, building_type), fraction in fractions.items():
+            processor = _build_processor(product, state, county_name, building_type)
+            metadata = processor.process_metadata(save_dir=processor.base_dir)
+            if metadata.empty or "bldg_id" not in metadata.columns:
+                raise CompositeBuildingLoadError(f"No BuildStock sample buildings found for '{building_type}' ({product}).")
+            component_target_sqft = target_sqft * fraction if target_sqft is not None else None
+            selected = _select_representative_metadata_row(metadata, component_target_sqft, target_eui)
+            representative_ids[(product, building_type)] = int(selected["bldg_id"])
+            selection_audits[(product, building_type)] = _selection_audit(selected)
         combined, component_series = pull_composite_time_series(
             composite,
             save_dir=CACHE_DIR,
             state=state,
             county_name=county_name,
             total_sqft=target_sqft,
+            bldg_ids=representative_ids,
         )
         representative_buildings = [
             representative
             for (product, building_type), time_series in component_series.items()
-            if (representative := _representative_building(product, building_type, time_series)) is not None
+            if (
+                representative := _representative_building(
+                    product, building_type, time_series, selection_audits.get((product, building_type))
+                )
+            )
+            is not None
         ]
-
-    if resample == "hourly":
-        combined = _resample_hourly(combined)
 
     return {
         "components": [
@@ -302,6 +438,11 @@ def pull_building_load_profile(properties: dict[str, Any], resample: str = "nati
         "state": state,
         "county": county_name,
         "representative_buildings": representative_buildings,
+        "selection_criteria": (
+            "Representative samples use floor area and annual site EUI when both are available, one-field relative distance when only one is "
+            "available, or random selection from the 25th-75th percentile candidate range when neither is available. "
+            f"Target EUI field: {eui_field or 'not provided'}."
+        ),
         "row_count": len(combined),
         "csv": combined.to_csv(index=False),
     }
@@ -323,7 +464,13 @@ def pull_building_load_profiles(
         properties = building.get("properties") or {}
         try:
             profile = pull_building_load_profile(properties, resample=resample)
-            file_path = _save_profile_csv(building, profile["csv"], resample, destination)
+            file_path = _save_profile_csv(
+                building,
+                profile["csv"],
+                resample,
+                destination,
+                profile.get("representative_buildings"),
+            )
             results.append({"id": building_id, "success": True, "file_path": str(file_path), **profile})
         except CompositeBuildingLoadError as e:
             results.append({"id": building_id, "success": False, "error": str(e)})

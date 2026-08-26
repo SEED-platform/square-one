@@ -20,6 +20,7 @@ import { FlaskRequests } from '../services/server.service'
 import { SessionService } from '../services/session.service'
 import { HeatmapService, type HeatmapConfig } from '../services/heatmap.service'
 import { CANONICAL_FIELD_UNITS } from '../shared/column-mapping.util'
+import { NotificationService } from '../services/notification.service'
 import { state } from '@angular/animations'
 
 interface ColumnStatistic {
@@ -48,7 +49,7 @@ interface EspmBuildingType {
 // The three building-type "slots" a building can be assigned, in priority order.
 type BuildingTypeSlotName = 'primary' | 'secondary' | 'tertiary'
 const BUILDING_TYPE_SLOTS: BuildingTypeSlotName[] = ['primary', 'secondary', 'tertiary']
-const LOAD_PROFILE_COLUMN_NAMES = ['load_profile_file_path', 'load_profile_representative_building_ids']
+const LOAD_PROFILE_COLUMN_NAMES = ['load_profile_file_path', 'load_profile_representative_building_ids', 'load_profile_match_details']
 
 // One row's editable state in the "Assign Building Types" dialog.
 interface BuildingTypeAssignmentRow {
@@ -67,7 +68,23 @@ interface CompositeLoadProfileResult {
   file_path?: string
   row_count?: number
   components?: { buildstock_product: string; buildstock_building_type: string; fraction: number }[]
-  representative_buildings?: { buildstock_product: string; buildstock_building_type: string; building_id: string }[]
+  representative_buildings?: RepresentativeBuildingMatch[]
+}
+
+interface RepresentativeBuildingMatch {
+  buildstock_product: string
+  buildstock_building_type: string
+  building_id: string
+  selection_method?: 'floor_area_and_eui' | 'floor_area_only' | 'eui_only' | 'random_interquartile'
+  target_floor_area_ft2?: number | null
+  sample_floor_area_ft2?: number | null
+  target_site_eui_kbtu_ft2?: number | null
+  sample_site_eui_kbtu_ft2?: number | null
+  floor_area_relative_difference_pct?: number | null
+  site_eui_relative_difference_pct?: number | null
+  combined_relative_distance?: number | null
+  candidate_count?: number
+  eligible_candidate_count?: number
 }
 
 @Component({
@@ -246,7 +263,6 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
   // "Download Composite Building Load Profiles" dialog properties.
   showDownloadCompositeProfilesDialog = false
   isDownloadingCompositeProfiles = false
-  compositeProfilesConfig: { resample: 'native' | 'hourly' } = { resample: 'hourly' }
   compositeProfilesResults: CompositeLoadProfileResult[] = []
   compositeProfilesSelectedCount = 0
   // Live progress shown in the download dialog -- these downloads hit the OEDI S3 dataset per building
@@ -257,6 +273,20 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
   private compositeProfilesTimerId: ReturnType<typeof setInterval> | null = null
   private compositeProfilesCancelled = false
   private compositeProfilesLabelById: { [id: string]: string } = {}
+  tableContextMenu: { visible: boolean; x: number; y: number; row: any | null } = { visible: false, x: 0, y: 0, row: null }
+  showLoadProfileViewer = false
+  isLoadingLoadProfile = false
+  loadProfileCsv = ''
+  loadProfileRows: any[] = []
+  loadProfileHeaders: string[] = []
+  loadProfileMetrics: string[] = []
+  selectedLoadProfileMetric = ''
+  loadProfileViewerError = ''
+  loadProfileViewerBuildingId = ''
+  loadProfileViewerRepresentativeIds = ''
+  loadProfileViewerMatchDetails = ''
+  loadProfileViewerFilePath = ''
+  @ViewChild('loadProfileHeatmapCanvas') private loadProfileHeatmapCanvas?: ElementRef<HTMLCanvasElement>
 
   // Cached "Actions" menu enabled states (see updateSelectedRowsInfo()).
   cachedCanAssignBuildingTypes = false
@@ -330,6 +360,7 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
     espm_building_type_tertiary_weight: 0,
     load_profile_file_path: '',
     load_profile_representative_building_ids: '',
+    load_profile_match_details: '',
     // Additional common properties
     BUILD_ID: null,
     HEIGHT: null,
@@ -345,7 +376,94 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
     private geoJsonService: GeoJsonService,
     private sessionService: SessionService,
     private heatmapService: HeatmapService,
+    private notifications: NotificationService,
   ) {}
+
+  onTableCellContextMenu(event: any): void {
+    event.event?.preventDefault?.()
+    const row = event.node?.data || event.data
+    if (!row) return
+    const requestedX = event.event?.clientX || 0
+    const requestedY = event.event?.clientY || 0
+    const x = Math.max(8, Math.min(requestedX, window.innerWidth - 420))
+    const y = Math.max(8, Math.min(requestedY, window.innerHeight - 150))
+    this.tableContextMenu = { visible: true, x, y, row }
+  }
+
+  closeTableContextMenu(): void {
+    this.tableContextMenu.visible = false
+  }
+
+  async openLoadProfileFromContext(): Promise<void> {
+    const row = this.tableContextMenu.row
+    this.closeTableContextMenu()
+    const filePath = row?.properties?.load_profile_file_path
+    if (!filePath) {
+      this.notifications.warning('This row has no downloaded load profile.')
+      return
+    }
+    this.loadProfileViewerBuildingId = String(row.id ?? '')
+    this.loadProfileViewerRepresentativeIds = row.properties?.load_profile_representative_building_ids || ''
+    this.loadProfileViewerMatchDetails = row.properties?.load_profile_match_details || ''
+    this.loadProfileViewerFilePath = filePath
+    this.showLoadProfileViewer = true
+    this.isLoadingLoadProfile = true
+    this.loadProfileViewerError = ''
+    try {
+      const response = await firstValueFrom(this.apiHandler.getSavedLoadProfile(filePath))
+      this.loadProfileCsv = response.csv || ''
+      const parsed = Papa.parse(this.loadProfileCsv, { header: true, skipEmptyLines: true })
+      this.loadProfileRows = (parsed.data as any[]).filter((row) => Object.keys(row).length > 0)
+      this.loadProfileHeaders = parsed.meta.fields || []
+      this.loadProfileMetrics = this.loadProfileHeaders.filter(
+        (header) =>
+          header !== 'timestamp' && header !== 'bldg_id' && this.loadProfileRows.some((row) => Number.isFinite(Number(row[header]))),
+      )
+      this.selectedLoadProfileMetric = this.loadProfileMetrics[0] || ''
+      this.isLoadingLoadProfile = false
+      this.cdr.detectChanges()
+      requestAnimationFrame(() => this.drawLoadProfileHeatmap())
+    } catch (error: any) {
+      this.isLoadingLoadProfile = false
+      this.loadProfileViewerError = error?.error?.error || error?.message || 'Unable to load the saved profile.'
+      this.notifications.error(this.loadProfileViewerError)
+    }
+  }
+
+  closeLoadProfileViewer(): void {
+    this.showLoadProfileViewer = false
+    this.loadProfileCsv = ''
+    this.loadProfileRows = []
+    this.loadProfileViewerBuildingId = ''
+    this.loadProfileViewerRepresentativeIds = ''
+    this.loadProfileViewerMatchDetails = ''
+    this.loadProfileViewerFilePath = ''
+  }
+
+  drawLoadProfileHeatmap(): void {
+    const canvas = this.loadProfileHeatmapCanvas?.nativeElement
+    if (!canvas || !this.selectedLoadProfileMetric || !this.loadProfileRows.length) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    const width = canvas.width,
+      height = canvas.height,
+      slots = 96
+    ctx.clearRect(0, 0, width, height)
+    const values = this.loadProfileRows.map((row) => Number(row[this.selectedLoadProfileMetric])).filter(Number.isFinite)
+    if (!values.length) return
+    const min = Math.min(...values),
+      max = Math.max(...values),
+      days = Math.max(1, Math.ceil(this.loadProfileRows.length / slots)),
+      cellW = width / days,
+      cellH = height / slots
+    this.loadProfileRows.forEach((row, index) => {
+      const value = Number(row[this.selectedLoadProfileMetric])
+      if (!Number.isFinite(value)) return
+      const normalized = max === min ? 0.5 : (value - min) / (max - min)
+      ctx.fillStyle = `hsl(${220 - normalized * 220}, 85%, 52%)`
+      ctx.fillRect(Math.floor(index / slots) * cellW, (index % slots) * cellH, Math.ceil(cellW) + 0.5, Math.ceil(cellH) + 0.5)
+    })
+  }
 
   get hasValidGeoJsonData(): boolean {
     return !!(this.geoJson && this.geoJson.features && this.geoJson.features.length > 0)
@@ -1384,13 +1502,13 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
 
   assignTargetEUI() {
     if (this.rowData.length === 0) {
-      alert('No data available')
+      this.notifications.warning('No data available')
       return
     }
 
     const selectedData = this.gridApi.getSelectedRows()
     if (selectedData.length === 0) {
-      alert('Please select at least one building to assign target EUI data')
+      this.notifications.warning('Please select at least one building to assign target EUI data')
       return
     }
 
@@ -1412,14 +1530,14 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
         if (response.success && response.buildings) {
           // Update the selected buildings with the EUI data
           this.updateBuildingsWithEUIData(response.buildings)
-          alert(`Successfully assigned target EUI data for ${response.buildings.length} buildings!`)
+          this.notifications.warning(`Successfully assigned target EUI data for ${response.buildings.length} buildings!`)
         } else {
-          alert('Failed to assign target EUI data: ' + (response.message || 'Unknown error'))
+          this.notifications.warning('Failed to assign target EUI data: ' + (response.message || 'Unknown error'))
         }
       },
       (errorResponse: { error?: { message?: string } }) => {
         console.error('Target EUI assignment failed:', errorResponse)
-        alert('Failed to assign target EUI data: ' + (errorResponse.error?.message || 'Unknown error'))
+        this.notifications.warning('Failed to assign target EUI data: ' + (errorResponse.error?.message || 'Unknown error'))
       },
     )
   }
@@ -1455,13 +1573,13 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
 
   openDownloadFootprintsDialog() {
     if (this.rowData.length === 0) {
-      alert('No data available')
+      this.notifications.warning('No data available')
       return
     }
 
     const selectedData = this.gridApi.getSelectedRows()
     if (selectedData.length === 0) {
-      alert('Please select at least one building to download footprints for')
+      this.notifications.warning('Please select at least one building to download footprints for')
       return
     }
 
@@ -1481,7 +1599,7 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
   downloadFootprintsForSelection() {
     const { ms, osm } = this.footprintDownloadConfig.sources
     if (!ms && !osm) {
-      alert('Please select at least one data source (MS Footprints or OpenStreetMap)')
+      this.notifications.warning('Please select at least one data source (MS Footprints or OpenStreetMap)')
       return
     }
 
@@ -1501,7 +1619,7 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
     })
 
     if (points.length === 0) {
-      alert('None of the selected buildings have valid latitude/longitude coordinates')
+      this.notifications.warning('None of the selected buildings have valid latitude/longitude coordinates')
       return
     }
 
@@ -1530,7 +1648,7 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
         if (skipped.length > 0) {
           message += ` Skipped ${skipped.length} selected building${skipped.length === 1 ? '' : 's'} without valid coordinates.`
         }
-        alert(message)
+        this.notifications.warning(message)
 
         this.isDownloadingFootprints = false
         this.closeDownloadFootprintsDialog()
@@ -1538,7 +1656,9 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
       },
       (errorResponse: { error?: { message?: string; error?: string } }) => {
         console.error('Download footprints failed:', errorResponse)
-        alert('Failed to download footprints: ' + (errorResponse.error?.message || errorResponse.error?.error || 'Unknown error'))
+        this.notifications.warning(
+          'Failed to download footprints: ' + (errorResponse.error?.message || errorResponse.error?.error || 'Unknown error'),
+        )
         this.isDownloadingFootprints = false
         this.cdr.detectChanges()
       },
@@ -1673,14 +1793,14 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
     return new Promise((resolve, reject) => {
       const selectedData = this.gridApi.getSelectedRows()
       if (selectedData.length === 0) {
-        alert('Please select at least one building to geocode')
+        this.notifications.warning('Please select at least one building to geocode')
         resolve()
         return
       }
 
       const toGeocode = this.getBuildingsMissingCoordinates(selectedData)
       if (toGeocode.length === 0) {
-        alert('All selected buildings already have valid latitude/longitude. Nothing to geocode.')
+        this.notifications.warning('All selected buildings already have valid latitude/longitude. Nothing to geocode.')
         resolve()
         return
       }
@@ -1718,14 +1838,14 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
             this.updateDataSourceInfo()
           }
 
-          alert(`Geocoded ${updatedBuildings.length} of ${toGeocode.length} building(s) missing coordinates.`)
+          this.notifications.warning(`Geocoded ${updatedBuildings.length} of ${toGeocode.length} building(s) missing coordinates.`)
           this.isGeocoding = false
           this.cdr.detectChanges()
           resolve()
         },
         (errorResponse: { error?: { message?: string } }) => {
           console.error('Geocoding failed:', errorResponse)
-          alert('Geocoding failed: ' + (errorResponse.error?.message || 'Unknown error'))
+          this.notifications.warning('Geocoding failed: ' + (errorResponse.error?.message || 'Unknown error'))
           this.isGeocoding = false
           this.cdr.detectChanges()
           reject(errorResponse)
@@ -1743,7 +1863,7 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
     return new Promise((resolve, reject) => {
       const selectedData = this.gridApi.getSelectedRows()
       if (selectedData.length === 0) {
-        alert('Please select at least one building to match footprints for')
+        this.notifications.warning('Please select at least one building to match footprints for')
         resolve()
         return
       }
@@ -1755,7 +1875,7 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
       })
 
       if (candidates.length === 0) {
-        alert('None of the selected buildings have valid latitude/longitude yet. Try "Geocode Addresses" first.')
+        this.notifications.warning('None of the selected buildings have valid latitude/longitude yet. Try "Geocode Addresses" first.')
         resolve()
         return
       }
@@ -1788,14 +1908,14 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
             this.updateDataSourceInfo()
           }
 
-          alert(`Matched footprints for ${updatedBuildings.length} of ${candidates.length} building(s).`)
+          this.notifications.warning(`Matched footprints for ${updatedBuildings.length} of ${candidates.length} building(s).`)
           this.isMatchingFootprints = false
           this.cdr.detectChanges()
           resolve()
         },
         (errorResponse: { error?: { message?: string } }) => {
           console.error('Match footprints failed:', errorResponse)
-          alert('Match footprints failed: ' + (errorResponse.error?.message || 'Unknown error'))
+          this.notifications.warning('Match footprints failed: ' + (errorResponse.error?.message || 'Unknown error'))
           this.isMatchingFootprints = false
           this.cdr.detectChanges()
           reject(errorResponse)
@@ -1811,7 +1931,7 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
   async runFullWorkflowForSelected() {
     const selectedData = this.gridApi.getSelectedRows()
     if (selectedData.length === 0) {
-      alert('Please select at least one building to run the full workflow for')
+      this.notifications.warning('Please select at least one building to run the full workflow for')
       return
     }
 
@@ -1832,18 +1952,18 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
 
   reverseGeocodeSelected() {
     if (this.rowData.length === 0) {
-      alert('No data available')
+      this.notifications.warning('No data available')
       return
     }
 
     const selectedData = this.gridApi.getSelectedRows()
     if (selectedData.length === 0) {
-      alert('Please select a row first')
+      this.notifications.warning('Please select a row first')
       return
     }
 
     if (selectedData.length > 1) {
-      alert('Please select only one row for reverse geocoding. Using the first selected row.')
+      this.notifications.warning('Please select only one row for reverse geocoding. Using the first selected row.')
     }
 
     this.selectedRowForReverseGeocode = selectedData[0]
@@ -1859,7 +1979,7 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
 
   reverseGeocodeByFootprint() {
     if (!this.selectedRowForReverseGeocode || !this.selectedRowHasFootprint) {
-      alert('Selected building has no footprint data')
+      this.notifications.warning('Selected building has no footprint data')
       return
     }
 
@@ -1867,7 +1987,7 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
     const coordinates = building.geometry?.coordinates
 
     if (!coordinates || !coordinates[0] || coordinates[0].length === 0) {
-      alert('Invalid footprint data')
+      this.notifications.warning('Invalid footprint data')
       return
     }
 
@@ -1890,11 +2010,11 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
         this.updateBuildingWithReverseGeocodeData(building, updatedBuilding)
 
         this.closeReverseGeocodeDialog()
-        alert('Building successfully reverse geocoded using footprint!')
+        this.notifications.warning('Building successfully reverse geocoded using footprint!')
       },
       (errorResponse) => {
         console.error('Reverse geocoding failed:', errorResponse)
-        alert('Reverse geocoding failed: ' + (errorResponse.error?.message || 'Unknown error'))
+        this.notifications.warning('Reverse geocoding failed: ' + (errorResponse.error?.message || 'Unknown error'))
         this.closeReverseGeocodeDialog()
       },
     )
@@ -1902,7 +2022,7 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
 
   reverseGeocodeByLatLng() {
     if (!this.selectedRowForReverseGeocode) {
-      alert('No building selected')
+      this.notifications.warning('No building selected')
       return
     }
 
@@ -1910,7 +2030,7 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
     const streetAddress = building.properties?.street_address
 
     if (!streetAddress || streetAddress.trim() === '') {
-      alert('No address available for reverse geocoding')
+      this.notifications.warning('No address available for reverse geocoding')
       return
     }
 
@@ -1922,7 +2042,7 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
     const longitude = building.properties?.longitude
 
     if (!latitude || !longitude || latitude === 0 || longitude === 0) {
-      alert('No valid coordinates available for this address')
+      this.notifications.warning('No valid coordinates available for this address')
       return
     }
 
@@ -1954,11 +2074,11 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
         this.updateBuildingWithReverseGeocodeData(building, updatedBuilding)
 
         this.closeReverseGeocodeDialog()
-        alert('Building successfully reverse geocoded using lat/lng!')
+        this.notifications.warning('Building successfully reverse geocoded using lat/lng!')
       },
       (errorResponse) => {
         console.error('Reverse geocoding failed:', errorResponse)
-        alert('Reverse geocoding failed: ' + (errorResponse.error?.message || 'Unknown error'))
+        this.notifications.warning('Reverse geocoding failed: ' + (errorResponse.error?.message || 'Unknown error'))
         this.closeReverseGeocodeDialog()
       },
     )
@@ -1966,7 +2086,7 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
 
   geocodeByAddress() {
     if (!this.selectedRowForReverseGeocode) {
-      alert('No building selected')
+      this.notifications.warning('No building selected')
       return
     }
 
@@ -1978,12 +2098,12 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
     const country = building.properties?.country
 
     if (!streetAddress || streetAddress.trim() === '') {
-      alert('No address available for geocoding')
+      this.notifications.warning('No address available for geocoding')
       return
     }
 
     if (!city || streetAddress.trim() === '' || !state) {
-      alert('Please ensure street address, city, and state are provided for geocoding')
+      this.notifications.warning('Please ensure street address, city, and state are provided for geocoding')
       return
     }
 
@@ -2018,11 +2138,11 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
         this.updateBuildingWithGeocodeData(building, updatedBuilding)
 
         this.closeReverseGeocodeDialog()
-        alert('Building successfully Geocoded using address!')
+        this.notifications.warning('Building successfully Geocoded using address!')
       },
       (errorResponse) => {
         console.error('Geocoding failed:', errorResponse)
-        alert('Geocoding failed: ' + (errorResponse.error?.message || 'Unknown error'))
+        this.notifications.warning('Geocoding failed: ' + (errorResponse.error?.message || 'Unknown error'))
         this.closeReverseGeocodeDialog()
       },
     )
@@ -2652,13 +2772,13 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
   deleteColumn(columnName: string) {
     // Prevent deletion of essential columns
     if (this.essentialColumns.includes(columnName)) {
-      alert(`Cannot delete essential column: ${columnName}`)
+      this.notifications.warning(`Cannot delete essential column: ${columnName}`)
       return
     }
 
     // Prevent deletion of hasFootprint as it's a computed column
     if (columnName === 'hasFootprint') {
-      alert('Cannot delete the footprint indicator column')
+      this.notifications.warning('Cannot delete the footprint indicator column')
       return
     }
 
@@ -2729,12 +2849,12 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
   mergeColumns() {
     // Validate inputs
     if (!this.mergeConfig.targetColumn || !this.mergeConfig.sourceColumn) {
-      alert('Please select both target and source columns')
+      this.notifications.warning('Please select both target and source columns')
       return
     }
 
     if (this.mergeConfig.targetColumn === this.mergeConfig.sourceColumn) {
-      alert('Target and source columns must be different')
+      this.notifications.warning('Target and source columns must be different')
       return
     }
 
@@ -2825,7 +2945,7 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
       `• ${mergedCount} records updated with data from source column\n` +
       `• ${overwrittenCount} records overwritten based on priority setting\n` +
       `• Source column "${this.mergeConfig.sourceColumn}" has been deleted`
-    alert(message)
+    this.notifications.warning(message)
 
     console.log(`Merged "${this.mergeConfig.sourceColumn}" into "${this.mergeConfig.targetColumn}"`, {
       mergedCount,
@@ -2870,7 +2990,7 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
   // Record Merging Methods
   openRecordMergeDialog() {
     if (!this.gridApi) {
-      alert('Grid not initialized')
+      this.notifications.warning('Grid not initialized')
       return
     }
 
@@ -2878,7 +2998,7 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
     const selectedNodes = this.gridApi.getSelectedNodes()
 
     if (selectedRows.length !== 2) {
-      alert(`Please select exactly 2 records to merge. Currently selected: ${selectedRows.length}`)
+      this.notifications.warning(`Please select exactly 2 records to merge. Currently selected: ${selectedRows.length}`)
       return
     }
 
@@ -2972,12 +3092,12 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
   mergeRecords() {
     // Validation checks
     if (!this.gridApi) {
-      alert('Grid is not initialized')
+      this.notifications.warning('Grid is not initialized')
       return
     }
 
     if (this.selectedRecordsForMerge.length !== 2) {
-      alert('Two records must be selected for merging')
+      this.notifications.warning('Two records must be selected for merging')
       return
     }
 
@@ -2990,12 +3110,12 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
 
     // Additional validation
     if (!priorityRecord || !secondaryRecord) {
-      alert('Invalid records selected for merging')
+      this.notifications.warning('Invalid records selected for merging')
       return
     }
 
     if (priorityIndex === undefined || secondaryIndex === undefined) {
-      alert('Selected records are missing index information')
+      this.notifications.warning('Selected records are missing index information')
       return
     }
 
@@ -3123,7 +3243,7 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
     this.closeRecordMergeDialog()
 
     // Show success message
-    alert(
+    this.notifications.warning(
       'Records merged successfully!\n\n' +
         '• ' +
         fieldsKept +
@@ -3145,13 +3265,13 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
   // Bulk Edit Methods
   openBulkEditDialog() {
     if (!this.gridApi) {
-      alert('Grid not initialized')
+      this.notifications.warning('Grid not initialized')
       return
     }
 
     const selectedRows = this.gridApi.getSelectedRows()
     if (selectedRows.length === 0) {
-      alert('Please select at least one row to bulk edit')
+      this.notifications.warning('Please select at least one row to bulk edit')
       return
     }
 
@@ -3197,24 +3317,24 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
 
   bulkEditRows() {
     if (!this.gridApi) {
-      alert('Grid not initialized')
+      this.notifications.warning('Grid not initialized')
       return
     }
 
     // Validation
     if (!this.bulkEditConfig.column) {
-      alert('Please select a column to edit')
+      this.notifications.warning('Please select a column to edit')
       return
     }
 
     if (this.bulkEditConfig.value === null || this.bulkEditConfig.value === undefined) {
-      alert('Please enter a value')
+      this.notifications.warning('Please enter a value')
       return
     }
 
     const selectedRows = this.gridApi.getSelectedRows()
     if (selectedRows.length === 0) {
-      alert('Please select at least one row to edit')
+      this.notifications.warning('Please select at least one row to edit')
       return
     }
 
@@ -3265,7 +3385,7 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
     this.closeBulkEditDialog()
 
     // Show success message
-    alert(`Bulk edit completed successfully!\n\n` + `• ${updatedCount} record${updatedCount === 1 ? '' : 's'} updated\n`)
+    this.notifications.info(`Bulk edit completed successfully!\n\n` + `• ${updatedCount} record${updatedCount === 1 ? '' : 's'} updated\n`)
 
     console.log('Bulk edit completed', {
       column: this.bulkEditConfig.column,
@@ -3315,13 +3435,13 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
 
   openAssignBuildingTypesDialog(): void {
     if (!this.gridApi) {
-      alert('Grid not initialized')
+      this.notifications.warning('Grid not initialized')
       return
     }
 
     const selectedRows = this.gridApi.getSelectedRows()
     if (selectedRows.length === 0) {
-      alert('Please select at least one building to assign building types to')
+      this.notifications.warning('Please select at least one building to assign building types to')
       return
     }
 
@@ -3418,7 +3538,7 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
 
   saveBuildingTypeAssignments(): void {
     if (!this.canSaveBuildingTypeAssignments()) {
-      alert('Every building needs at least a primary building type with a weight greater than 0 before saving.')
+      this.notifications.warning('Every building needs at least a primary building type with a weight greater than 0 before saving.')
       return
     }
 
@@ -3440,7 +3560,7 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
       this.updateTable()
     }
 
-    alert(`Assigned building types for ${updatedRows.length} building${updatedRows.length === 1 ? '' : 's'}.`)
+    this.notifications.info(`Assigned building types for ${updatedRows.length} building${updatedRows.length === 1 ? '' : 's'}.`)
     this.closeAssignBuildingTypesDialog()
   }
 
@@ -3453,13 +3573,13 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
 
   openDownloadCompositeProfilesDialog(): void {
     if (!this.gridApi) {
-      alert('Grid not initialized')
+      this.notifications.warning('Grid not initialized')
       return
     }
 
     const selectedRows = this.gridApi.getSelectedRows()
     if (selectedRows.length === 0) {
-      alert('Please select at least one building to download composite building load profiles for')
+      this.notifications.warning('Please select at least one building to download composite building load profiles for')
       return
     }
 
@@ -3521,7 +3641,7 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
   async downloadCompositeBuildingLoadProfiles(): Promise<void> {
     const selectedRows = this.gridApi.getSelectedRows()
     if (selectedRows.length === 0) {
-      alert('Please select at least one building to download composite building load profiles for')
+      this.notifications.warning('Please select at least one building to download composite building load profiles for')
       return
     }
 
@@ -3545,7 +3665,7 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
 
       const requestData = {
         buildings: [{ id: buildingId, properties: row.properties }],
-        resample: this.compositeProfilesConfig.resample,
+        resample: 'native',
       }
 
       try {
@@ -3581,13 +3701,15 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
     }
 
     if (successes.length === 0) {
-      alert('No composite building load profiles could be downloaded. See the errors listed below for details.')
+      this.notifications.warning('No composite building load profiles could be downloaded. See the errors listed below for details.')
       return
     }
 
     this.saveCompositeProfileFiles(successes, failures)
     if (wasCancelled) {
-      alert(`Download cancelled after ${this.compositeProfilesProgress.completed} of ${this.compositeProfilesProgress.total} building(s).`)
+      this.notifications.warning(
+        `Download cancelled after ${this.compositeProfilesProgress.completed} of ${this.compositeProfilesProgress.total} building(s).`,
+      )
     }
   }
 
@@ -3612,6 +3734,33 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
       .join('; ')
   }
 
+  formatRepresentativeMatch(match: RepresentativeBuildingMatch): string {
+    const identity = `${match.building_id} (${match.buildstock_product}/${match.buildstock_building_type})`
+    const candidateCount = match.candidate_count?.toLocaleString() || 'unknown'
+    if (match.selection_method === 'floor_area_and_eui') {
+      return `${identity}: closest of ${candidateCount} candidates using floor area + EUI (score ${match.combined_relative_distance}); ${match.sample_floor_area_ft2?.toLocaleString()} ft² vs ${match.target_floor_area_ft2?.toLocaleString()} ft² (${match.floor_area_relative_difference_pct}% difference), ${match.sample_site_eui_kbtu_ft2} vs ${match.target_site_eui_kbtu_ft2} kBtu/ft² (${match.site_eui_relative_difference_pct}% difference)`
+    }
+    if (match.selection_method === 'floor_area_only') {
+      return `${identity}: closest of ${candidateCount} candidates using floor area; ${match.sample_floor_area_ft2?.toLocaleString()} ft² vs ${match.target_floor_area_ft2?.toLocaleString()} ft² (${match.floor_area_relative_difference_pct}% difference)`
+    }
+    if (match.selection_method === 'eui_only') {
+      return `${identity}: closest of ${candidateCount} candidates using EUI; ${match.sample_site_eui_kbtu_ft2} vs ${match.target_site_eui_kbtu_ft2} kBtu/ft² (${match.site_eui_relative_difference_pct}% difference)`
+    }
+    if (match.selection_method === 'random_interquartile') {
+      return `${identity}: randomly selected from ${match.eligible_candidate_count?.toLocaleString() || candidateCount} middle-range candidates (25th–75th percentiles) out of ${candidateCount} usable candidates`
+    }
+    return identity
+  }
+
+  formatRepresentativeMatches(result: CompositeLoadProfileResult): string {
+    return (result.representative_buildings || []).map((match) => this.formatRepresentativeMatch(match)).join('; ')
+  }
+
+  private representativeIdsForFilename(result: CompositeLoadProfileResult): string {
+    const ids = (result.representative_buildings || []).map((building) => this.sanitizeFilename(building.building_id)).filter(Boolean)
+    return ids.length > 0 ? `_buildstock_${ids.join('-')}` : ''
+  }
+
   private recordCompositeProfileMetadata(selectedRows: any[], successes: CompositeLoadProfileResult[]): void {
     const resultByBuildingId = new Map(successes.map((result) => [result.id, result]))
     const updatedRows = selectedRows.filter((row: any) => {
@@ -3619,6 +3768,7 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
       if (!result || !row.properties) return false
       row.properties.load_profile_file_path = result.file_path || ''
       row.properties.load_profile_representative_building_ids = this.formatRepresentativeBuildingIds(result)
+      row.properties.load_profile_match_details = this.formatRepresentativeMatches(result)
       return true
     })
 
@@ -3630,14 +3780,14 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
   private saveCompositeProfileFiles(successes: CompositeLoadProfileResult[], failures: CompositeLoadProfileResult[]): void {
     if (successes.length === 1 && failures.length === 0) {
       const only = successes[0]
-      const filename = `${this.sanitizeFilename(this.buildingLabelFor(only.id))}_composite_load_profile.csv`
+      const filename = `${this.sanitizeFilename(this.buildingLabelFor(only.id))}_${this.sanitizeFilename(only.id)}${this.representativeIdsForFilename(only)}_composite_load_profile.csv`
       this.downloadCsvBlob(only.csv || '', filename)
       return
     }
 
     const zip = new JSZip()
     successes.forEach((result) => {
-      const filename = `${this.sanitizeFilename(this.buildingLabelFor(result.id))}_${result.id}.csv`
+      const filename = `${this.sanitizeFilename(this.buildingLabelFor(result.id))}_${this.sanitizeFilename(result.id)}${this.representativeIdsForFilename(result)}.csv`
       zip.file(filename, result.csv || '')
     })
 
@@ -3667,7 +3817,7 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
       URL.revokeObjectURL(url)
 
       if (failures.length > 0) {
-        alert(
+        this.notifications.warning(
           `Downloaded ${successes.length} composite building load profile(s). ${failures.length} building${failures.length === 1 ? '' : 's'} failed -- see summary.csv in the ZIP for details.`,
         )
       }

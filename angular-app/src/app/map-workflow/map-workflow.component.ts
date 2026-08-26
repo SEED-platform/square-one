@@ -1,4 +1,5 @@
 import { Component, AfterViewInit, ChangeDetectorRef } from '@angular/core'
+import { NotificationService } from '../services/notification.service'
 import { CommonModule } from '@angular/common'
 import { Router } from '@angular/router'
 import * as mapboxgl from 'mapbox-gl'
@@ -225,7 +226,8 @@ export class MapWorkflowComponent implements AfterViewInit {
     private router: Router,
     private geoJsonService: GeoJsonService,
     private sessionService: SessionService,
-  ) {}
+    private notifications: NotificationService,
+) {}
 
   /**
    * Prompt for a location, call backend to get bounding box, and draw it on the map
@@ -233,7 +235,7 @@ export class MapWorkflowComponent implements AfterViewInit {
   retrieveBoundingBox(): void {
     const location = this.lastSelectedLocation
     if (!location || !location.place_name) {
-      window.alert('Please select a location in the search box first.')
+      this.notifications.warning('Please select a location in the search box first.')
       return
     }
 

@@ -109,7 +109,7 @@
     </div>
 
     <div class="square-one-table-container min-h-0 w-full flex-1">
-      <ag-grid-angular class="ag-theme-quartz" [columnDefs]="colDefs" [defaultColDef]="defaultColDef" [rowData]="rowData" [rowSelection]="{ mode: 'multiRow' }" [getRowId]="getRowId" (gridReady)="onGridReady($event)" (rowClicked)="onRowClicked($event)" (selectionChanged)="onSelectionChanged($event)" theme="legacy" style="height: 100%; width: 100%" />
+      <ag-grid-angular class="ag-theme-quartz" [columnDefs]="colDefs" [defaultColDef]="defaultColDef" [rowData]="rowData" [rowSelection]="{ mode: 'multiRow' }" [getRowId]="getRowId" [preventDefaultOnContextMenu]="true" (gridReady)="onGridReady($event)" (rowClicked)="onRowClicked($event)" (selectionChanged)="onSelectionChanged($event)" (cellContextMenu)="onTableCellContextMenu($event)" theme="legacy" style="height: 100%; width: 100%" />
     </div>
   </div>
 </div>
@@ -129,7 +129,7 @@
     <p class="mb-4 text-sm text-gray-600">This table shows the percentage of records that have data populated for each column. Click column headers to sort, use the filter icon to filter, and right-click a row for quick delete/merge actions. Essential columns and computed columns are protected from deletion.</p>
 
     <div class="ag-theme-quartz min-h-0 flex-1">
-      <ag-grid-angular class="ag-theme-quartz" [columnDefs]="columnStatsColDefs" [defaultColDef]="columnStatsDefaultColDef" [rowData]="columnStats" [getRowId]="trackByColumnNameRowId" (gridReady)="onColumnStatsGridReady($event)" (cellContextMenu)="onColumnStatsCellContextMenu($event)" theme="legacy" style="height: 100%; width: 100%" />
+      <ag-grid-angular class="ag-theme-quartz" [columnDefs]="columnStatsColDefs" [defaultColDef]="columnStatsDefaultColDef" [rowData]="columnStats" [getRowId]="trackByColumnNameRowId" [preventDefaultOnContextMenu]="true" (gridReady)="onColumnStatsGridReady($event)" (cellContextMenu)="onColumnStatsCellContextMenu($event)" theme="legacy" style="height: 100%; width: 100%" />
     </div>
 
     <div class="mt-6 flex justify-between">
@@ -467,10 +467,11 @@
       </button>
     </div>
 
-    <p class="mb-2 text-sm text-gray-600">Downloads a representative annual load profile (from the <code>building-energy-profiles</code> ComStock/ResStock dataset) for each selected building, based on its assigned ESPM building type(s). Each building also needs a 2-letter <code>state</code>.</p>
+    <p class="mb-2 text-sm text-gray-600">Downloads a native-interval annual profile. For each assigned component, the server chooses a representative BuildStock sample using the best building data available.</p>
 
     <div class="mb-4 rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900">
-      <p><strong>Scaled to building size:</strong> When a building has a positive <code>gross_floor_area</code>, the profile is scaled to that floor area. If gross floor area is missing or invalid, the representative sample profile is downloaded without size scaling.</p>
+      <p><strong>Selection:</strong> When both gross floor area and a positive EUI are available, the representative minimizes their combined relative difference. With only one, it selects the closest sample using that field. With neither, it randomly selects a sample from the middle 50% (25th–75th percentile range) of the available floor-area and EUI distributions.</p>
+      <p class="mt-2"><strong>Scaling:</strong> When gross floor area is available, the profile is scaled to that floor area. Without it, the representative sample's original scale is retained.</p>
       <p class="mt-2"><strong>Server copy:</strong> Each successful profile is also saved under <code>flask_app/data/load_profiles</code>. Its full path and the representative BuildStock building ID(s) are recorded in the row's load-profile columns.</p>
     </div>
 
@@ -479,17 +480,7 @@
       <a href="" class="font-medium text-blue-700 underline" *ngIf="countSelectedWithBuildingTypeAssigned() === 0" (click)="$event.preventDefault(); closeDownloadCompositeProfilesDialog(); openAssignBuildingTypesDialog()">Assign Building Types first</a>
     </div>
 
-    <div class="mb-4">
-      <p class="mb-2 text-sm font-medium text-gray-700">Time series resolution</p>
-      <label class="mb-1 flex items-center gap-2 text-sm text-gray-700">
-        <input type="radio" name="compositeResample" [value]="'hourly'" [(ngModel)]="compositeProfilesConfig.resample" [disabled]="isDownloadingCompositeProfiles" />
-        Hourly (8,760 rows/year)
-      </label>
-      <label class="flex items-center gap-2 text-sm text-gray-700">
-        <input type="radio" name="compositeResample" [value]="'native'" [(ngModel)]="compositeProfilesConfig.resample" [disabled]="isDownloadingCompositeProfiles" />
-        Native interval (~15-minute, as published)
-      </label>
-    </div>
+    <p class="mb-4 text-sm text-gray-600"><strong>Interval:</strong> Native interval as published by the dataset (no resampling).</p>
 
     <!-- Progress box: downloads hit the OEDI S3 dataset per building and can take a while, so this shows
          real "X of N" progress, the building currently downloading, and elapsed time. -->
@@ -510,13 +501,16 @@
       <ul class="space-y-1">
         <li class="rounded px-2 py-1 text-xs" *ngFor="let result of compositeProfilesResults" [class.bg-green-50]="result.success" [class.text-green-800]="result.success" [class.bg-red-50]="!result.success" [class.text-red-800]="!result.success">
           <span class="font-medium">{{ result.id }}:</span>
-          <span *ngIf="result.success"
-            >Downloaded ({{ result.row_count }} rows{{ result.components && result.components.length > 1 ? ', composite of ' + result.components.length + ' building types' : '' }}).
-            <span *ngIf="result.file_path"
-              >Saved on server: <code class="break-all">{{ result.file_path }}</code></span
-            >
-            <span *ngIf="result.representative_buildings?.length"> Representative building(s): {{ formatRepresentativeBuildingIds(result) }}.</span></span
-          >
+          <ng-container *ngIf="result.success">
+            <span>Downloaded ({{ result.row_count }} rows{{ result.components && result.components.length > 1 ? ', composite of ' + result.components.length + ' building types' : '' }}).</span>
+            <div *ngIf="result.file_path">
+              Saved on server: <code class="break-all">{{ result.file_path }}</code>
+            </div>
+            <div class="mt-1 font-medium" *ngIf="result.representative_buildings?.length">Representative BuildStock match:</div>
+            <ul class="ml-4 mt-1 list-disc" *ngIf="result.representative_buildings?.length">
+              <li *ngFor="let match of result.representative_buildings">{{ formatRepresentativeMatch(match) }}</li>
+            </ul>
+          </ng-container>
           <span *ngIf="!result.success">{{ result.error }}</span>
         </li>
       </ul>
@@ -607,6 +601,49 @@
         <button class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700" (click)="applyHeaderChanges()">Apply Changes</button>
       </div>
     </div>
+  </div>
+</div>
+
+<div class="fixed inset-0 z-[85]" *ngIf="tableContextMenu.visible" (click)="closeTableContextMenu()" (contextmenu)="$event.preventDefault(); closeTableContextMenu()"></div>
+<div *ngIf="tableContextMenu.visible" class="fixed z-[90] max-w-md rounded-md border border-gray-200 bg-white py-1 shadow-lg" [style.left.px]="tableContextMenu.x" [style.top.px]="tableContextMenu.y" (click)="$event.stopPropagation()" (contextmenu)="$event.preventDefault()">
+  <div class="border-b border-gray-100 px-4 py-2 text-xs text-gray-600">
+    <div>
+      Square One building: <strong>{{ tableContextMenu.row?.id }}</strong>
+    </div>
+    <div *ngIf="tableContextMenu.row?.properties?.load_profile_representative_building_ids">
+      BuildStock match: <strong>{{ tableContextMenu.row.properties.load_profile_representative_building_ids }}</strong>
+    </div>
+    <div class="mt-1" *ngIf="tableContextMenu.row?.properties?.load_profile_match_details">
+      {{ tableContextMenu.row.properties.load_profile_match_details }}
+    </div>
+  </div>
+  <button class="block w-full px-4 py-2 text-left text-sm hover:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-400" [disabled]="!tableContextMenu.row?.properties?.load_profile_file_path" (click)="openLoadProfileFromContext()">Open downloaded load profile</button>
+</div>
+
+<div *ngIf="showLoadProfileViewer" class="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4" (click)="closeLoadProfileViewer()">
+  <div class="flex max-h-[90vh] w-full max-w-6xl flex-col rounded-lg bg-white p-5 shadow-xl" (click)="$event.stopPropagation()">
+    <div class="mb-3 flex items-center justify-between">
+      <h3 class="text-lg font-semibold">Downloaded load profile — Square One building {{ loadProfileViewerBuildingId }}</h3>
+      <button class="text-2xl text-gray-500" (click)="closeLoadProfileViewer()">×</button>
+    </div>
+    <div class="mb-3 rounded border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900" *ngIf="loadProfileViewerRepresentativeIds">
+      <div><strong>Representative BuildStock building(s):</strong> {{ loadProfileViewerRepresentativeIds }}</div>
+      <div class="mt-1 text-xs" *ngIf="loadProfileViewerMatchDetails">{{ loadProfileViewerMatchDetails }}</div>
+      <div class="mt-1 break-all text-xs"><strong>Server file:</strong> {{ loadProfileViewerFilePath }}</div>
+    </div>
+    <div *ngIf="isLoadingLoadProfile" class="py-8 text-center text-gray-600">Loading profile…</div>
+    <div *ngIf="loadProfileViewerError" class="rounded bg-red-50 p-3 text-red-700">{{ loadProfileViewerError }}</div>
+    <ng-container *ngIf="!isLoadingLoadProfile && !loadProfileViewerError && loadProfileCsv">
+      <div class="mb-2 flex items-center gap-2 text-sm">
+        <label for="profileMetric">Heat map metric</label
+        ><select id="profileMetric" class="rounded border px-2 py-1" [(ngModel)]="selectedLoadProfileMetric" (change)="drawLoadProfileHeatmap()">
+          <option *ngFor="let metric of loadProfileMetrics" [value]="metric">{{ metric }}</option>
+        </select>
+      </div>
+      <canvas #loadProfileHeatmapCanvas width="1200" height="320" class="mb-3 w-full rounded border bg-gray-50"></canvas>
+      <p class="mb-1 text-sm font-medium">CSV ({{ loadProfileRows.length }} rows)</p>
+      <textarea class="min-h-[14rem] w-full flex-1 resize-y rounded border bg-gray-50 p-2 font-mono text-xs" readonly [value]="loadProfileCsv"></textarea>
+    </ng-container>
   </div>
 </div>
 
