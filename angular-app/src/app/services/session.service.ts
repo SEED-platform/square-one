@@ -1,4 +1,5 @@
 import { Injectable } from '@angular/core'
+import * as LZString from 'lz-string'
 
 export interface MapLocation {
   longitude: number
@@ -115,11 +116,69 @@ export class SessionService {
   // ============================================================================
 
   setGeoJsonData(data: any): void {
-    this.setItem(this.STORAGE_KEYS.GEOJSON_DATA, data)
+    if (!data) {
+      this.removeItem(this.STORAGE_KEYS.GEOJSON_DATA)
+      return
+    }
+
+    try {
+      // Compress the GeoJSON data before storing
+      const jsonString = JSON.stringify(data)
+      const compressedData = LZString.compress(jsonString)
+
+      if (!compressedData) {
+        throw new Error('Failed to compress data')
+      }
+
+      this.setItem(this.STORAGE_KEYS.GEOJSON_DATA, compressedData)
+
+      // Log compression ratio for debugging
+      console.log(`GeoJSON compressed: ${jsonString.length} → ${compressedData.length} bytes (${((1 - compressedData.length / jsonString.length) * 100).toFixed(1)}% reduction)`)
+
+    } catch (error) {
+      console.error('Failed to compress and store GeoJSON data:', error)
+
+      // Fallback: try to store without compression if the data is small enough
+      try {
+        const jsonString = JSON.stringify(data)
+        if (jsonString.length < 1024 * 1024) { // Less than 1MB
+          console.warn('Storing GeoJSON without compression as fallback')
+          this.setItem(this.STORAGE_KEYS.GEOJSON_DATA, jsonString)
+        } else {
+          throw new Error('Data too large even for fallback storage')
+        }
+      } catch (fallbackError) {
+        console.error('Fallback storage also failed:', fallbackError)
+        throw new Error('Unable to store GeoJSON data: exceeds storage limits')
+      }
+    }
   }
 
   getGeoJsonData(): any {
-    return this.getItem<any>(this.STORAGE_KEYS.GEOJSON_DATA) ?? {}
+    const storedData = this.getItem<string>(this.STORAGE_KEYS.GEOJSON_DATA)
+
+    if (!storedData) {
+      return {}
+    }
+
+    try {
+      // Try to decompress first (new format)
+      const decompressed = LZString.decompress(storedData)
+
+      if (decompressed) {
+        return JSON.parse(decompressed)
+      }
+
+      // Fallback: try to parse directly (legacy uncompressed format)
+      return JSON.parse(storedData)
+
+    } catch (error) {
+      console.error('Failed to decompress/parse GeoJSON data:', error)
+
+      // If all else fails, return empty object and clear the corrupted data
+      this.removeItem(this.STORAGE_KEYS.GEOJSON_DATA)
+      return {}
+    }
   }
 
   setGeoJsonPropertyNames(names: string[]): void {
@@ -254,7 +313,62 @@ export class SessionService {
       const serialized = typeof value === 'string' ? value : JSON.stringify(value)
       sessionStorage.setItem(key, serialized)
     } catch (error) {
-      console.warn(`Could not save ${key} to session storage:`, error)
+      if (error instanceof DOMException && error.name === 'QuotaExceededError') {
+        const storageSize = this.getStorageSize()
+        console.error(`Session storage quota exceeded for ${key}:`, {
+          error,
+          storageSize: `${storageSize.used}KB used / ${storageSize.quota}KB quota`,
+          dataSize: `${typeof value === 'string' ? value.length : JSON.stringify(value).length} characters`
+        })
+
+        // Try to clear some space by removing oldest items
+        this.clearOldestItems(3)
+
+        // Try again after cleanup
+        try {
+          const serialized = typeof value === 'string' ? value : JSON.stringify(value)
+          sessionStorage.setItem(key, serialized)
+          console.log(`Successfully stored ${key} after cleanup`)
+        } catch (retryError) {
+          console.error(`Still failed to store ${key} after cleanup:`, retryError)
+          throw retryError
+        }
+      } else {
+        console.warn(`Could not save ${key} to session storage:`, error)
+        throw error
+      }
+    }
+  }
+
+  private getStorageSize(): { used: number; quota: number } {
+    let used = 0
+    for (let key in sessionStorage) {
+      if (sessionStorage.hasOwnProperty(key)) {
+        used += sessionStorage[key].length + key.length
+      }
+    }
+
+    // Estimate quota (browsers typically allow 5-10MB)
+    const quota = 10 * 1024 * 1024 // 10MB estimate
+
+    return {
+      used: Math.round(used / 1024), // Convert to KB
+      quota: Math.round(quota / 1024)
+    }
+  }
+
+  private clearOldestItems(count: number): void {
+    const keys = Object.keys(sessionStorage)
+    const nonEssentialKeys = keys.filter(key =>
+      !key.includes('GEOJSON') &&
+      !key.includes('MAP_WORKFLOW_LOCATION') &&
+      !key.includes('CURRENTPAGE')
+    )
+
+    // Remove the first few non-essential items
+    for (let i = 0; i < Math.min(count, nonEssentialKeys.length); i++) {
+      sessionStorage.removeItem(nonEssentialKeys[i])
+      console.log(`Cleared session storage item: ${nonEssentialKeys[i]}`)
     }
   }
 
@@ -288,6 +402,48 @@ export class SessionService {
       sessionStorage.removeItem(key)
     } catch (error) {
       console.warn(`Could not remove ${key} from session storage:`, error)
+    }
+  }
+
+  /**
+   * Get current session storage usage information
+   * Useful for debugging storage issues
+   */
+  getStorageInfo(): {
+    used: number;
+    quota: number;
+    percentage: number;
+    items: Array<{ key: string; size: number }>;
+  } {
+    const storageSize = this.getStorageSize()
+    const items: Array<{ key: string; size: number }> = []
+
+    for (let key in sessionStorage) {
+      if (sessionStorage.hasOwnProperty(key)) {
+        const size = Math.round((sessionStorage[key].length + key.length) / 1024)
+        items.push({ key, size })
+      }
+    }
+
+    items.sort((a, b) => b.size - a.size) // Sort by size descending
+
+    return {
+      used: storageSize.used,
+      quota: storageSize.quota,
+      percentage: Math.round((storageSize.used / storageSize.quota) * 100),
+      items
+    }
+  }
+
+  /**
+   * Clear all session data (useful for testing or when encountering persistent issues)
+   */
+  clearAllSessionData(): void {
+    try {
+      sessionStorage.clear()
+      console.log('All session storage cleared')
+    } catch (error) {
+      console.warn('Failed to clear session storage:', error)
     }
   }
 }

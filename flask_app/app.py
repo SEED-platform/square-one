@@ -691,7 +691,11 @@ def download_ms_footprints():
             return error
 
         polygon_data = data["polygon"]
-        app.logger.info(f"Polygon data: {polygon_data}")
+        min_footprint_size_sqft = data.get("min_footprint_size_sqft", 0)  # Default to 0 (no filter)
+        app.logger.info(f"=== REQUEST PARAMS ===")
+        app.logger.info(f"Polygon data: {type(polygon_data)}")
+        app.logger.info(f"Minimum footprint size filter: {min_footprint_size_sqft} sq ft (type: {type(min_footprint_size_sqft)})")
+        app.logger.info(f"Full request data keys: {list(data.keys())}")
 
         # Parse polygon from request
         polygon, error = parse_polygon_from_request(polygon_data)
@@ -713,12 +717,56 @@ def download_ms_footprints():
 
         # Process the footprints
         processed_gdf = footprint_service.process_ms_footprints(ms_gdf)
+        
+        # Apply footprint size filter if specified
+        if min_footprint_size_sqft > 0:
+            initial_count = len(processed_gdf)
+            
+            # Debug: Check footprint area values
+            app.logger.info(f"=== MS FOOTPRINT AREA DEBUG ===")
+            app.logger.info(f"Columns in processed_gdf: {list(processed_gdf.columns)}")
+            if 'footprint_area_ft2' in processed_gdf.columns:
+                area_values = processed_gdf['footprint_area_ft2']
+                app.logger.info(f"First 10 footprint_area_ft2 values: {area_values.head(10).tolist()}")
+                app.logger.info(f"Footprint area stats: min={area_values.min()}, max={area_values.max()}, count_non_null={area_values.count()}")
+                app.logger.info(f"Data types: {area_values.dtypes}")
+            else:
+                app.logger.error("footprint_area_ft2 column not found!")
+                
+            # Apply filter
+            app.logger.info(f"Applying filter: footprint_area_ft2 >= {min_footprint_size_sqft}")
+            processed_gdf = processed_gdf[processed_gdf['footprint_area_ft2'] >= min_footprint_size_sqft]
+            filtered_count = len(processed_gdf)
+            app.logger.info(f"Footprint size filter applied: {initial_count} -> {filtered_count} buildings (removed {initial_count - filtered_count} buildings < {min_footprint_size_sqft} sq ft)")
+            
+            if len(processed_gdf) == 0:
+                app.logger.warning(f"No Microsoft footprints remain after applying {min_footprint_size_sqft} sq ft filter")
+                return jsonify({"message": f"No Microsoft footprints found above {min_footprint_size_sqft} sq ft in the selected area", "footprints_count": 0}), 200
 
         # Save debug CSV
         processed_gdf.to_csv("ms_footprints_debug.csv", index=False)
 
-        # Create GeoJSON response
-        return create_geojson_response(processed_gdf, "footprints_count")
+        # Create GeoJSON response with filter statistics
+        response_data = create_geojson_response(processed_gdf, "footprints_count")
+        
+        # Add filter statistics if filtering was applied
+        if min_footprint_size_sqft > 0:
+            if isinstance(response_data, tuple):
+                # Handle tuple response (response, status_code)
+                response_json = response_data[0].get_json() if hasattr(response_data[0], 'get_json') else response_data[0]
+            else:
+                response_json = response_data.get_json() if hasattr(response_data, 'get_json') else response_data
+            
+            if isinstance(response_json, dict):
+                response_json["filter_stats"] = {
+                    "total_before_filter": initial_count,
+                    "total_after_filter": filtered_count,
+                    "removed_count": initial_count - filtered_count,
+                    "min_footprint_size_sqft": min_footprint_size_sqft
+                }
+                return jsonify(response_json)
+        
+        return response_data
 
     except Exception as e:
         log_error_with_context("Unexpected error in download_ms_footprints", e)
@@ -740,7 +788,11 @@ def download_osm_footprints():
             return error
 
         polygon_data = data["polygon"]
-        app.logger.info(f"Received polygon: {polygon_data}")
+        min_footprint_size_sqft = data.get("min_footprint_size_sqft", 0)  # Default to 0 (no filter)
+        app.logger.info(f"=== OSM REQUEST PARAMS ===")
+        app.logger.info(f"Received polygon: {type(polygon_data)}")
+        app.logger.info(f"Minimum footprint size filter: {min_footprint_size_sqft} sq ft (type: {type(min_footprint_size_sqft)})")
+        app.logger.info(f"Full request data keys: {list(data.keys())}")
 
         # Parse polygon from request
         polygon, error = parse_polygon_from_request(polygon_data)
@@ -756,12 +808,56 @@ def download_osm_footprints():
 
         # Process the footprints
         processed_gdf = footprint_service.process_osm_footprints(osm_gdf)
+        
+        # Apply footprint size filter if specified
+        if min_footprint_size_sqft > 0:
+            initial_count = len(processed_gdf)
+            
+            # Debug: Check footprint area values
+            app.logger.info(f"=== FOOTPRINT AREA DEBUG ===")
+            app.logger.info(f"Columns in processed_gdf: {list(processed_gdf.columns)}")
+            if 'footprint_area_ft2' in processed_gdf.columns:
+                area_values = processed_gdf['footprint_area_ft2']
+                app.logger.info(f"First 10 footprint_area_ft2 values: {area_values.head(10).tolist()}")
+                app.logger.info(f"Footprint area stats: min={area_values.min()}, max={area_values.max()}, count_non_null={area_values.count()}")
+                app.logger.info(f"Data types: {area_values.dtypes}")
+            else:
+                app.logger.error("footprint_area_ft2 column not found!")
+                
+            # Apply filter
+            app.logger.info(f"Applying filter: footprint_area_ft2 >= {min_footprint_size_sqft}")
+            processed_gdf = processed_gdf[processed_gdf['footprint_area_ft2'] >= min_footprint_size_sqft]
+            filtered_count = len(processed_gdf)
+            app.logger.info(f"Footprint size filter applied: {initial_count} -> {filtered_count} buildings (removed {initial_count - filtered_count} buildings < {min_footprint_size_sqft} sq ft)")
+            
+            if len(processed_gdf) == 0:
+                app.logger.warning(f"No OSM footprints remain after applying {min_footprint_size_sqft} sq ft filter")
+                return jsonify({"message": f"No OSM footprints found above {min_footprint_size_sqft} sq ft in the selected area", "footprints_count": 0}), 200
 
         # Save debug CSV
         processed_gdf.to_csv("osm_footprints_debug.csv", index=False)
 
-        # Create GeoJSON response
-        return create_geojson_response(processed_gdf, "footprints_count")
+        # Create GeoJSON response with filter statistics
+        response_data = create_geojson_response(processed_gdf, "footprints_count")
+        
+        # Add filter statistics if filtering was applied
+        if min_footprint_size_sqft > 0:
+            if isinstance(response_data, tuple):
+                # Handle tuple response (response, status_code)
+                response_json = response_data[0].get_json() if hasattr(response_data[0], 'get_json') else response_data[0]
+            else:
+                response_json = response_data.get_json() if hasattr(response_data, 'get_json') else response_data
+            
+            if isinstance(response_json, dict):
+                response_json["filter_stats"] = {
+                    "total_before_filter": initial_count,
+                    "total_after_filter": filtered_count,
+                    "removed_count": initial_count - filtered_count,
+                    "min_footprint_size_sqft": min_footprint_size_sqft
+                }
+                return jsonify(response_json)
+        
+        return response_data
 
     except Exception as e:
         log_error_with_context("Unexpected error in download_osm_footprints", e)

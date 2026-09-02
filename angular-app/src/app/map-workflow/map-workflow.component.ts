@@ -1,5 +1,6 @@
 import { Component, AfterViewInit, ChangeDetectorRef } from '@angular/core'
 import { CommonModule } from '@angular/common'
+import { FormsModule } from '@angular/forms'
 import { Router } from '@angular/router'
 import * as mapboxgl from 'mapbox-gl'
 import MapboxGeocoder from '@mapbox/mapbox-gl-geocoder'
@@ -15,7 +16,7 @@ import { MapSearchBoxComponent } from '../map-search-box/map-search-box.componen
 
 @Component({
   selector: 'app-map-workflow',
-  imports: [NavigationComponent, TopMenuComponent, FooterComponent, CommonModule, MapSearchBoxComponent],
+  imports: [NavigationComponent, TopMenuComponent, FooterComponent, CommonModule, FormsModule, MapSearchBoxComponent],
   templateUrl: './map-workflow.component.html',
   styleUrl: './map-workflow.component.css',
 })
@@ -207,6 +208,10 @@ export class MapWorkflowComponent implements AfterViewInit {
 
   // Last selected location from search box
   lastSelectedLocation: any = null
+
+  // Footprint filtering
+  minFootprintSizeSqFt: number = 500 // Default minimum size in square feet
+  lastFilteredCounts: { total: number; filtered: number; removed: number } | null = null
 
   constructor(
     private http: HttpClient,
@@ -422,21 +427,33 @@ export class MapWorkflowComponent implements AfterViewInit {
       return
     }
 
+    console.log('=== Loading MS Footprints ===');
+    console.log('Filter value:', this.minFootprintSizeSqFt);
     this.showStatusMessage('Loading Microsoft footprints...', false)
 
     const payload = {
       polygon: polygon.geometry,
+      min_footprint_size_sqft: this.minFootprintSizeSqFt
     }
+
+    console.log('Payload being sent:', payload);
 
     this.http.post<any>('http://localhost:5001/api/download_ms_footprints', payload).subscribe({
       next: (response) => {
+        console.log('=== MS Footprints Response ===');
+        console.log('Full response:', response);
+        console.log('Filter stats:', response.filter_stats);
         if (response.message === 'success' && response.geojson) {
           // Store the Microsoft footprints data
           this.msFootprintsData = response.geojson
           this.hasMsFootprints = true
 
+          // Update filter statistics
+          this.updateFilterStatistics(response)
+
           this.addMSFootprintsToMap(response.geojson)
-          this.showStatusMessage(`Successfully loaded ${response.footprints_count} Microsoft footprints`, false)
+          const filterMsg = this.minFootprintSizeSqFt > 0 ? ` (min ${this.minFootprintSizeSqFt} sq ft)` : ''
+          this.showStatusMessage(`Successfully loaded ${response.footprints_count} Microsoft footprints${filterMsg}`, false)
           this.cdr.detectChanges()
         } else {
           this.showStatusMessage(response.message || 'No footprints found in the selected area', false)
@@ -475,21 +492,33 @@ export class MapWorkflowComponent implements AfterViewInit {
       return
     }
 
+    console.log('=== Loading OSM Footprints ===');
+    console.log('Filter value:', this.minFootprintSizeSqFt);
     this.showStatusMessage('Loading OpenStreetMap footprints...', false)
 
     const payload = {
       polygon: polygon.geometry,
+      min_footprint_size_sqft: this.minFootprintSizeSqFt
     }
+
+    console.log('Payload being sent:', payload);
 
     this.http.post<any>('http://localhost:5001/api/download_osm_footprints', payload).subscribe({
       next: (response) => {
+        console.log('=== OSM Footprints Response ===');
+        console.log('Full response:', response);
+        console.log('Filter stats:', response.filter_stats);
         if (response.message === 'success' && response.geojson) {
           // Store the OSM footprints data
           this.osmFootprintsData = response.geojson
           this.hasOsmFootprints = true
 
+          // Update filter statistics
+          this.updateFilterStatistics(response)
+
           this.addOSMFootprintsToMap(response.geojson)
-          this.showStatusMessage(`Successfully loaded ${response.footprints_count} OpenStreetMap footprints`, false)
+          const filterMsg = this.minFootprintSizeSqFt > 0 ? ` (min ${this.minFootprintSizeSqFt} sq ft)` : ''
+          this.showStatusMessage(`Successfully loaded ${response.footprints_count} OpenStreetMap footprints${filterMsg}`, false)
           this.cdr.detectChanges()
         } else {
           this.showStatusMessage(response.message || 'No OSM footprints found in the selected area', false)
@@ -772,11 +801,73 @@ export class MapWorkflowComponent implements AfterViewInit {
   /**
    * Handler for location selection from the search box
    */
-  onLocationSelected(location: any) {
+  onLocationSelected(location: any): void {
     this.lastSelectedLocation = location
     if (location && location.center) {
-      this.map.flyTo({ center: location.center, zoom: 14 })
+      this.map.flyTo({
+        center: location.center,
+        zoom: 15,
+        essential: true,
+      })
+
+      // Save the map location to session
+      const mapLocation: MapLocation = {
+        latitude: location.center[1],
+        longitude: location.center[0],
+        zoom: 15,
+      }
+      this.sessionService.saveMapLocation(mapLocation)
     }
-    // Optionally trigger your "find location" popup logic here
+  }
+
+  /**
+   * Update filter statistics based on API response
+   */
+  updateFilterStatistics(response: any): void {
+    if (response.filter_stats) {
+      this.lastFilteredCounts = {
+        total: response.filter_stats.total_before_filter,
+        filtered: response.filter_stats.total_after_filter,
+        removed: response.filter_stats.removed_count
+      }
+    }
+  }
+
+  /**
+   * Get filter impact message for display
+   */
+  getFilterImpactMessage(): string {
+    if (!this.lastFilteredCounts || this.lastFilteredCounts.removed === 0) {
+      return ''
+    }
+    const percent = Math.round((this.lastFilteredCounts.removed / this.lastFilteredCounts.total) * 100)
+    return `Filter removed ${this.lastFilteredCounts.removed.toLocaleString()} small buildings (${percent}% reduction)`
+  }
+
+  /**
+   * Handle filter size changes - auto-reload footprints if they are already loaded
+   */
+  onFilterSizeChange(): void {
+    console.log('Filter size changed to:', this.minFootprintSizeSqFt);
+
+    // Check if we have any footprints loaded and a polygon drawn
+    if (!this.hasPolygon) {
+      console.log('No polygon drawn, not reloading footprints');
+      return;
+    }
+
+    // Auto-reload MS footprints if they were previously loaded
+    if (this.hasMsFootprints) {
+      console.log('Auto-reloading MS footprints with new filter');
+      this.showStatusMessage(`Reloading Microsoft footprints with ${this.minFootprintSizeSqFt} sq ft filter...`, false);
+      setTimeout(() => this.loadMSFootprints(), 100); // Small delay to avoid rapid-fire requests
+    }
+
+    // Auto-reload OSM footprints if they were previously loaded
+    if (this.hasOsmFootprints) {
+      console.log('Auto-reloading OSM footprints with new filter');
+      this.showStatusMessage(`Reloading OSM footprints with ${this.minFootprintSizeSqFt} sq ft filter...`, false);
+      setTimeout(() => this.loadOSMFootprints(), 100); // Small delay to avoid rapid-fire requests
+    }
   }
 }

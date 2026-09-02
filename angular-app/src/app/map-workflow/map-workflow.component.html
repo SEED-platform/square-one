@@ -13,8 +13,78 @@
 
   <app-map-search-box (locationSelected)="onLocationSelected($event)"></app-map-search-box>
 
+  <!-- Footprint Size Filter -->
+  <div class="filter-controls mb-4 p-4 bg-gray-50 rounded-lg">
+    <div class="flex items-center space-x-4 mb-2">
+      <label for="minFootprintSize" class="text-sm font-medium text-gray-700">
+        Minimum footprint size:
+      </label>
+      <input
+        id="minFootprintSize"
+        type="number"
+        [(ngModel)]="minFootprintSizeSqFt"
+        (ngModelChange)="onFilterSizeChange()"
+        min="0"
+        max="100000"
+        step="100"
+        class="w-24 px-3 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+      />
+      <span class="text-sm text-gray-600">sq ft</span>
+    </div>
+
+    <!-- Quick presets -->
+    <div class="flex items-center space-x-2 mb-2">
+      <span class="text-xs text-gray-500">Quick presets:</span>
+      <button
+        (click)="minFootprintSizeSqFt = 0; onFilterSizeChange()"
+        [class]="minFootprintSizeSqFt === 0 ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'"
+        class="px-2 py-1 text-xs rounded hover:bg-blue-500 hover:text-white">
+        All sizes
+      </button>
+      <button
+        (click)="minFootprintSizeSqFt = 500; onFilterSizeChange()"
+        [class]="minFootprintSizeSqFt === 500 ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'"
+        class="px-2 py-1 text-xs rounded hover:bg-blue-500 hover:text-white">
+        500+ sq ft
+      </button>
+      <button
+        (click)="minFootprintSizeSqFt = 1000; onFilterSizeChange()"
+        [class]="minFootprintSizeSqFt === 1000 ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'"
+        class="px-2 py-1 text-xs rounded hover:bg-blue-500 hover:text-white">
+        1000+ sq ft
+      </button>
+      <button
+        (click)="minFootprintSizeSqFt = 2000; onFilterSizeChange()"
+        [class]="minFootprintSizeSqFt === 2000 ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'"
+        class="px-2 py-1 text-xs rounded hover:bg-blue-500 hover:text-white">
+        2000+ sq ft
+      </button>
+    </div>
+
+    <!-- Filter guidance -->
+    <div class="text-xs text-gray-500 mb-2">
+      <span *ngIf="minFootprintSizeSqFt === 0">Shows all buildings including small structures (garages, sheds, etc.)</span>
+      <span *ngIf="minFootprintSizeSqFt === 500">Removes most garages and small sheds (recommended for performance)</span>
+      <span *ngIf="minFootprintSizeSqFt === 1000">Focuses on larger residential and commercial buildings</span>
+      <span *ngIf="minFootprintSizeSqFt === 2000">Shows only larger homes and commercial buildings</span>
+      <span *ngIf="minFootprintSizeSqFt > 0 && minFootprintSizeSqFt !== 500 && minFootprintSizeSqFt !== 1000 && minFootprintSizeSqFt !== 2000">
+        Custom filter: shows buildings larger than {{ minFootprintSizeSqFt }} sq ft
+      </span>
+    </div>
+  </div>
+
   <div class="status-message" *ngIf="statusMessage" [ngClass]="{ error: isError, success: !isError }">
     {{ statusMessage }}
+  </div>
+
+  <!-- Filter impact display -->
+  <div class="filter-impact-message mb-3 p-2 bg-blue-50 border border-blue-200 rounded" *ngIf="getFilterImpactMessage()">
+    <div class="flex items-center">
+      <svg class="h-4 w-4 text-blue-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
+      </svg>
+      <span class="text-sm text-blue-700">{{ getFilterImpactMessage() }}</span>
+    </div>
   </div>
 
   <div class="map-controls-layout">
