@@ -87,7 +87,7 @@ If your data only has addresses (no coordinates), Square One can geocode them fo
    ```
 
    - `AMAZON_BASE_URL` defaults to `https://places.geo.us-east-2.api.aws/v2` if omitted.
-   - `AMAZON_APP_ID` is only needed for the NREL Gateway (rate-limited key), in which case use `AMAZON_BASE_URL=https://developer.nrel.gov/api/tada/amazon-location-service/places/v2`.
+   - `AMAZON_APP_ID` is only needed for the NLR Gateway (rate-limited key), in which case use `AMAZON_BASE_URL=https://developer.nlr.gov/api/tada/amazon-location-service/places/v2`.
    - Environment variables already set in your shell/profile take precedence over the `.env` file.
    - Due to the nature of this application, requests pass `IntendedUse=Storage` to the Amazon Location Services API, which allows storing geocoding results (see [Disclaimer](#disclaimer)) at a slightly higher rate per transaction.
 
