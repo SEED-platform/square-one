@@ -66,7 +66,13 @@
         "serve": {
           "builder": "@angular/build:dev-server",
           "options": {
-            "port": 4201
+            "port": 4201,
+            "prebundle": {
+              "exclude": [
+                "ag-grid-angular",
+                "ag-grid-community"
+              ]
+            }
           },
           "configurations": {
             "production": {
