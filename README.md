@@ -33,7 +33,11 @@ Square One has two on-ramps depending on what data you're starting with. **Start
   git clone git@github.com:SEED-platform/building-data-utilities.git
   ```
 
-- Square One also depends on the [building-energy-profiles package](https://github.com/NatLabRockies/building-energy-profiles), which downloads and combines ComStock/ResStock building load data (used by the **Download Composite Building Load Profiles** feature below). It is installed automatically via poetry, the same way as Building Data Utilities.
+- Square One also depends on the [building-energy-profiles package](https://github.com/NatLabRockies/building-energy-profiles), which downloads and combines ComStock/ResStock building load data (used by the **Download Composite Building Load Profiles** feature below). Check it out locally at the same directory level as `square-one` — it's picked up automatically when installing dependencies below.
+
+  ```bash
+  git clone git@github.com:NatLabRockies/building-energy-profiles.git
+  ```
 
 ### Level 1 — Quick Start: uploading your own lat/long data
 
