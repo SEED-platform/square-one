@@ -1,6 +1,6 @@
 #map {
-  height: 90%;
-  min-height: calc(90% + 150px);
+  height: 100%;
+  min-height: 0;
   width: 100%; /* Full width */
 }
 

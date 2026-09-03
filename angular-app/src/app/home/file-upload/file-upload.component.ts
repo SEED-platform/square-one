@@ -3,6 +3,7 @@ import { ChangeDetectorRef, Component, ElementRef, ViewChild } from '@angular/co
 import { FlaskRequests } from '../../services/server.service'
 import { Router } from '@angular/router'
 import { SessionService } from '../../services/session.service'
+import { NotificationService } from '../../services/notification.service'
 
 interface FileItem {
   objectURL: string
@@ -38,7 +39,8 @@ export class FileUploadComponent {
     private router: Router,
     private ref: ChangeDetectorRef,
     private sessionService: SessionService,
-  ) {}
+    private notifications: NotificationService,
+) {}
 
   onDrop(event: DragEvent) {
     event.preventDefault()
@@ -103,7 +105,7 @@ export class FileUploadComponent {
       }
       console.log('Selected file:', this.selectedFile)
     } else {
-      alert(file.name + ' is not a valid file')
+      this.notifications.warning(file.name + ' is not a valid file')
     }
   }
 
@@ -132,10 +134,10 @@ export class FileUploadComponent {
 
   onSubmit() {
     if (this.selectedFile) {
-      alert(`Submitted File: ${this.selectedFile.name}`)
+      this.notifications.warning(`Submitted File: ${this.selectedFile.name}`)
       console.log('Submitted file:', this.selectedFile)
     } else {
-      alert('No file selected')
+      this.notifications.warning('No file selected')
     }
   }
 
@@ -155,7 +157,7 @@ export class FileUploadComponent {
 
   uploadInitialFileToServer() {
     if (!this.selectedFile) {
-      alert('No file selected')
+      this.notifications.warning('No file selected')
       return
     }
 
@@ -175,7 +177,7 @@ export class FileUploadComponent {
           this.sessionService.setHomeAccess(false)
           this.router.navigate(['/data-validation'])
         } else {
-          alert('No File Submitted')
+          this.notifications.warning('No File Submitted')
         }
         this.isLoading = false
         this.ref.detectChanges()
@@ -195,9 +197,9 @@ export class FileUploadComponent {
           }, 500)
         } else {
           if (errorResponse.error.message === undefined) {
-            alert('Internal Server Issue')
+            this.notifications.warning('Internal Server Issue')
           } else {
-            alert(errorResponse.error.message)
+            this.notifications.warning(errorResponse.error.message)
           }
         }
         this.isLoading = false

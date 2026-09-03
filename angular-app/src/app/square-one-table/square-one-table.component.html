@@ -71,6 +71,8 @@
 
           <a class="block px-4 py-2 text-sm" [class.text-gray-700]="cachedCanDeleteRecords" [class.hover:bg-gray-100]="cachedCanDeleteRecords" [class.text-gray-400]="!cachedCanDeleteRecords" [class.cursor-not-allowed]="!cachedCanDeleteRecords" (click)="$event.preventDefault(); runActionsMenuItem(cachedCanDeleteRecords, openBulkEditDialog.bind(this))" href="" role="menuitem" tabindex="-1" title="Select at least 1 record to bulk edit">Bulk Edit</a>
           <a class="block px-4 py-2 text-sm" [class.text-gray-700]="cachedCanDeleteRecords" [class.hover:bg-gray-100]="cachedCanDeleteRecords" [class.text-gray-400]="!cachedCanDeleteRecords" [class.cursor-not-allowed]="!cachedCanDeleteRecords" (click)="$event.preventDefault(); runActionsMenuItem(cachedCanDeleteRecords, assignTargetEUI.bind(this))" href="" role="menuitem" tabindex="-1" title="Select at least 1 record to assign target EUI data">Assign Target EUI</a>
+          <a class="block px-4 py-2 text-sm" [class.text-gray-700]="cachedCanAssignBuildingTypes" [class.hover:bg-gray-100]="cachedCanAssignBuildingTypes" [class.text-gray-400]="!cachedCanAssignBuildingTypes" [class.cursor-not-allowed]="!cachedCanAssignBuildingTypes" (click)="$event.preventDefault(); runActionsMenuItem(cachedCanAssignBuildingTypes, openAssignBuildingTypesDialog.bind(this))" href="" role="menuitem" tabindex="-1" title="Select at least 1 record to assign ESPM building types">Assign Building Types</a>
+          <a class="block px-4 py-2 text-sm" [class.text-gray-700]="cachedCanDownloadCompositeProfiles" [class.hover:bg-gray-100]="cachedCanDownloadCompositeProfiles" [class.text-gray-400]="!cachedCanDownloadCompositeProfiles" [class.cursor-not-allowed]="!cachedCanDownloadCompositeProfiles" (click)="$event.preventDefault(); runActionsMenuItem(cachedCanDownloadCompositeProfiles, openDownloadCompositeProfilesDialog.bind(this))" href="" role="menuitem" tabindex="-1" title="Select at least 1 record to download composite building load profiles">Download Composite Load Profiles</a>
           <a class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" (click)="$event.preventDefault(); addNewRow(); closeActionsMenu()" href="" role="menuitem" tabindex="-1">+ New Row</a>
           <a class="block px-4 py-2 text-sm border-t border-gray-200" [class.text-red-700]="cachedCanDeleteRecords" [class.hover:bg-red-50]="cachedCanDeleteRecords" [class.text-gray-400]="!cachedCanDeleteRecords" [class.cursor-not-allowed]="!cachedCanDeleteRecords" (click)="$event.preventDefault(); runActionsMenuItem(cachedCanDeleteRecords, handleDelete.bind(this))" href="" role="menuitem" tabindex="-1" title="Select at least 1 record to delete">Delete Selected Row(s)</a>
         </div>
@@ -96,14 +98,18 @@
       </div>
     </div>
   </div>
-  <div class="mt-0 flex h-[100vh] w-[90%] flex-col justify-center p-0" id="data-container" *ngIf="hasValidGeoJsonData">
+  <div #dataContainer class="map-table-container mt-0 flex w-[90%] flex-col p-0" [class.is-resizing]="isResizingMapTable" id="data-container" *ngIf="hasValidGeoJsonData">
     <!-- Map Section -->
-    <div class="mb-4 h-[60vh] min-h-[400px] w-full">
+    <div class="map-panel w-full" [style.flex-basis.%]="mapPanelPercent">
       <app-mapbox-map [showAllPins]="showAllPins"></app-mapbox-map>
     </div>
 
-    <div class="square-one-table-container h-[65vh] w-full mt-20">
-      <ag-grid-angular class="ag-theme-quartz" [columnDefs]="colDefs" [defaultColDef]="defaultColDef" [rowData]="rowData" [rowSelection]="{ mode: 'multiRow' }" [getRowId]="getRowId" (gridReady)="onGridReady($event)" (rowClicked)="onRowClicked($event)" (selectionChanged)="onSelectionChanged($event)" theme="legacy" style="height: 100%; width: 100%" />
+    <div class="map-table-splitter" role="separator" tabindex="0" aria-label="Resize map and table" aria-orientation="horizontal" aria-valuemin="20" aria-valuemax="80" [attr.aria-valuenow]="mapPanelPercent | number: '1.0-0'" title="Drag to resize the map and table; use the arrow keys for precise adjustments" (pointerdown)="onMapTableSplitterPointerDown($event)" (pointermove)="onMapTableSplitterPointerMove($event)" (pointerup)="onMapTableSplitterPointerUp($event)" (pointercancel)="onMapTableSplitterPointerUp($event)" (keydown)="onMapTableSplitterKeydown($event)">
+      <span class="map-table-splitter-handle" aria-hidden="true"></span>
+    </div>
+
+    <div class="square-one-table-container min-h-0 w-full flex-1">
+      <ag-grid-angular class="ag-theme-quartz" [columnDefs]="colDefs" [defaultColDef]="defaultColDef" [rowData]="rowData" [rowSelection]="{ mode: 'multiRow' }" [getRowId]="getRowId" [preventDefaultOnContextMenu]="true" (gridReady)="onGridReady($event)" (rowClicked)="onRowClicked($event)" (selectionChanged)="onSelectionChanged($event)" (cellContextMenu)="onTableCellContextMenu($event)" theme="legacy" style="height: 100%; width: 100%" />
     </div>
   </div>
 </div>
@@ -123,7 +129,7 @@
     <p class="mb-4 text-sm text-gray-600">This table shows the percentage of records that have data populated for each column. Click column headers to sort, use the filter icon to filter, and right-click a row for quick delete/merge actions. Essential columns and computed columns are protected from deletion.</p>
 
     <div class="ag-theme-quartz min-h-0 flex-1">
-      <ag-grid-angular class="ag-theme-quartz" [columnDefs]="columnStatsColDefs" [defaultColDef]="columnStatsDefaultColDef" [rowData]="columnStats" [getRowId]="trackByColumnNameRowId" (gridReady)="onColumnStatsGridReady($event)" (cellContextMenu)="onColumnStatsCellContextMenu($event)" theme="legacy" style="height: 100%; width: 100%" />
+      <ag-grid-angular class="ag-theme-quartz" [columnDefs]="columnStatsColDefs" [defaultColDef]="columnStatsDefaultColDef" [rowData]="columnStats" [getRowId]="trackByColumnNameRowId" [preventDefaultOnContextMenu]="true" (gridReady)="onColumnStatsGridReady($event)" (cellContextMenu)="onColumnStatsCellContextMenu($event)" theme="legacy" style="height: 100%; width: 100%" />
     </div>
 
     <div class="mt-6 flex justify-between">
@@ -393,6 +399,136 @@
   </div>
 </div>
 
+<!-- Assign Building Types Dialog -->
+<div class="bg-opacity-50 fixed inset-0 z-50 flex items-center justify-center bg-black" *ngIf="showAssignBuildingTypesDialog">
+  <div class="mx-4 w-full max-w-3xl rounded-lg bg-white p-6 shadow-xl max-h-[85vh] flex flex-col">
+    <div class="mb-4 flex items-center justify-between">
+      <h3 class="text-lg font-semibold text-gray-900">Assign Building Types</h3>
+      <button class="text-gray-400 hover:text-gray-600 focus:outline-none" (click)="closeAssignBuildingTypesDialog()" aria-label="Close assign building types dialog">
+        <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+        </svg>
+      </button>
+    </div>
+
+    <p class="mb-4 text-sm text-gray-600">Assign up to 3 ENERGY STAR Portfolio Manager (ESPM) building types per building -- primary, secondary, and tertiary -- with a floor-area weight for each. A building with more than one assigned type is downloaded as a floor-area-weighted composite ("mixed-use") load profile; a badge next to each type shows how well it maps to a BuildStock building type.</p>
+
+    <div class="flex-1 space-y-4 overflow-y-auto pr-1">
+      <div class="rounded-lg border border-gray-200 p-4" *ngFor="let assignmentRow of assignBuildingTypesRows; let rowIndex = index">
+        <div class="mb-3 flex items-center justify-between">
+          <h4 class="text-sm font-semibold text-gray-900">{{ assignmentRow.label }}</h4>
+          <button class="text-xs font-medium text-blue-600 hover:text-blue-800" (click)="normalizeRowWeights(assignmentRow)" title="Rescale weights to sum to exactly 100%">Normalize to 100%</button>
+        </div>
+
+        <!-- Live stacked-bar visualization of this building's assigned type mix -->
+        <div class="mb-3 flex h-4 w-full overflow-hidden rounded bg-gray-100">
+          <div class="h-full bg-blue-500" [style.width.%]="getSlotPercent(assignmentRow, 'primary')" title="Primary"></div>
+          <div class="h-full bg-emerald-500" [style.width.%]="getSlotPercent(assignmentRow, 'secondary')" title="Secondary"></div>
+          <div class="h-full bg-amber-500" [style.width.%]="getSlotPercent(assignmentRow, 'tertiary')" title="Tertiary"></div>
+        </div>
+
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div *ngFor="let slot of buildingTypeSlots">
+            <label class="mb-1 block text-xs font-medium text-gray-500 capitalize">{{ slot }}{{ slot === 'primary' ? ' (required)' : ' (optional)' }}</label>
+            <input class="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200" type="search" autocomplete="off" placeholder="Search building types..." [attr.list]="'building-types-' + rowIndex + '-' + slot" [attr.aria-label]="slot + ' building type'" [(ngModel)]="assignmentRow.slots[slot].type" (ngModelChange)="onAssignBuildingTypeChange(assignmentRow, slot)" />
+            <datalist [id]="'building-types-' + rowIndex + '-' + slot">
+              <option *ngFor="let buildingType of espmBuildingTypes" [value]="buildingType.property_type"></option>
+            </datalist>
+            <div class="mt-1 flex items-center gap-2">
+              <input class="w-20 rounded-md border border-gray-300 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200" type="number" min="0" max="100" [disabled]="!assignmentRow.slots[slot].type" [(ngModel)]="assignmentRow.slots[slot].weight" />
+              <span class="text-xs text-gray-500">% weight</span>
+            </div>
+            <span class="mt-1 inline-block rounded px-1.5 py-0.5 text-xs" *ngIf="assignmentRow.slots[slot].type" [ngClass]="getMatchQualityClass(assignmentRow.slots[slot].type)">
+              {{ getMatchQualityLabel(assignmentRow.slots[slot].type) }}
+            </span>
+          </div>
+        </div>
+
+        <p class="mt-2 text-xs" [class.text-gray-500]="isAssignmentRowValid(assignmentRow)" [class.text-red-600]="!isAssignmentRowValid(assignmentRow)">Total weight: {{ getRowTotalWeight(assignmentRow) }}% <span *ngIf="!isAssignmentRowValid(assignmentRow)">-- select valid building types from the searchable lists and assign the primary type a weight greater than 0.</span></p>
+      </div>
+    </div>
+
+    <div class="mt-6 flex justify-end space-x-3">
+      <button class="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500" (click)="closeAssignBuildingTypesDialog()">Cancel</button>
+      <button class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-50" [disabled]="!canSaveBuildingTypeAssignments()" (click)="saveBuildingTypeAssignments()">Save Assignments</button>
+    </div>
+  </div>
+</div>
+
+<!-- Download Composite Building Load Profiles Dialog -->
+<div class="bg-opacity-50 fixed inset-0 z-50 flex items-center justify-center bg-black" *ngIf="showDownloadCompositeProfilesDialog">
+  <div class="mx-4 w-full max-w-lg rounded-lg bg-white p-6 shadow-xl max-h-[85vh] flex flex-col">
+    <div class="mb-4 flex items-center justify-between">
+      <h3 class="text-lg font-semibold text-gray-900">Download Composite Building Load Profiles</h3>
+      <button class="text-gray-400 hover:text-gray-600 focus:outline-none" (click)="closeDownloadCompositeProfilesDialog()" aria-label="Close download composite profiles dialog">
+        <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+        </svg>
+      </button>
+    </div>
+
+    <p class="mb-2 text-sm text-gray-600">Downloads a native-interval annual profile. For each assigned component, the server chooses a representative BuildStock sample using the best building data available.</p>
+
+    <div class="mb-4 rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900">
+      <p><strong>Selection:</strong> When both gross floor area and a positive EUI are available, the representative minimizes their combined relative difference. With only one, it selects the closest sample using that field. With neither, it randomly selects a sample from the middle 50% (25th–75th percentile range) of the available floor-area and EUI distributions.</p>
+      <p class="mt-2"><strong>Scaling:</strong> When gross floor area is available, the profile is scaled to that floor area. Without it, the representative sample's original scale is retained.</p>
+      <p class="mt-2"><strong>Server copy:</strong> Each successful profile is also saved under <code>flask_app/data/load_profiles</code>. Its full path and the representative BuildStock building ID(s) are recorded in the row's load-profile columns.</p>
+    </div>
+
+    <div class="mb-4 rounded-lg border p-3 text-sm" [class.border-amber-200]="countSelectedWithBuildingTypeAssigned() === 0" [class.bg-amber-50]="countSelectedWithBuildingTypeAssigned() === 0" [class.border-blue-200]="countSelectedWithBuildingTypeAssigned() > 0" [class.bg-blue-50]="countSelectedWithBuildingTypeAssigned() > 0">
+      {{ countSelectedWithBuildingTypeAssigned() }} of {{ compositeProfilesSelectedCount }} selected building(s) have a building type assigned.
+      <a href="" class="font-medium text-blue-700 underline" *ngIf="countSelectedWithBuildingTypeAssigned() === 0" (click)="$event.preventDefault(); closeDownloadCompositeProfilesDialog(); openAssignBuildingTypesDialog()">Assign Building Types first</a>
+    </div>
+
+    <p class="mb-4 text-sm text-gray-600"><strong>Interval:</strong> Native interval as published by the dataset (no resampling).</p>
+
+    <!-- Progress box: downloads hit the OEDI S3 dataset per building and can take a while, so this shows
+         real "X of N" progress, the building currently downloading, and elapsed time. -->
+    <div class="mb-4 rounded-lg border border-cyan-200 bg-cyan-50 p-3" *ngIf="isDownloadingCompositeProfiles">
+      <div class="mb-2 flex items-center justify-between text-sm font-medium text-cyan-900">
+        <span>Downloading building {{ compositeProfilesProgress.completed + 1 }} of {{ compositeProfilesProgress.total }}...</span>
+        <span class="font-mono text-xs text-cyan-700">{{ compositeProfilesElapsedSeconds }}s elapsed</span>
+      </div>
+      <div class="h-2.5 w-full overflow-hidden rounded-full bg-cyan-100">
+        <div class="h-full rounded-full bg-cyan-600 transition-all duration-300" [style.width.%]="getCompositeProfilesProgressPercent()"></div>
+      </div>
+      <p class="mt-2 truncate text-xs text-cyan-800" *ngIf="compositeProfilesProgress.currentLabel">Current: {{ compositeProfilesProgress.currentLabel }}</p>
+      <p class="mt-2 text-xs text-cyan-700">This can take a while for large batches -- feel free to let it run; results appear below as each building finishes.</p>
+    </div>
+
+    <div class="mb-2 flex-1 overflow-y-auto" *ngIf="compositeProfilesResults.length > 0">
+      <p class="mb-2 text-sm font-medium text-gray-700">Results ({{ compositeProfilesResults.length }} of {{ compositeProfilesProgress.total || compositeProfilesSelectedCount }})</p>
+      <ul class="space-y-1">
+        <li class="rounded px-2 py-1 text-xs" *ngFor="let result of compositeProfilesResults" [class.bg-green-50]="result.success" [class.text-green-800]="result.success" [class.bg-red-50]="!result.success" [class.text-red-800]="!result.success">
+          <span class="font-medium">{{ result.id }}:</span>
+          <ng-container *ngIf="result.success">
+            <span>Downloaded ({{ result.row_count }} rows{{ result.components && result.components.length > 1 ? ', composite of ' + result.components.length + ' building types' : '' }}).</span>
+            <div *ngIf="result.file_path">
+              Saved on server: <code class="break-all">{{ result.file_path }}</code>
+            </div>
+            <div class="mt-1 font-medium" *ngIf="result.representative_buildings?.length">Representative BuildStock match:</div>
+            <ul class="ml-4 mt-1 list-disc" *ngIf="result.representative_buildings?.length">
+              <li *ngFor="let match of result.representative_buildings">{{ formatRepresentativeMatch(match) }}</li>
+            </ul>
+          </ng-container>
+          <span *ngIf="!result.success">{{ result.error }}</span>
+        </li>
+      </ul>
+    </div>
+
+    <div class="mt-4 flex justify-end gap-2">
+      <button class="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200" (click)="closeDownloadCompositeProfilesDialog()">{{ isDownloadingCompositeProfiles ? 'Cancel' : 'Close' }}</button>
+      <button class="flex items-center gap-2 rounded-md bg-cyan-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-50" [disabled]="isDownloadingCompositeProfiles" (click)="downloadCompositeBuildingLoadProfiles()">
+        <svg class="h-4 w-4 animate-spin" *ngIf="isDownloadingCompositeProfiles" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        {{ isDownloadingCompositeProfiles ? 'Downloading...' : 'Download' }}
+      </button>
+    </div>
+  </div>
+</div>
+
 <!-- Header Edit Dialog -->
 <div class="bg-opacity-50 fixed inset-0 z-50 flex items-center justify-center bg-black" *ngIf="showHeaderEditDialog">
   <div class="mx-4 w-full max-w-4xl rounded-lg bg-white p-6 shadow-xl max-h-[80vh] overflow-hidden">
@@ -465,6 +601,49 @@
         <button class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700" (click)="applyHeaderChanges()">Apply Changes</button>
       </div>
     </div>
+  </div>
+</div>
+
+<div class="fixed inset-0 z-[85]" *ngIf="tableContextMenu.visible" (click)="closeTableContextMenu()" (contextmenu)="$event.preventDefault(); closeTableContextMenu()"></div>
+<div *ngIf="tableContextMenu.visible" class="fixed z-[90] max-w-md rounded-md border border-gray-200 bg-white py-1 shadow-lg" [style.left.px]="tableContextMenu.x" [style.top.px]="tableContextMenu.y" (click)="$event.stopPropagation()" (contextmenu)="$event.preventDefault()">
+  <div class="border-b border-gray-100 px-4 py-2 text-xs text-gray-600">
+    <div>
+      Square One building: <strong>{{ tableContextMenu.row?.id }}</strong>
+    </div>
+    <div *ngIf="tableContextMenu.row?.properties?.load_profile_representative_building_ids">
+      BuildStock match: <strong>{{ tableContextMenu.row.properties.load_profile_representative_building_ids }}</strong>
+    </div>
+    <div class="mt-1" *ngIf="tableContextMenu.row?.properties?.load_profile_match_details">
+      {{ tableContextMenu.row.properties.load_profile_match_details }}
+    </div>
+  </div>
+  <button class="block w-full px-4 py-2 text-left text-sm hover:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-400" [disabled]="!tableContextMenu.row?.properties?.load_profile_file_path" (click)="openLoadProfileFromContext()">Open downloaded load profile</button>
+</div>
+
+<div *ngIf="showLoadProfileViewer" class="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4" (click)="closeLoadProfileViewer()">
+  <div class="flex max-h-[90vh] w-full max-w-6xl flex-col rounded-lg bg-white p-5 shadow-xl" (click)="$event.stopPropagation()">
+    <div class="mb-3 flex items-center justify-between">
+      <h3 class="text-lg font-semibold">Downloaded load profile — Square One building {{ loadProfileViewerBuildingId }}</h3>
+      <button class="text-2xl text-gray-500" (click)="closeLoadProfileViewer()">×</button>
+    </div>
+    <div class="mb-3 rounded border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900" *ngIf="loadProfileViewerRepresentativeIds">
+      <div><strong>Representative BuildStock building(s):</strong> {{ loadProfileViewerRepresentativeIds }}</div>
+      <div class="mt-1 text-xs" *ngIf="loadProfileViewerMatchDetails">{{ loadProfileViewerMatchDetails }}</div>
+      <div class="mt-1 break-all text-xs"><strong>Server file:</strong> {{ loadProfileViewerFilePath }}</div>
+    </div>
+    <div *ngIf="isLoadingLoadProfile" class="py-8 text-center text-gray-600">Loading profile…</div>
+    <div *ngIf="loadProfileViewerError" class="rounded bg-red-50 p-3 text-red-700">{{ loadProfileViewerError }}</div>
+    <ng-container *ngIf="!isLoadingLoadProfile && !loadProfileViewerError && loadProfileCsv">
+      <div class="mb-2 flex items-center gap-2 text-sm">
+        <label for="profileMetric">Heat map metric</label
+        ><select id="profileMetric" class="rounded border px-2 py-1" [(ngModel)]="selectedLoadProfileMetric" (change)="drawLoadProfileHeatmap()">
+          <option *ngFor="let metric of loadProfileMetrics" [value]="metric">{{ metric }}</option>
+        </select>
+      </div>
+      <canvas #loadProfileHeatmapCanvas width="1200" height="320" class="mb-3 w-full rounded border bg-gray-50"></canvas>
+      <p class="mb-1 text-sm font-medium">CSV ({{ loadProfileRows.length }} rows)</p>
+      <textarea class="min-h-[14rem] w-full flex-1 resize-y rounded border bg-gray-50 p-2 font-mono text-xs" readonly [value]="loadProfileCsv"></textarea>
+    </ng-container>
   </div>
 </div>
 

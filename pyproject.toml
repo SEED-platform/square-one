@@ -9,7 +9,7 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = ">=3.10, <3.13"
+python = ">=3.12, <3.13"
 
 flask = "^3.1.3"
 flask-cors = "^6.0.2"
@@ -18,6 +18,8 @@ tqdm = "^4.67.3"
 
 building-data-utilities = { git = "https://github.com/seed-platform/building-data-utilities.git", rev = "develop" }
 # building-data-utilities = "~0.1.0"
+
+building-energy-profiles = { git = "https://github.com/NatLabRockies/building-energy-profiles.git", rev = "develop" }
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^4.3.0"

@@ -33,6 +33,12 @@ Square One has two on-ramps depending on what data you're starting with. **Start
   git clone git@github.com:SEED-platform/building-data-utilities.git
   ```
 
+- Square One also depends on the [building-energy-profiles package](https://github.com/NatLabRockies/building-energy-profiles), which downloads and combines ComStock/ResStock building load data (used by the **Download Composite Building Load Profiles** feature below). Check it out locally at the same directory level as `square-one` — it's picked up automatically when installing dependencies below.
+
+  ```bash
+  git clone git@github.com:NatLabRockies/building-energy-profiles.git
+  ```
+
 ### Level 1 — Quick Start: uploading your own lat/long data
 
 Use this path if your building list already has (or can easily have) `latitude`/`longitude` columns. **No Amazon Location Services key is required** — rows with valid coordinates skip geocoding entirely and go straight to building footprint matching.
@@ -117,6 +123,8 @@ Once the file you uploaded (see **Level 1** or **Level 2** above) appears in a t
 - **Merge Records** - merges 2 rows together, specify which data to prefer when conflicts arise
 - **Bulk Edit** - allows user to set a column to a specific value across multiple selected records
 - **Assign Target EUI** - given a few populated fields in the table (in order of importance: building type, climate zone, gross floor area, year built, and weekly hours of operation), a lookup is made on the ESPM data explorer data to retrieve an estimate P25 EUI. See the [ESPM data readme](flask_app/esmp_data/README.md) for more information.
+- **Assign Building Types** - assign up to 3 ENERGY STAR Portfolio Manager (ESPM) building types per building (primary/secondary/tertiary, each with a floor-area weight), with a live stacked-bar visualization of the resulting mix and a badge showing how well each type maps to a BuildStock building type.
+- **Download Composite Building Load Profiles** - once a building has at least one assigned ESPM building type (and a state), download a representative annual load profile from the [building-energy-profiles](https://github.com/NatLabRockies/building-energy-profiles) package's ComStock/ResStock dataset. Buildings with 2-3 assigned types are downloaded as a floor-area-weighted composite ("mixed-use") profile. A single selected building downloads as one CSV; multiple selected buildings are bundled into a ZIP with a summary of every building's resolved components and any failures.
 - **Heat Map** - allows user to select a numerical field in the table and use it to apply a heat map to the footprints on the map
 - **Interactive Map & Table Integration** - click on table rows to fly to buildings on the map, click on map footprints to select corresponding table rows
 - **Footprint Editing** - manually edit/redraw building footprints by double-clicking and dragging polygon vertices on the map

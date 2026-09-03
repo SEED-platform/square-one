@@ -14,6 +14,7 @@ import { NavigationComponent } from '../shared/navigation/navigation.component'
 import { TopMenuComponent } from '../shared/top-menu/top-menu.component'
 import { suggestColumnMapping } from '../shared/column-mapping.util'
 import { ColumnMappingModalComponent, type ColumnMappingRow } from './column-mapping-modal/column-mapping-modal.component'
+import { NotificationService } from '../services/notification.service'
 
 @Component({
   selector: 'app-data-validation',
@@ -132,7 +133,8 @@ export class DataValidationComponent implements OnInit {
     private cdr: ChangeDetectorRef,
     private geoJsonService: GeoJsonService,
     private sessionService: SessionService,
-  ) {
+    private notifications: NotificationService,
+) {
     this._userList = []
     this.isDataLoaded = false
   }
@@ -260,7 +262,7 @@ export class DataValidationComponent implements OnInit {
       },
       (errorResponse) => {
         console.log(errorResponse.error.message)
-        alert(errorResponse.error.message)
+        this.notifications.warning(errorResponse.error.message)
         this.isLoading = false
         this.cdr.detectChanges()
       },
@@ -286,7 +288,7 @@ export class DataValidationComponent implements OnInit {
         this.isLoading = false
         this.cdr.detectChanges()
         if (!persisted) {
-          alert(
+          this.notifications.warning(
             'This dataset is too large to auto-save in your browser session. It will still work normally, ' +
               'but avoid refreshing this page or you will lose your changes -- export your data periodically instead.',
           )
@@ -294,7 +296,7 @@ export class DataValidationComponent implements OnInit {
       },
       (errorResponse) => {
         console.error(errorResponse.error.message)
-        alert(errorResponse.error.message)
+        this.notifications.warning(errorResponse.error.message)
         this.isLoading = false
         this.cdr.detectChanges()
       },

@@ -119,4 +119,22 @@ export class FlaskRequests {
       headers: { 'Content-Type': 'application/json' },
     })
   }
+
+  // ENERGY STAR Portfolio Manager (ESPM) property type -> BuildStock building type crosswalk, for the
+  // "Assign Building Types" picker.
+  getEspmBuildingTypes(): Observable<any> {
+    return this.http.get<any>('http://127.0.0.1:5001/api/espm_building_types')
+  }
+
+  // Downloads a composite building load profile (from the building-energy-profiles package) for each
+  // selected building, based on its assigned ESPM building type(s)/weight(s).
+  downloadCompositeBuildingLoadProfiles(requestData: any): Observable<any> {
+    return this.http.post<any>('http://127.0.0.1:5001/api/download_composite_building_load_profiles', requestData, {
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
+
+  getSavedLoadProfile(filePath: string): Observable<any> {
+    return this.http.post<any>('http://127.0.0.1:5001/api/load_profile', { file_path: filePath })
+  }
 }

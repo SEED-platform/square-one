@@ -1,6 +1,7 @@
 import { Component, ChangeDetectorRef, Input, OnChanges, OnInit, OnDestroy, SimpleChanges, ViewEncapsulation } from '@angular/core'
 import { GeoJsonService } from '../services/geojson.service'
 import { FlaskRequests } from '../services/server.service'
+import { NotificationService } from '../services/notification.service'
 import { SessionService } from '../services/session.service'
 import { HeatmapService, type HeatmapData, type HeatmapConfig } from '../services/heatmap.service'
 import { CANONICAL_FIELD_UNITS } from '../shared/column-mapping.util'
@@ -78,7 +79,8 @@ export class MapboxMapComponent implements OnInit, OnChanges, OnDestroy {
     private apiHandler: FlaskRequests,
     private sessionService: SessionService,
     private heatmapService: HeatmapService,
-  ) {}
+    private notifications: NotificationService,
+) {}
 
   /**
    * Extract coordinates from a GeoJSON feature, checking both properties and geometry
@@ -343,6 +345,11 @@ export class MapboxMapComponent implements OnInit, OnChanges, OnDestroy {
     } else {
       console.error('Map is not initialized')
     }
+  }
+
+  /** Recalculate the Mapbox canvas after its parent panel is resized by the map/table splitter. */
+  resize(): void {
+    this.map?.resize()
   }
 
   updateZoomLevelForDeletion() {
@@ -1166,7 +1173,7 @@ export class MapboxMapComponent implements OnInit, OnChanges, OnDestroy {
 
   editEmptyData() {
     if (this.emptyBuildingId === 'none selected') {
-      alert(
+      this.notifications.warning(
         'Please select a building to draw a footprint on.\n\nYou can draw footprints on:\n• Buildings with poor/missing data\n• Buildings with coordinates but no footprint (e.g., geocoded addresses)\n\nTo edit an existing footprint, first remove it using the trash can.',
       )
       return
