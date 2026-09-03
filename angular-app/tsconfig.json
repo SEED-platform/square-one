@@ -14,10 +14,6 @@
     "experimentalDecorators": true,
     "moduleResolution": "bundler",
     "importHelpers": true,
-    // TypeScript 6 defaults this to true, which errors on side-effect-only imports of asset
-    // files (e.g. mapbox-gl's/mapbox-gl-draw's bundled .css) that have no type declarations.
-    // Those imports are handled by the Angular/esbuild bundler, not the type checker, so this
-    // is disabled to restore the pre-TS-6 behavior of allowing them.
     "noUncheckedSideEffectImports": false,
     "target": "ES2022",
     "module": "ES2022",

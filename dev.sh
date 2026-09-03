@@ -49,13 +49,14 @@ API_PID=$!
 echo "Starting Angular frontend on http://localhost:4201 ..."
 (
     cd angular-app
-    # Use the Node version pinned in .nvmrc if nvm is available, so the
-    # correct Angular CLI-compatible runtime is used regardless of the shell's
-    # default/active Node version.
+    # Explicitly install/use a Node version new enough for the Angular CLI (v22.22.3+,
+    # see README) if nvm is available, regardless of the shell's default/active Node
+    # version or whether a (gitignored, developer-local) .nvmrc happens to be present.
     if [[ -s "${NVM_DIR:-$HOME/.nvm}/nvm.sh" ]]; then
         # shellcheck disable=SC1091
         source "${NVM_DIR:-$HOME/.nvm}/nvm.sh"
-        nvm use --silent >/dev/null 2>&1 || true
+        nvm install 22.22.3 --silent >/dev/null 2>&1 || true
+        nvm use 22.22.3 --silent >/dev/null 2>&1 || true
     fi
     npm start 2>&1 | label_output "WEB" "$WEB_COLOR"
 ) &
