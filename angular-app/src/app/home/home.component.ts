@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common'
 import type { OnDestroy, OnInit } from '@angular/core'
-import { Component } from '@angular/core'
+import { Component, ChangeDetectionStrategy } from '@angular/core'
 import { ReactiveFormsModule } from '@angular/forms'
 import { Router } from '@angular/router'
 import type { Subscription } from 'rxjs'
@@ -17,6 +17,7 @@ import LZString from 'lz-string'
   selector: 'app-home',
   templateUrl: './home.component.html',
   styleUrl: './home.component.css',
+  changeDetection: ChangeDetectionStrategy.Eager,
   imports: [ReactiveFormsModule, CommonModule, NavigationComponent, TopMenuComponent, FooterComponent],
 })
 export class HomeComponent implements OnInit, OnDestroy {

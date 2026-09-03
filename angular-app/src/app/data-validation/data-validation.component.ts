@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common' // Import CommonModule
 import type { OnInit } from '@angular/core'
-import { ChangeDetectorRef, Component } from '@angular/core'
+import { ChangeDetectorRef, Component, ChangeDetectionStrategy } from '@angular/core'
 import { FormsModule } from '@angular/forms' // Import FormsModule
 import { Router } from '@angular/router'
 import { AgGridAngular } from 'ag-grid-angular'
@@ -24,6 +24,7 @@ import { NotificationService } from '../services/notification.service'
   // ag-grid headerComponent (instantiated dynamically by ag-grid-angular), never referenced
   // in this component's own template, so including it here triggers an NG8113 unused-import
   // warning. The class import above is still needed for the `headerComponent:` colDef value.
+  changeDetection: ChangeDetectionStrategy.Eager,
   imports: [AgGridAngular, FormsModule, CommonModule, NavigationComponent, TopMenuComponent, ColumnMappingModalComponent],
 })
 export class DataValidationComponent implements OnInit {
@@ -134,7 +135,7 @@ export class DataValidationComponent implements OnInit {
     private geoJsonService: GeoJsonService,
     private sessionService: SessionService,
     private notifications: NotificationService,
-) {
+  ) {
     this._userList = []
     this.isDataLoaded = false
   }

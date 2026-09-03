@@ -1,4 +1,4 @@
-import { Component } from '@angular/core'
+import { Component, ChangeDetectionStrategy } from '@angular/core'
 import { CommonModule } from '@angular/common'
 import { Router, RouterLink } from '@angular/router'
 
@@ -6,6 +6,7 @@ import { Router, RouterLink } from '@angular/router'
   selector: 'app-top-menu',
   imports: [CommonModule, RouterLink],
   templateUrl: './top-menu.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './top-menu.component.css',
 })
 export class TopMenuComponent {

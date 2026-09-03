@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common'
-import { ChangeDetectorRef, Component, ElementRef, EventEmitter, Input, Output, ViewChild } from '@angular/core'
+import { ChangeDetectorRef, Component, ElementRef, EventEmitter, Input, Output, ViewChild, ChangeDetectionStrategy } from '@angular/core'
 import { Router } from '@angular/router'
 import { FlaskRequests } from '../../services/server.service'
 import { SessionService } from '../../services/session.service'
@@ -38,6 +38,7 @@ interface GeoJsonFeatureCollection {
   selector: 'app-file-upload-dialog',
   imports: [CommonModule],
   templateUrl: './file-upload-dialog.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./file-upload-dialog.component.css'],
 })
 export class FileUploadDialogComponent {
