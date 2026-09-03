@@ -1278,6 +1278,10 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
               }
             : undefined,
           cellStyle: key === 'footprint_area_ft2' ? { 'text-align': 'right' } : key === 'height' ? { 'text-align': 'right' } : undefined,
+          // Natural sort for numeric columns: parse values as numbers (instead of ag-grid's default
+          // string comparison, e.g. "100" < "20") and treat empty/missing values as the lowest
+          // value -- so ascending order reads none -> 10 -> 100 (and descending reverses that).
+          comparator: isNumericColumn ? (valueA: any, valueB: any) => this.compareNumericWithEmpty(valueA, valueB) : undefined,
           suppressHeaderMenuButton: false,
           headerValueGetter: () => this.getDisplayHeaderName(key),
           valueGetter: (params: ValueGetterParams) => {
@@ -3914,6 +3918,28 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
     }
 
     return null
+  }
+
+  /**
+   * Comparator for numeric grid columns that mix real numbers with empty/missing values.
+   * Parses both sides via parseNumericValue (so "10" and "100" compare numerically instead
+   * of lexically) and sorts empty values as the lowest value, giving a natural ascending
+   * order of none -> 10 -> 100 instead of ag-grid's default string sort (e.g. "100" < "20").
+   */
+  private compareNumericWithEmpty(valueA: any, valueB: any): number {
+    const numA = this.parseNumericValue(valueA)
+    const numB = this.parseNumericValue(valueB)
+
+    if (numA === null && numB === null) {
+      return 0
+    }
+    if (numA === null) {
+      return -1
+    }
+    if (numB === null) {
+      return 1
+    }
+    return numA - numB
   }
 
   /**

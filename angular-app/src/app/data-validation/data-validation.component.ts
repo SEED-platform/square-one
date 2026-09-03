@@ -20,14 +20,11 @@ import { NotificationService } from '../services/notification.service'
   selector: 'app-data-validation',
   templateUrl: './data-validation.component.html',
   styleUrl: 'data-validation.component.css',
-  imports: [
-    AgGridAngular,
-    FormsModule,
-    CommonModule,
-    NavigationComponent,
-    TopMenuComponent,
-    ColumnMappingModalComponent,
-  ],
+  // Note: CustomHeaderComponent is intentionally NOT listed here -- it's only used as an
+  // ag-grid headerComponent (instantiated dynamically by ag-grid-angular), never referenced
+  // in this component's own template, so including it here triggers an NG8113 unused-import
+  // warning. The class import above is still needed for the `headerComponent:` colDef value.
+  imports: [AgGridAngular, FormsModule, CommonModule, NavigationComponent, TopMenuComponent, ColumnMappingModalComponent],
 })
 export class DataValidationComponent implements OnInit {
   private _userList: any[] = []

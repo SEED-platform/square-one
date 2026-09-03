@@ -18,93 +18,92 @@ There are multiple workflows for generating or validating a Square One list incl
 - Generate the UBID for each footprint
 - Display the results of the workflow in a table on the webpage or export the resulting data as csv and GeoJSON
 
-## Developing Square One
+## Getting Started
 
-### Prerequisites
+Square One has two on-ramps depending on what data you're starting with. **Start with Level 1** — it's the fastest way to get the app running and requires no third-party API keys except a free Mapbox token (needed just to render the map). Only move to Level 2 if your data doesn't already have coordinates and you need Square One to geocode addresses for you.
 
-### Square One Workflow package
+### Prerequisites (both levels)
 
-Square One depends on a general [Building Data Utilities package](https://github.com/SEED-platform/building-data-utilities). For development, it is recommended to checkout this dependency locally at the same directory level as square-one. The package will be automatically installed when running poetry update in Square One.
+- [git](https://git-scm.com/)
+- Python 3.10–3.12 and [poetry](https://python-poetry.org/) (`pip install poetry`)
+- Node v22.13.1+ and npm (using [nvm](https://github.com/nvm-sh/nvm) is recommended: `brew install nvm`, then `nvm install 22.13.1`)
+- Square One depends on a general [Building Data Utilities package](https://github.com/SEED-platform/building-data-utilities). Check it out locally at the same directory level as `square-one` — it's picked up automatically when installing dependencies below.
 
-```bash
-git clone git@github.com:SEED-platform/building-data-utilities.git
-```
+  ```bash
+  git clone git@github.com:SEED-platform/building-data-utilities.git
+  ```
 
-Square One also depends on the [building-energy-profiles package](https://github.com/NatLabRockies/building-energy-profiles), which downloads and combines ComStock/ResStock building load data (used by the **Download Composite Building Load Profiles** feature below). It is installed automatically via poetry, the same way as Building Data Utilities.
+- Square One also depends on the [building-energy-profiles package](https://github.com/NatLabRockies/building-energy-profiles), which downloads and combines ComStock/ResStock building load data (used by the **Download Composite Building Load Profiles** feature below). It is installed automatically via poetry, the same way as Building Data Utilities.
 
-#### flask_app
+### Level 1 — Quick Start: uploading your own lat/long data
 
-1. Create a MapBox account and create new key, a free tier should suffice <https://www.mapbox.com/>
+Use this path if your building list already has (or can easily have) `latitude`/`longitude` columns. **No Amazon Location Services key is required** — rows with valid coordinates skip geocoding entirely and go straight to building footprint matching.
 
-2. Create an Amazon Location Services account and create a new key, a free tier should suffice <https://aws.amazon.com/location/>
+1. Create a virtual environment in the repo root and activate it: `python -m venv myenv` then `source myenv/bin/activate` (macOS/Linux) or `myenv\Scripts\activate` (Windows).
 
-3. A virtual environment is recommended. create a Virtual Environment in the root directory. Run either `python -m venv myenv` or `pyenv virtualenv 3.12.7 venv-name` or `source myenv/bin/activate` (macOS/Linux) or `myenv\Scripts\activate` (Windows) to enter your virtual environment.
+2. Install Python dependencies: `pip install poetry && poetry install`
 
-4. Install poetry in your virtual environment with `pip install poetry`
+3. Create a free [Mapbox](https://www.mapbox.com/) account and access token (only used to draw the base map). Copy the environment template and add your token:
 
-5. Install dependencies in your virtual environment with `poetry install`
+   ```bash
+   cp angular-app/src/environments/environment.ts.template angular-app/src/environments/environment.ts
+   ```
 
-6. Change to the **flask_app** directory
+   Then edit `angular-app/src/environments/environment.ts` and replace `REPLACE_WITH_YOUR_MAPBOX_TOKEN` with your token.
 
-7. Create a .env file with your Amazon Location Services API key in the following format. You will also need to specify the Amazon base url. If none is specified, the following will be used: https://places.geo.us-east-2.api.aws/v2. For NREL gateway, you will also need to specify an APP ID. For NREL users using the rate-limited key, use the following as the AMAZON_BASE_URL: https://developer.nrel.gov/api/tada/amazon-location-service/places/v2. Due to the nature of this application, we are passing IntendedUse=Storage to the Amazon Location Services API. This results in a slightly higher rate per transaction, but allows us to store the results.
+4. Install Node dependencies from the repo root (this also installs the Angular app's dependencies via npm workspaces): `npm install`
 
-```dotenv
-  AMAZON_API_KEY=XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-  AMAZON_BASE_URL=XXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-  AMAZON_APP_ID=XXXXXXXXX
-```
+5. Start the app in two terminals:
 
-Note that if an environment key for AMAZON_API_KEY, AMAZON_BASE_URL, and AMAZON_APP_ID exists in your profile, then it will use your environment's key over the .env file. AMAZON_APP_ID can be omitted if you are using the default Amazon URL (it is only needed when using the NREL Gateway).
+   - Terminal 1 (repo root): `npm start` — starts the Angular dev server
+   - Terminal 2 (repo root, with your Python virtual environment active): `npm run start:python` — starts the Flask API
 
-#### angular-app
-
-1. Change to the **angular-app** directory
-
-2. Install `nvm` (macos: `brew install nvm`)
-
-3. Ensure you are running Node v22.13.1: `node -v`, if not run `nvm install 22.13.1`
-4. Ensure you are running Node v22.13.1: `node -v`, if not run `nvm install 22.13.1`
-
-5. Set your `.nvmrc` file to use the correct nvm version: `echo "22.14.0" > .nvmrc`
-
-6. Install angular's CLI (v20) in a global location by running `npm install -g @angular/cli@20`
-
-7. Copy the environment template in `angular-app/src/environments/environment.ts.template` to a new file named `angular-app/src/environments/environment.ts`. Replace the mapboxToken with your own.
-
-### Running the Web App
-
-1. Run the web app by opening two terminals:
-
-   - One in the root directory (or angular-app directory) and running `npm start` to start the Angular development server
-   - Another with the working directory as flask_app (in your virtual environment) and running `python app.py`
-
-2. After connecting to the web application using the following link <http://localhost:4201/>, upload a file in the format of a json (example below) or excel/csv with columns for street_address, city, and state:
+6. Open <http://localhost:4201/> and upload a JSON, CSV, or Excel file with a `latitude` and `longitude` column for each building (an address, e.g. `street_address`/`city`/`state`, is still recommended for display/reference, but geocoding is skipped when coordinates are already present):
 
    ```json
    [
      {
        "street_address": "100 W 14th Ave Pkwy",
        "city": "Denver",
-       "state": "CO"
-     },
-     {
-       "street_address": "200 E Colfax Ave",
-       "city": "Denver",
-       "state": "CO"
-     },
-     {
-       "street_address": "320 W Colfax Ave",
-       "city": "Denver",
-       "state": "CO"
+       "state": "CO",
+       "latitude": 39.7407,
+       "longitude": -104.9995
      }
    ]
    ```
 
-3. Once the file is uploaded and your data appears in a table on the web page, click the `Check Data` button to ensure that the data in the file meets the format requirements for the tool. There are three required column names that can be edited in the table: street_address, city, and state.
+7. Click `Check Data`, then `Run Square One Workflow`. That's it — you're up and running.
 
-4. If the data conforms to the data check requirements, a button labeled `Run Square One Workflow` will appear. Click this button to generate a Square One list. Note: it will take some time to generate the list and display it.
+### Level 2 — Next step: geocoding addresses (no lat/long yet)
 
-5. Once the list is generated, a table and map with highlighted building footprints will appear side-by-side on the web page. In this menu, there are a multitude of functions to utilize:
+If your data only has addresses (no coordinates), Square One can geocode them for you via Amazon Location Services (a free tier is sufficient). This is the only feature that requires an additional key beyond Level 1.
+
+1. Create an [Amazon Location Services](https://aws.amazon.com/location/) account and API key.
+
+2. In the `flask_app` directory, create a `.env` file:
+
+   ```dotenv
+   AMAZON_API_KEY=XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+   AMAZON_BASE_URL=XXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+   AMAZON_APP_ID=XXXXXXXXX
+   ```
+
+   - `AMAZON_BASE_URL` defaults to `https://places.geo.us-east-2.api.aws/v2` if omitted.
+   - `AMAZON_APP_ID` is only needed for the NLR Gateway (rate-limited key), in which case use `AMAZON_BASE_URL=https://developer.nlr.gov/api/tada/amazon-location-service/places/v2`.
+   - Environment variables already set in your shell/profile take precedence over the `.env` file.
+   - Due to the nature of this application, requests pass `IntendedUse=Storage` to the Amazon Location Services API, which allows storing geocoding results (see [Disclaimer](#disclaimer)) at a slightly higher rate per transaction.
+
+3. Restart the Flask app. Now you can upload a file with just `street_address`, `city`, and `state` (no coordinates needed) and Square One will geocode each row automatically.
+
+### Using the App
+
+Once the file you uploaded (see **Level 1** or **Level 2** above) appears in a table on the web page:
+
+1. Click the `Check Data` button to ensure that the data in the file meets the format requirements for the tool. There are three required column names that can be edited in the table: street_address, city, and state.
+
+2. If the data conforms to the data check requirements, a button labeled `Run Square One Workflow` will appear. Click this button to generate a Square One list. Note: it will take some time to generate the list and display it.
+
+3. Once the list is generated, a table and map with highlighted building footprints will appear side-by-side on the web page. In this menu, there are a multitude of functions to utilize:
    - The user can select on a row in the table and fly to a specific building, as well as edit data in the rows of the table.
    - A footprint can be manually edited/redrawn by double-clicking on an existing footprint and dragging any of the polygon's vertices.
    - For a specific piece of data, if a row is selected, the user can click the trashcan icon on the map and remove the footprint corresponding to that row in the table. A new footprint for this row can be redrawn using the pencil icon and the data in the row will be automatically updated.
@@ -138,11 +137,6 @@ Note that if an environment key for AMAZON_API_KEY, AMAZON_BASE_URL, and AMAZON_
 - flagging duplicate buildings, selecting which building to use (in some cases a dataset will have different building boundaries)
 - adding building heights from heuristics and multiple datasets
 - reimporting Square One lists
-
-## Development
-
-- run precommit before pushing to the repo
-  `poetry run pre-commit run --all-files`
 
 ## Development
 
