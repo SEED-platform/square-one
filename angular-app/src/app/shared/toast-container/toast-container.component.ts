@@ -14,8 +14,8 @@ import { NotificationService } from '../../services/notification.service'
       [class.toast-warning]="toast.type === 'warning'"
       [class.toast-error]="toast.type === 'error'"
     >
-      <span>{{ toast.message }}</span
-      ><button (click)="notifications.dismiss(toast.id)" type="button" aria-label="Dismiss notification">×</button>
+      <span>{{ toast.message }}</span>
+      <button (click)="notifications.dismiss(toast.id)" type="button" aria-label="Dismiss notification">×</button>
     </div>
   </div>`,
   changeDetection: ChangeDetectionStrategy.Eager,

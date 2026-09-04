@@ -49,7 +49,7 @@ API_PID=$!
 echo "Starting Angular frontend on http://localhost:4201 ..."
 (
     cd angular-app
-    # Explicitly install/use a Node version new enough for the Angular CLI (v22.22.3+,
+    # Explicitly install/use a Node version compatible with the Angular CLI (22.x >=22.22.3, or 24.x >=24.15.0, or >=26.0.0,
     # see README) if nvm is available, regardless of the shell's default/active Node
     # version or whether a (gitignored, developer-local) .nvmrc happens to be present.
     if [[ -s "${NVM_DIR:-$HOME/.nvm}/nvm.sh" ]]; then
