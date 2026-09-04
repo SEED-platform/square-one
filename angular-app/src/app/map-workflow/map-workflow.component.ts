@@ -1,4 +1,4 @@
-import { Component, AfterViewInit, ChangeDetectorRef } from '@angular/core'
+import { Component, AfterViewInit, ChangeDetectorRef, ChangeDetectionStrategy } from '@angular/core'
 import { NotificationService } from '../services/notification.service'
 import { CommonModule } from '@angular/common'
 import { Router } from '@angular/router'
@@ -18,6 +18,7 @@ import { MapSearchBoxComponent } from '../map-search-box/map-search-box.componen
   selector: 'app-map-workflow',
   imports: [NavigationComponent, TopMenuComponent, FooterComponent, CommonModule, MapSearchBoxComponent],
   templateUrl: './map-workflow.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './map-workflow.component.css',
 })
 export class MapWorkflowComponent implements AfterViewInit {
@@ -227,7 +228,7 @@ export class MapWorkflowComponent implements AfterViewInit {
     private geoJsonService: GeoJsonService,
     private sessionService: SessionService,
     private notifications: NotificationService,
-) {}
+  ) {}
 
   /**
    * Prompt for a location, call backend to get bounding box, and draw it on the map

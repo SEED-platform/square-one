@@ -1,4 +1,14 @@
-import { Component, ChangeDetectorRef, Input, OnChanges, OnInit, OnDestroy, SimpleChanges, ViewEncapsulation } from '@angular/core'
+import {
+  Component,
+  ChangeDetectorRef,
+  Input,
+  OnChanges,
+  OnInit,
+  OnDestroy,
+  SimpleChanges,
+  ViewEncapsulation,
+  ChangeDetectionStrategy,
+} from '@angular/core'
 import { GeoJsonService } from '../services/geojson.service'
 import { FlaskRequests } from '../services/server.service'
 import { NotificationService } from '../services/notification.service'
@@ -23,6 +33,7 @@ import { InfoButton } from './custom-info-button'
   selector: 'app-mapbox-map',
   imports: [CommonModule],
   templateUrl: './mapbox-map.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./mapbox-map.component.css'],
 })
 export class MapboxMapComponent implements OnInit, OnChanges, OnDestroy {
@@ -80,7 +91,7 @@ export class MapboxMapComponent implements OnInit, OnChanges, OnDestroy {
     private sessionService: SessionService,
     private heatmapService: HeatmapService,
     private notifications: NotificationService,
-) {}
+  ) {}
 
   /**
    * Extract coordinates from a GeoJSON feature, checking both properties and geometry

@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Output } from '@angular/core'
+import { Component, EventEmitter, Output, ChangeDetectionStrategy } from '@angular/core'
 import { FormControl } from '@angular/forms'
 import { debounceTime } from 'rxjs/operators'
 import { CommonModule } from '@angular/common'
@@ -10,6 +10,7 @@ import { MapboxGeocodingService } from '../services/mapbox-geocoding.service'
   standalone: true,
   imports: [CommonModule, ReactiveFormsModule],
   templateUrl: './map-search-box.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./map-search-box.component.css'],
 })
 export class MapSearchBoxComponent {

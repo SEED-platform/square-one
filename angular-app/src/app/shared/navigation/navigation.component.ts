@@ -1,4 +1,4 @@
-import { Component } from '@angular/core'
+import { Component, ChangeDetectionStrategy } from '@angular/core'
 import { Router } from '@angular/router'
 import { GeoJsonService } from '../../services/geojson.service'
 import { SessionService } from '../../services/session.service'
@@ -7,6 +7,7 @@ import { SessionService } from '../../services/session.service'
   selector: 'app-navigation',
   imports: [],
   templateUrl: './navigation.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './navigation.component.css',
 })
 export class NavigationComponent {

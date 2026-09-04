@@ -26,7 +26,7 @@ Square One has two on-ramps depending on what data you're starting with. **Start
 
 - [git](https://git-scm.com/)
 - Python 3.10–3.12 and [poetry](https://python-poetry.org/) (`pip install poetry`)
-- Node v22.13.1+ and npm (using [nvm](https://github.com/nvm-sh/nvm) is recommended: `brew install nvm`, then `nvm install 22.13.1`)
+- Node v22.22.3+ (22.x), v24.15.0+ (24.x), or v26+ and npm (using [nvm](https://github.com/nvm-sh/nvm) is recommended: `brew install nvm`, then `nvm install 22.22.3`)
 - Square One depends on a general [Building Data Utilities package](https://github.com/SEED-platform/building-data-utilities). Check it out locally at the same directory level as `square-one` — it's picked up automatically when installing dependencies below.
 
   ```bash

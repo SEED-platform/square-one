@@ -1,4 +1,4 @@
-import { Component } from '@angular/core'
+import { Component, ChangeDetectionStrategy } from '@angular/core'
 import { FormsModule } from '@angular/forms'
 import type { IHeaderAngularComp } from 'ag-grid-angular'
 import type { ColDef, IHeaderParams } from 'ag-grid-community'
@@ -8,6 +8,7 @@ import { SessionService } from '../../services/session.service'
   selector: 'app-custom-header',
   imports: [FormsModule],
   templateUrl: './custom-header.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './custom-header.component.css',
 })
 export class CustomHeaderComponent implements IHeaderAngularComp {

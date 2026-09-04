@@ -1,7 +1,7 @@
 import { CommonModule } from '@angular/common'
 import { FormsModule } from '@angular/forms'
 import type { OnDestroy, OnInit } from '@angular/core'
-import { ChangeDetectorRef, Component, ElementRef, ViewChild, ViewEncapsulation } from '@angular/core'
+import { ChangeDetectorRef, Component, ElementRef, ViewChild, ViewEncapsulation, ChangeDetectionStrategy } from '@angular/core'
 import { Router } from '@angular/router'
 import { AgGridAngular } from 'ag-grid-angular'
 import type { ColDef, ValueGetterParams, ValueSetterParams } from 'ag-grid-community'
@@ -101,6 +101,7 @@ interface RepresentativeBuildingMatch {
   ],
   templateUrl: './square-one-table.component.html',
   styleUrl: './square-one-table.component.css',
+  changeDetection: ChangeDetectionStrategy.Eager,
   encapsulation: ViewEncapsulation.None,
 })
 export class SquareOneTableComponent implements OnInit, OnDestroy {

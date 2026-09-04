@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common'
-import { Component, EventEmitter, Input, Output } from '@angular/core'
+import { Component, EventEmitter, Input, Output, ChangeDetectionStrategy } from '@angular/core'
 import type { OnChanges, SimpleChanges } from '@angular/core'
 import { FormsModule } from '@angular/forms'
 import { CANONICAL_FIELDS } from '../../shared/column-mapping.util'
@@ -25,6 +25,7 @@ export interface ColumnMappingRow {
 @Component({
   selector: 'app-column-mapping-modal',
   imports: [CommonModule, FormsModule],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './column-mapping-modal.component.html',
 })
 export class ColumnMappingModalComponent implements OnChanges {
