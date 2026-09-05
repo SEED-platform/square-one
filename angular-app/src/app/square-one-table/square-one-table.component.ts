@@ -124,6 +124,12 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
 
   // for export menu
   isOpen = false
+  // Which rows to include when exporting: 'all' exports every filtered/visible row,
+  // 'selected' exports only the rows currently checked in the grid.
+  exportScope: 'all' | 'selected' = 'all'
+  // Cached count of currently-selected rows (see updateSelectedRowsInfo()), used to enable/disable
+  // the "Selected" export scope option without recomputing on every change detection cycle.
+  cachedSelectedCount: number = 0
 
   toggleMenu() {
     this.isOpen = !this.isOpen
@@ -485,6 +491,7 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
   updateSelectedRowsInfo(): void {
     if (!this.gridApi) {
       this.cachedSelectedRowsInfo = ''
+      this.cachedSelectedCount = 0
       this.cachedCanMergeRecords = false
       this.cachedCanDeleteRecords = false
       this.cachedCanReverseGeocode = false
@@ -497,9 +504,12 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
     const selectedRows = this.gridApi.getSelectedRows()
     const selectedNodes = this.gridApi.getSelectedNodes()
     const selectedCount = selectedRows.length
+    this.cachedSelectedCount = selectedCount
 
     if (selectedCount === 0) {
       this.cachedSelectedRowsInfo = 'No buildings selected'
+      // Fall back to exporting all rows if the current selection is cleared while "Selected" is active
+      this.exportScope = 'all'
     } else {
       this.cachedSelectedRowsInfo = `${selectedCount} building${selectedCount === 1 ? '' : 's'} selected`
     }
@@ -1283,6 +1293,26 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
           // string comparison, e.g. "100" < "20") and treat empty/missing values as the lowest
           // value -- so ascending order reads none -> 10 -> 100 (and descending reverses that).
           comparator: isNumericColumn ? (valueA: any, valueB: any) => this.compareNumericWithEmpty(valueA, valueB) : undefined,
+          // Distinguish "Microsoft matched a footprint but has no height estimate for it" (a known
+          // data-coverage gap in their dataset) from a building that simply has no footprint match
+          // at all yet, so a blank height isn't mistaken for a bug.
+          cellRenderer:
+            key === 'height'
+              ? (params: any) => {
+                  if (typeof params.value === 'number') {
+                    return `${params.value}`
+                  }
+                  if (params.data?.properties?.footprint_match) {
+                    const span = document.createElement('span')
+                    span.className = 'italic text-gray-400'
+                    span.title =
+                      'This building matched a Microsoft footprint, but Microsoft has no height estimate for it (a data coverage gap in their dataset).'
+                    span.textContent = 'No height data'
+                    return span
+                  }
+                  return ''
+                }
+              : undefined,
           suppressHeaderMenuButton: false,
           headerValueGetter: () => this.getDisplayHeaderName(key),
           valueGetter: (params: ValueGetterParams) => {
@@ -2246,26 +2276,45 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Get count of filtered rows for export notifications
+   * Rows to include in the current export, based on the selected export scope:
+   * - 'all': every row that passes the grid's active filters (ignores row selection)
+   * - 'selected': only the rows currently checked in the grid
    */
-  private getFilteredRowCount(): number {
-    let count = 0
-    this.gridApi.forEachNodeAfterFilter(() => {
-      count++
+  private getRowsForExport(): any[] {
+    if (this.exportScope === 'selected') {
+      return this.gridApi.getSelectedRows()
+    }
+
+    const filteredData: any[] = []
+    this.gridApi.forEachNodeAfterFilter((node: any) => {
+      filteredData.push(node.data)
     })
-    return count
+    return filteredData
   }
 
   /**
-   * Show notification about filtered export
+   * Guards against exporting an empty "Selected" scope. Warns and returns false so the
+   * calling export method can abort before generating a file.
    */
-  private notifyFilteredExport(format: string): void {
-    const filteredCount = this.getFilteredRowCount()
+  private canExport(): boolean {
+    if (this.exportScope === 'selected' && this.cachedSelectedCount === 0) {
+      this.notifications.warning('No buildings selected. Select at least one building, or choose "All" to export.')
+      return false
+    }
+    return true
+  }
+
+  /**
+   * Log a notice when the export only includes a subset of the full dataset -- either due to
+   * an explicit "Selected" export scope, or active grid filters when scope is "All".
+   */
+  private notifyExportScope(format: string, exportedCount: number): void {
     const totalCount = this.rowData.length
 
-    if (filteredCount < totalCount) {
-      console.log(`Exporting ${filteredCount} of ${totalCount} filtered records to ${format}`)
-      // You could also show a toast notification here if you have a notification service
+    if (this.exportScope === 'selected') {
+      console.log(`Exporting ${exportedCount} selected of ${totalCount} total record(s) to ${format}`)
+    } else if (exportedCount < totalCount) {
+      console.log(`Exporting ${exportedCount} of ${totalCount} filtered record(s) to ${format}`)
     }
   }
 
@@ -2274,11 +2323,13 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
     // Stop editing changes data without clicking off cell
     this.gridApi.stopEditing()
 
-    // Notify about filtered export
-    this.notifyFilteredExport('Excel')
+    if (!this.canExport()) return
 
     // Get the data with custom header names
     const json = this.jsonConverterWithCustomHeaders()
+
+    // Notify about the export scope (all/filtered vs. selected)
+    this.notifyExportScope('Excel', json.length)
 
     // Retrieve the CSV data from the grid API
     const csvUserData = Papa.unparse(json)
@@ -2301,10 +2352,13 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
     // Stop any ongoing editing in the grid
     this.gridApi.stopEditing()
 
-    // Notify about filtered export
-    this.notifyFilteredExport('CSV')
+    if (!this.canExport()) return
 
     const json = this.jsonConverterWithCustomHeaders()
+
+    // Notify about the export scope (all/filtered vs. selected)
+    this.notifyExportScope('CSV', json.length)
+
     // Retrieve the CSV data from the grid API
     const csvUserData = Papa.unparse(json)
     // Create a Blob with the CSV data
@@ -2329,19 +2383,18 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
     // Stop editing changes data without clicking off cell
     this.gridApi.stopEditing()
 
-    // Notify about filtered export
-    this.notifyFilteredExport('GeoJSON')
+    if (!this.canExport()) return
 
-    // Get only the filtered/visible data from AG Grid
-    const filteredData: any[] = []
-    this.gridApi.forEachNodeAfterFilter((node: any) => {
-      filteredData.push(node.data)
-    })
+    // Get only the rows for the current export scope (all filtered rows, or just the selected ones)
+    const filteredData: any[] = this.getRowsForExport()
 
     // Get the data with custom header names (but for GeoJSON we need to maintain the GeoJSON structure)
     const json = this.jsonConverterWithCustomHeaders()
 
-    // Convert the flat JSON back to GeoJSON format using only filtered data
+    // Notify about the export scope (all/filtered vs. selected)
+    this.notifyExportScope('GeoJSON', json.length)
+
+    // Convert the flat JSON back to GeoJSON format using only the exported data
     const geojsonFeatures = filteredData.map((feature, index) => {
       const correspondingData = json[index]
 
@@ -2400,10 +2453,12 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
     event.preventDefault()
     this.gridApi.stopEditing()
 
-    // Notify about filtered export
-    this.notifyFilteredExport('JSON')
+    if (!this.canExport()) return
 
     const json = this.jsonConverterWithCustomHeaders()
+
+    // Notify about the export scope (all/filtered vs. selected)
+    this.notifyExportScope('JSON', json.length)
     console.log(json)
 
     const jsonString = JSON.stringify(json, null, 2)
@@ -2426,11 +2481,8 @@ export class SquareOneTableComponent implements OnInit, OnDestroy {
 
   // New method that uses custom header names for export and matches table column order
   jsonConverterWithCustomHeaders() {
-    // Get only the filtered/visible data from AG Grid instead of all data
-    const filteredData: any[] = []
-    this.gridApi.forEachNodeAfterFilter((node: any) => {
-      filteredData.push(node.data)
-    })
+    // Get only the rows for the current export scope (all filtered rows, or just the selected ones)
+    const filteredData: any[] = this.getRowsForExport()
 
     const jsonArray = []
 
