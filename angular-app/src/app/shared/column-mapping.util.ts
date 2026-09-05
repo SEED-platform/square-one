@@ -47,6 +47,7 @@ export const CANONICAL_FIELD_UNITS: Record<string, string> = {
   gross_floor_area: 'ft²',
   site_eui: 'kBtu/ft²',
   weather_normalized_site_eui: 'kBtu/ft²',
+  height: 'ft',
 }
 
 /** Get the display label for a canonical (or arbitrary) field, including its unit if known. */
