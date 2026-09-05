@@ -88,12 +88,24 @@
         </svg>
       </button>
 
-      <div class="ring-opacity-5 absolute right-0 z-20 mt-2 w-40 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black focus:outline-none" *ngIf="isOpen" role="menu" aria-orientation="vertical" aria-labelledby="menu-button" tabindex="-1">
+      <div class="ring-opacity-5 absolute right-0 z-20 mt-2 w-52 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black focus:outline-none" *ngIf="isOpen" role="menu" aria-orientation="vertical" aria-labelledby="menu-button" tabindex="-1">
+        <!-- Export scope: choose whether to export every (filtered) row or just the checked rows -->
+        <fieldset class="border-b border-gray-200 px-4 py-2">
+          <legend class="mb-1 text-xs font-semibold tracking-wide text-gray-500 uppercase">Export</legend>
+          <label class="flex items-center gap-2 py-0.5 text-sm text-gray-700">
+            <input class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500" type="radio" name="exportScope" value="all" [(ngModel)]="exportScope" />
+            All ({{ rowData.length }})
+          </label>
+          <label class="flex items-center gap-2 py-0.5 text-sm" [class.text-gray-700]="cachedSelectedCount > 0" [class.text-gray-400]="cachedSelectedCount === 0">
+            <input class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500" type="radio" name="exportScope" value="selected" [(ngModel)]="exportScope" [disabled]="cachedSelectedCount === 0" />
+            Selected ({{ cachedSelectedCount }})
+          </label>
+        </fieldset>
         <div class="py-1" role="none">
-          <a class="block border-b border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" id="menu-item-0" (click)="exportAsExcel($event)" href="" role="menuitem" tabindex="-1" title="Export filtered data to Excel">Excel</a>
-          <a class="block border-b border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" id="menu-item-1" (click)="exportAsCsv($event)" href="" role="menuitem" tabindex="-1" title="Export filtered data to CSV">CSV</a>
-          <a class="block border-b border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" id="menu-item-2" (click)="exportAsJson($event)" href="" role="menuitem" tabindex="-1" title="Export filtered data to JSON">JSON</a>
-          <a class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" id="menu-item-3" (click)="exportAsGeoJson($event)" href="" role="menuitem" tabindex="-1" title="Export filtered data to GeoJSON">GeoJSON</a>
+          <a class="block border-b border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" id="menu-item-0" (click)="exportAsExcel($event)" href="" role="menuitem" tabindex="-1" [title]="'Export ' + exportScope + ' data to Excel'">Excel</a>
+          <a class="block border-b border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" id="menu-item-1" (click)="exportAsCsv($event)" href="" role="menuitem" tabindex="-1" [title]="'Export ' + exportScope + ' data to CSV'">CSV</a>
+          <a class="block border-b border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" id="menu-item-2" (click)="exportAsJson($event)" href="" role="menuitem" tabindex="-1" [title]="'Export ' + exportScope + ' data to JSON'">JSON</a>
+          <a class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" id="menu-item-3" (click)="exportAsGeoJson($event)" href="" role="menuitem" tabindex="-1" [title]="'Export ' + exportScope + ' data to GeoJSON'">GeoJSON</a>
         </div>
       </div>
     </div>

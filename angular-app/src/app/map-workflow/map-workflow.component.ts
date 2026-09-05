@@ -555,12 +555,19 @@ export class MapWorkflowComponent implements AfterViewInit {
           const feature = e.features[0]
           const properties = feature.properties
 
+          // Every feature clicked here comes from the Microsoft footprints layer, so a missing
+          // height always means Microsoft has no height estimate for that footprint (a known
+          // data-coverage gap in their dataset), not that it hasn't been matched yet.
+          const heightDisplay = properties?.['height']
+            ? `${properties['height']} m`
+            : '<span title="Microsoft has no height estimate for this footprint (a data coverage gap in their dataset).">No height data</span>'
+
           // Create popup content
           const popupContent = `
             <div>
               <h3>Microsoft Building Footprint</h3>
               <p><strong>UBID:</strong> ${properties?.['ubid'] || 'N/A'}</p>
-              <p><strong>Height:</strong> ${properties?.['height'] ? properties['height'] + ' m' : 'N/A'}</p>
+              <p><strong>Height:</strong> ${heightDisplay}</p>
               <p><strong>Footprint Area:</strong> ${this.getFootprintAreaDisplay(properties)}</p>
             </div>
           `
