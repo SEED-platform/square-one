@@ -6,21 +6,46 @@
     <div class="flex h-full flex-row items-center">
       <h5 class="mt-2 mb-4 ml-4 text-4xl font-bold text-white">Data Validation Table</h5>
     </div>
-    <button class="mr-4 inline-flex items-center justify-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50" [disabled]="!canContinue" (click)="checkData()">
+    <button
+      class="mr-4 inline-flex items-center justify-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+      [disabled]="!canContinue"
+      (click)="checkData()"
+    >
       <ng-container *ngIf="!isLoading"> Continue to Map </ng-container>
       <svg class="h-5 w-5 animate-spin text-white" *ngIf="isLoading" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        <path
+          class="opacity-75"
+          fill="currentColor"
+          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+        ></path>
       </svg>
     </button>
   </div>
-  <div class="mb-2 flex w-[90vw] items-center justify-between rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900" *ngIf="columnMappingRows.length > 0">
-    <span>{{ includedColumnCount }} of {{ columnMappingRows.length }} column{{ columnMappingRows.length === 1 ? '' : 's' }} included. Columns were automatically matched to the fields the Square One tool expects.</span>
-    <button class="shrink-0 rounded-md bg-blue-600 px-3 py-1.5 font-semibold text-white hover:bg-blue-700" (click)="openMappingModal()">Review Column Mapping</button>
+  <div
+    class="mb-2 flex w-[90vw] items-center justify-between rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900"
+    *ngIf="columnMappingRows.length > 0"
+  >
+    <span
+      >{{ includedColumnCount }} of {{ columnMappingRows.length }} column{{ columnMappingRows.length === 1 ? '' : 's' }} included. Columns
+      were automatically matched to the fields the Square One tool expects.</span
+    >
+    <button class="shrink-0 rounded-md bg-blue-600 px-3 py-1.5 font-semibold text-white hover:bg-blue-700" (click)="openMappingModal()">
+      Review Column Mapping
+    </button>
   </div>
   <div class="row">
     <div class="col-12">
-      <ag-grid-angular class="ag-theme-quartz" *ngIf="isDataLoaded && gridData.length > 0" [columnDefs]="colDefs" [defaultColDef]="defaultColDef" [rowData]="gridData" (gridReady)="onGridReady($event)" theme="legacy" style="height: 70vh; width: 90vw" />
+      <ag-grid-angular
+        class="ag-theme-quartz"
+        *ngIf="isDataLoaded && gridData.length > 0"
+        [columnDefs]="colDefs"
+        [defaultColDef]="defaultColDef"
+        [rowData]="gridData"
+        (gridReady)="onGridReady($event)"
+        theme="legacy"
+        style="height: 70vh; width: 90vw"
+      />
       <div class="p-4 text-center" *ngIf="!isDataLoaded">
         <h2 style="color: orange">Loading data...</h2>
       </div>
@@ -31,4 +56,9 @@
   </div>
 </div>
 
-<app-column-mapping-modal [isOpen]="showMappingModal" [rows]="columnMappingRows" (saveMapping)="onMappingSaved($event)" (cancelMapping)="onMappingCancelled()"></app-column-mapping-modal>
+<app-column-mapping-modal
+  [isOpen]="showMappingModal"
+  [rows]="columnMappingRows"
+  (saveMapping)="onMappingSaved($event)"
+  (cancelMapping)="onMappingCancelled()"
+></app-column-mapping-modal>
