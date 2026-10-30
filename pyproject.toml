@@ -54,7 +54,7 @@ exclude = ["flask_app/tests", "flask_app/cache"]
 [tool.ruff]
 fix = true
 line-length = 140
-target-version = "py39"
+target-version = "py312"
 
 [tool.ruff.format]
 docstring-code-format = true
@@ -112,6 +112,7 @@ ignore = [
     "PLR0912", # too-many-branches
     "PLR0913", # too-many-arguments
     "PLR0915", # too-many-statements
+    "PLR0917", # too-many-positional-arguments
     "PLR2004", # magic-value-comparison
     "PT009",   # pytest-unittest-assertion
     "Q000",    # bad-quotes-inline-string

@@ -95,7 +95,7 @@ class TestFootprintService(unittest.TestCase):
         self.assertEqual(len(processed_gdf), 8)
 
         # save the file to a geojson in an output directory for inspection
-        output_dir = Path("flask_app/tests/output")
+        output_dir = Path(__file__).parent / "output"
         output_dir.mkdir(parents=True, exist_ok=True)
         processed_gdf.to_file(output_dir / "denver_ms_footprints.geojson", driver="GeoJSON")
 

@@ -13,6 +13,8 @@ from shapely.geometry import Polygon
 from flask_app.services.file_processing_service import FileProcessingService
 from flask_app.services.logging_utils import log_error_with_context
 
+logger = logging.getLogger(__name__)
+
 
 def validate_request_data(required_fields: list) -> tuple[dict | None, tuple[Any, int] | None]:
     """
@@ -60,11 +62,11 @@ def parse_polygon_from_request(polygon_data: dict) -> tuple[Polygon | None, tupl
             return None, (jsonify({"error": "Invalid polygon format"}), 400)
 
         polygon = Polygon(coordinates)
-        logging.info(f"Created Shapely polygon with {len(coordinates)} coordinates")
+        logger.info(f"Created Shapely polygon with {len(coordinates)} coordinates")
         return polygon, None
 
     except Exception as e:
-        logging.error(f"Error creating Shapely polygon: {e}")
+        logger.error(f"Error creating Shapely polygon: {e}")
         return None, (jsonify({"error": f"Invalid polygon format: {e}"}), 400)
 
 
@@ -124,7 +126,7 @@ def create_geojson_response(gdf, count_field_name: str = "footprints_count") -> 
     try:
         file_processing_service = FileProcessingService()
         geojson_data = file_processing_service.geodataframe_to_json(gdf)
-        logging.info("Successfully converted GeoDataFrame to GeoJSON")
+        logger.info("Successfully converted GeoDataFrame to GeoJSON")
 
         return jsonify({"message": "success", count_field_name: len(gdf), "geojson": json.loads(geojson_data)}), 200
 
