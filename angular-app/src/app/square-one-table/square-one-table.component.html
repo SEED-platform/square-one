@@ -6,43 +6,96 @@
   <div class="max-w-md rounded-lg bg-white p-8 text-center shadow-lg">
     <div class="mb-4">
       <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 48 48">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5l7-7 7 7M9 20h6m-7 4h7m0 0v8a2 2 0 002 2h8a2 2 0 002-2v-8m0 0V9a2 2 0 00-2-2H8a2 2 0 00-2 2v3m0 0a2 2 0 002-2V6a2 2 0 012-2h6a2 2 0 012 2v2a2 2 0 01-2 2H8a2 2 0 01-2-2z"></path>
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          d="M9 12h6m-6 4h6m2 5l7-7 7 7M9 20h6m-7 4h7m0 0v8a2 2 0 002 2h8a2 2 0 002-2v-8m0 0V9a2 2 0 00-2-2H8a2 2 0 00-2 2v3m0 0a2 2 0 002-2V6a2 2 0 012-2h6a2 2 0 012 2v2a2 2 0 01-2 2H8a2 2 0 01-2-2z"
+        ></path>
       </svg>
     </div>
     <h3 class="mb-2 text-lg font-medium text-gray-900">No Building Data Available</h3>
-    <p class="mb-4 text-sm text-gray-500">To get started, you can upload building data or use the map workflow to fetch Microsoft building footprints.</p>
+    <p class="mb-4 text-sm text-gray-500">
+      To get started, you can upload building data or use the map workflow to fetch Microsoft building footprints.
+    </p>
     <div class="space-y-2">
-      <button class="w-full rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:outline-none" (click)="navigateToMapWorkflow()">Go to Map Workflow</button>
-      <button class="w-full rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500" (click)="uploadFile()">Upload Building Data</button>
+      <button
+        class="w-full rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+        (click)="navigateToMapWorkflow()"
+      >
+        Go to Map Workflow
+      </button>
+      <button
+        class="w-full rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        (click)="uploadFile()"
+      >
+        Upload Building Data
+      </button>
     </div>
   </div>
 </div>
 
 <div class="mt-2 flex max-h-[100vh] w-[100vw] flex-col items-center justify-center" *ngIf="hasValidGeoJsonData">
   <div class="mb-2 w-[90%] flex gap-2 text-center">
-    <p class="flex-1 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-gray-600"><strong>Data loaded:</strong> {{ cachedDataSourceInfo }}</p>
-    <p class="flex-1 rounded-lg border border-green-200 bg-green-50 px-4 py-2 text-sm text-gray-600"><strong>Selection:</strong> {{ cachedSelectedRowsInfo }}</p>
+    <p class="flex-1 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-gray-600">
+      <strong>Data loaded:</strong> {{ cachedDataSourceInfo }}
+    </p>
+    <p class="flex-1 rounded-lg border border-green-200 bg-green-50 px-4 py-2 text-sm text-gray-600">
+      <strong>Selection:</strong> {{ cachedSelectedRowsInfo }}
+    </p>
   </div>
 
   <!-- Heatmap Controls Header -->
   <div class="bg-nrel-second-dark-blue flex h-12 w-[90%] items-center justify-between rounded-tl-lg rounded-tr-lg">
     <div class="ml-5 flex items-center gap-2 text-white text-sm font-medium">
       <label class="flex items-center gap-1.5 cursor-pointer">
-        <input type="checkbox" [(ngModel)]="showAllPins" title="Show a pin for every building so all buildings stay visible when zoomed out" />
+        <input
+          [(ngModel)]="showAllPins"
+          type="checkbox"
+          title="Show a pin for every building so all buildings stay visible when zoomed out"
+        />
         <span>Show All Building Pins</span>
       </label>
     </div>
 
     <div class="mr-5 flex items-center gap-2">
       <span class="text-white text-sm font-medium"> Heatmap Visualization </span>
-      <select class="rounded-md border border-gray-300 px-2 py-1 text-sm text-gray-900" [(ngModel)]="selectedHeatmapField" [disabled]="!hasNumericColumns" (change)="onHeatmapFieldChange()" title="Select field for heatmap">
+      <select
+        class="rounded-md border border-gray-300 px-2 py-1 text-sm text-gray-900"
+        [(ngModel)]="selectedHeatmapField"
+        [disabled]="!hasNumericColumns"
+        (change)="onHeatmapFieldChange()"
+        title="Select field for heatmap"
+      >
         <option value="">Select Field for Heatmap</option>
         <option *ngFor="let field of numericColumns" [value]="field">{{ getDisplayName(field) }}</option>
       </select>
 
-      <button class="inline-flex justify-center gap-x-1.5 rounded-md px-3 py-1 text-sm font-semibold text-white shadow-sm transition-colors" [class.bg-orange-600]="selectedHeatmapField" [class.hover:bg-orange-700]="selectedHeatmapField" [class.bg-gray-400]="!selectedHeatmapField" [class.cursor-not-allowed]="!selectedHeatmapField" [disabled]="!selectedHeatmapField" (click)="applyHeatmap()" title="Apply heatmap visualization">Apply Heatmap</button>
+      <button
+        class="inline-flex justify-center gap-x-1.5 rounded-md px-3 py-1 text-sm font-semibold text-white shadow-sm transition-colors"
+        [class.bg-orange-600]="selectedHeatmapField"
+        [class.hover:bg-orange-700]="selectedHeatmapField"
+        [class.bg-gray-400]="!selectedHeatmapField"
+        [class.cursor-not-allowed]="!selectedHeatmapField"
+        [disabled]="!selectedHeatmapField"
+        (click)="applyHeatmap()"
+        title="Apply heatmap visualization"
+      >
+        Apply Heatmap
+      </button>
 
-      <button class="inline-flex justify-center gap-x-1.5 rounded-md px-3 py-1 text-sm font-semibold text-white shadow-sm transition-colors" [class.bg-gray-700]="isHeatmapActive" [class.hover:bg-gray-800]="isHeatmapActive" [class.bg-gray-400]="!isHeatmapActive" [class.cursor-not-allowed]="!isHeatmapActive" [disabled]="!isHeatmapActive" (click)="clearHeatmap()" title="Clear heatmap and return to normal view">Clear Heatmap</button>
+      <button
+        class="inline-flex justify-center gap-x-1.5 rounded-md px-3 py-1 text-sm font-semibold text-white shadow-sm transition-colors"
+        [class.bg-gray-700]="isHeatmapActive"
+        [class.hover:bg-gray-800]="isHeatmapActive"
+        [class.bg-gray-400]="!isHeatmapActive"
+        [class.cursor-not-allowed]="!isHeatmapActive"
+        [disabled]="!isHeatmapActive"
+        (click)="clearHeatmap()"
+        title="Clear heatmap and return to normal view"
+      >
+        Clear Heatmap
+      </button>
     </div>
   </div>
 
@@ -50,78 +103,362 @@
   <div class="bg-nrel-second-dark-blue relative flex h-16 w-[90%] items-center justify-between rounded-bl-lg rounded-br-lg px-5">
     <!-- Actions hamburger menu (all row/table action buttons) -->
     <div class="relative inline-block text-left">
-      <button class="inline-flex items-center justify-center gap-x-1.5 rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 ring-inset hover:bg-gray-50" id="actions-menu-button" (click)="toggleActionsMenu()" type="button" [attr.aria-expanded]="isActionsMenuOpen" aria-haspopup="true" title="Table and record actions">
+      <button
+        class="inline-flex items-center justify-center gap-x-1.5 rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 ring-inset hover:bg-gray-50"
+        id="actions-menu-button"
+        [attr.aria-expanded]="isActionsMenuOpen"
+        (click)="toggleActionsMenu()"
+        type="button"
+        aria-haspopup="true"
+        title="Table and record actions"
+      >
         <svg class="h-5 w-5 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
         </svg>
         Actions
       </button>
 
-      <div class="ring-opacity-5 absolute left-0 z-20 mt-2 w-64 origin-top-left rounded-md bg-white shadow-lg ring-1 ring-black focus:outline-none max-h-[70vh] overflow-y-auto" *ngIf="isActionsMenuOpen" role="menu" aria-orientation="vertical" aria-labelledby="actions-menu-button" tabindex="-1">
+      <div
+        class="ring-opacity-5 absolute left-0 z-20 mt-2 w-64 origin-top-left rounded-md bg-white shadow-lg ring-1 ring-black focus:outline-none max-h-[70vh] overflow-y-auto"
+        *ngIf="isActionsMenuOpen"
+        role="menu"
+        aria-orientation="vertical"
+        aria-labelledby="actions-menu-button"
+        tabindex="-1"
+      >
         <div class="py-1" role="none">
-          <a class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" (click)="$event.preventDefault(); showColumnStatsModal(); closeActionsMenu()" href="" role="menuitem" tabindex="-1">Column Stats</a>
-          <a class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" (click)="$event.preventDefault(); openHeaderEditDialog(); closeActionsMenu()" href="" role="menuitem" tabindex="-1" title="Edit column header names">Edit Headers</a>
-          <a class="block px-4 py-2 text-sm" [class.text-gray-700]="cachedCanMergeRecords" [class.hover:bg-gray-100]="cachedCanMergeRecords" [class.text-gray-400]="!cachedCanMergeRecords" [class.cursor-not-allowed]="!cachedCanMergeRecords" (click)="$event.preventDefault(); runActionsMenuItem(cachedCanMergeRecords, openRecordMergeDialog.bind(this))" href="" role="menuitem" tabindex="-1" title="Select exactly 2 records to merge them">Merge Records</a>
+          <a
+            class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+            (click)="$event.preventDefault(); showColumnStatsModal(); closeActionsMenu()"
+            href=""
+            role="menuitem"
+            tabindex="-1"
+            >Column Stats</a
+          >
+          <a
+            class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+            (click)="$event.preventDefault(); openHeaderEditDialog(); closeActionsMenu()"
+            href=""
+            role="menuitem"
+            tabindex="-1"
+            title="Edit column header names"
+            >Edit Headers</a
+          >
+          <a
+            class="block px-4 py-2 text-sm"
+            [class.text-gray-700]="cachedCanMergeRecords"
+            [class.hover:bg-gray-100]="cachedCanMergeRecords"
+            [class.text-gray-400]="!cachedCanMergeRecords"
+            [class.cursor-not-allowed]="!cachedCanMergeRecords"
+            (click)="$event.preventDefault(); runActionsMenuItem(cachedCanMergeRecords, openRecordMergeDialog.bind(this))"
+            href=""
+            role="menuitem"
+            tabindex="-1"
+            title="Select exactly 2 records to merge them"
+            >Merge Records</a
+          >
 
-          <a class="block px-4 py-2 text-sm" [class.text-gray-700]="cachedCanReverseGeocode" [class.hover:bg-gray-100]="cachedCanReverseGeocode" [class.text-gray-400]="!cachedCanReverseGeocode" [class.cursor-not-allowed]="!cachedCanReverseGeocode" (click)="$event.preventDefault(); runActionsMenuItem(cachedCanReverseGeocode, reverseGeocodeSelected.bind(this))" href="" role="menuitem" tabindex="-1" title="Select at least 1 record to reverse geocode">Geocode / Reverse Geocode</a>
-          <a class="block px-4 py-2 text-sm" [class.text-gray-700]="cachedCanDownloadFootprints && !isGeocoding" [class.hover:bg-gray-100]="cachedCanDownloadFootprints && !isGeocoding" [class.text-gray-400]="!cachedCanDownloadFootprints || isGeocoding" [class.cursor-not-allowed]="!cachedCanDownloadFootprints || isGeocoding" (click)="$event.preventDefault(); runActionsMenuItem(cachedCanDownloadFootprints && !isGeocoding, geocodeSelected.bind(this))" href="" role="menuitem" tabindex="-1" title="Geocode selected buildings that are missing latitude/longitude">{{ isGeocoding ? 'Geocoding...' : 'Geocode Addresses' }}</a>
-          <a class="block px-4 py-2 text-sm" [class.text-gray-700]="cachedCanDownloadFootprints && !isMatchingFootprints" [class.hover:bg-gray-100]="cachedCanDownloadFootprints && !isMatchingFootprints" [class.text-gray-400]="!cachedCanDownloadFootprints || isMatchingFootprints" [class.cursor-not-allowed]="!cachedCanDownloadFootprints || isMatchingFootprints" (click)="$event.preventDefault(); runActionsMenuItem(cachedCanDownloadFootprints && !isMatchingFootprints, matchFootprintsForSelected.bind(this))" href="" role="menuitem" tabindex="-1" title="Match selected (already-geocoded) buildings to Microsoft footprint data">{{ isMatchingFootprints ? 'Matching...' : 'Match Footprints' }}</a>
-          <a class="block px-4 py-2 text-sm" [class.text-gray-700]="cachedCanDownloadFootprints && !isRunningFullWorkflow" [class.hover:bg-gray-100]="cachedCanDownloadFootprints && !isRunningFullWorkflow" [class.text-gray-400]="!cachedCanDownloadFootprints || isRunningFullWorkflow" [class.cursor-not-allowed]="!cachedCanDownloadFootprints || isRunningFullWorkflow" (click)="$event.preventDefault(); runActionsMenuItem(cachedCanDownloadFootprints && !isRunningFullWorkflow, runFullWorkflowForSelected.bind(this))" href="" role="menuitem" tabindex="-1" title="Run geocoding + footprint matching for the selected buildings in one step">{{ isRunningFullWorkflow ? 'Running...' : 'Run Full Workflow' }}</a>
-          <a class="block px-4 py-2 text-sm" [class.text-gray-700]="cachedCanDownloadFootprints" [class.hover:bg-gray-100]="cachedCanDownloadFootprints" [class.text-gray-400]="!cachedCanDownloadFootprints" [class.cursor-not-allowed]="!cachedCanDownloadFootprints" (click)="$event.preventDefault(); runActionsMenuItem(cachedCanDownloadFootprints, openDownloadFootprintsDialog.bind(this))" href="" role="menuitem" tabindex="-1" title="Select at least 1 record to download MS/OSM footprints">Download Footprints</a>
+          <a
+            class="block px-4 py-2 text-sm"
+            [class.text-gray-700]="cachedCanReverseGeocode"
+            [class.hover:bg-gray-100]="cachedCanReverseGeocode"
+            [class.text-gray-400]="!cachedCanReverseGeocode"
+            [class.cursor-not-allowed]="!cachedCanReverseGeocode"
+            (click)="$event.preventDefault(); runActionsMenuItem(cachedCanReverseGeocode, reverseGeocodeSelected.bind(this))"
+            href=""
+            role="menuitem"
+            tabindex="-1"
+            title="Select at least 1 record to reverse geocode"
+            >Geocode / Reverse Geocode</a
+          >
+          <a
+            class="block px-4 py-2 text-sm"
+            [class.text-gray-700]="cachedCanDownloadFootprints && !isGeocoding"
+            [class.hover:bg-gray-100]="cachedCanDownloadFootprints && !isGeocoding"
+            [class.text-gray-400]="!cachedCanDownloadFootprints || isGeocoding"
+            [class.cursor-not-allowed]="!cachedCanDownloadFootprints || isGeocoding"
+            (click)="$event.preventDefault(); runActionsMenuItem(cachedCanDownloadFootprints && !isGeocoding, geocodeSelected.bind(this))"
+            href=""
+            role="menuitem"
+            tabindex="-1"
+            title="Geocode selected buildings that are missing latitude/longitude"
+            >{{ isGeocoding ? 'Geocoding...' : 'Geocode Addresses' }}</a
+          >
+          <a
+            class="block px-4 py-2 text-sm"
+            [class.text-gray-700]="cachedCanDownloadFootprints && !isMatchingFootprints"
+            [class.hover:bg-gray-100]="cachedCanDownloadFootprints && !isMatchingFootprints"
+            [class.text-gray-400]="!cachedCanDownloadFootprints || isMatchingFootprints"
+            [class.cursor-not-allowed]="!cachedCanDownloadFootprints || isMatchingFootprints"
+            (click)="
+              $event.preventDefault();
+              runActionsMenuItem(cachedCanDownloadFootprints && !isMatchingFootprints, matchFootprintsForSelected.bind(this))
+            "
+            href=""
+            role="menuitem"
+            tabindex="-1"
+            title="Match selected (already-geocoded) buildings to Microsoft footprint data"
+            >{{ isMatchingFootprints ? 'Matching...' : 'Match Footprints' }}</a
+          >
+          <a
+            class="block px-4 py-2 text-sm"
+            [class.text-gray-700]="cachedCanDownloadFootprints && !isRunningFullWorkflow"
+            [class.hover:bg-gray-100]="cachedCanDownloadFootprints && !isRunningFullWorkflow"
+            [class.text-gray-400]="!cachedCanDownloadFootprints || isRunningFullWorkflow"
+            [class.cursor-not-allowed]="!cachedCanDownloadFootprints || isRunningFullWorkflow"
+            (click)="
+              $event.preventDefault();
+              runActionsMenuItem(cachedCanDownloadFootprints && !isRunningFullWorkflow, runFullWorkflowForSelected.bind(this))
+            "
+            href=""
+            role="menuitem"
+            tabindex="-1"
+            title="Run geocoding + footprint matching for the selected buildings in one step"
+            >{{ isRunningFullWorkflow ? 'Running...' : 'Run Full Workflow' }}</a
+          >
+          <a
+            class="block px-4 py-2 text-sm"
+            [class.text-gray-700]="cachedCanDownloadFootprints"
+            [class.hover:bg-gray-100]="cachedCanDownloadFootprints"
+            [class.text-gray-400]="!cachedCanDownloadFootprints"
+            [class.cursor-not-allowed]="!cachedCanDownloadFootprints"
+            (click)="$event.preventDefault(); runActionsMenuItem(cachedCanDownloadFootprints, openDownloadFootprintsDialog.bind(this))"
+            href=""
+            role="menuitem"
+            tabindex="-1"
+            title="Select at least 1 record to download MS/OSM footprints"
+            >Download Footprints</a
+          >
 
-          <a class="block px-4 py-2 text-sm" [class.text-gray-700]="cachedCanDeleteRecords" [class.hover:bg-gray-100]="cachedCanDeleteRecords" [class.text-gray-400]="!cachedCanDeleteRecords" [class.cursor-not-allowed]="!cachedCanDeleteRecords" (click)="$event.preventDefault(); runActionsMenuItem(cachedCanDeleteRecords, openBulkEditDialog.bind(this))" href="" role="menuitem" tabindex="-1" title="Select at least 1 record to bulk edit">Bulk Edit</a>
-          <a class="block px-4 py-2 text-sm" [class.text-gray-700]="cachedCanDeleteRecords" [class.hover:bg-gray-100]="cachedCanDeleteRecords" [class.text-gray-400]="!cachedCanDeleteRecords" [class.cursor-not-allowed]="!cachedCanDeleteRecords" (click)="$event.preventDefault(); runActionsMenuItem(cachedCanDeleteRecords, assignTargetEUI.bind(this))" href="" role="menuitem" tabindex="-1" title="Select at least 1 record to assign target EUI data">Assign Target EUI</a>
-          <a class="block px-4 py-2 text-sm" [class.text-gray-700]="cachedCanAssignBuildingTypes" [class.hover:bg-gray-100]="cachedCanAssignBuildingTypes" [class.text-gray-400]="!cachedCanAssignBuildingTypes" [class.cursor-not-allowed]="!cachedCanAssignBuildingTypes" (click)="$event.preventDefault(); runActionsMenuItem(cachedCanAssignBuildingTypes, openAssignBuildingTypesDialog.bind(this))" href="" role="menuitem" tabindex="-1" title="Select at least 1 record to assign ESPM building types">Assign Building Types</a>
-          <a class="block px-4 py-2 text-sm" [class.text-gray-700]="cachedCanDownloadCompositeProfiles" [class.hover:bg-gray-100]="cachedCanDownloadCompositeProfiles" [class.text-gray-400]="!cachedCanDownloadCompositeProfiles" [class.cursor-not-allowed]="!cachedCanDownloadCompositeProfiles" (click)="$event.preventDefault(); runActionsMenuItem(cachedCanDownloadCompositeProfiles, openDownloadCompositeProfilesDialog.bind(this))" href="" role="menuitem" tabindex="-1" title="Select at least 1 record to download composite building load profiles">Download Composite Load Profiles</a>
-          <a class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" (click)="$event.preventDefault(); addNewRow(); closeActionsMenu()" href="" role="menuitem" tabindex="-1">+ New Row</a>
-          <a class="block px-4 py-2 text-sm border-t border-gray-200" [class.text-red-700]="cachedCanDeleteRecords" [class.hover:bg-red-50]="cachedCanDeleteRecords" [class.text-gray-400]="!cachedCanDeleteRecords" [class.cursor-not-allowed]="!cachedCanDeleteRecords" (click)="$event.preventDefault(); runActionsMenuItem(cachedCanDeleteRecords, handleDelete.bind(this))" href="" role="menuitem" tabindex="-1" title="Select at least 1 record to delete">Delete Selected Row(s)</a>
+          <a
+            class="block px-4 py-2 text-sm"
+            [class.text-gray-700]="cachedCanDeleteRecords"
+            [class.hover:bg-gray-100]="cachedCanDeleteRecords"
+            [class.text-gray-400]="!cachedCanDeleteRecords"
+            [class.cursor-not-allowed]="!cachedCanDeleteRecords"
+            (click)="$event.preventDefault(); runActionsMenuItem(cachedCanDeleteRecords, openBulkEditDialog.bind(this))"
+            href=""
+            role="menuitem"
+            tabindex="-1"
+            title="Select at least 1 record to bulk edit"
+            >Bulk Edit</a
+          >
+          <a
+            class="block px-4 py-2 text-sm"
+            [class.text-gray-700]="cachedCanDeleteRecords"
+            [class.hover:bg-gray-100]="cachedCanDeleteRecords"
+            [class.text-gray-400]="!cachedCanDeleteRecords"
+            [class.cursor-not-allowed]="!cachedCanDeleteRecords"
+            (click)="$event.preventDefault(); runActionsMenuItem(cachedCanDeleteRecords, assignTargetEUI.bind(this))"
+            href=""
+            role="menuitem"
+            tabindex="-1"
+            title="Select at least 1 record to assign target EUI data"
+            >Assign Target EUI</a
+          >
+          <a
+            class="block px-4 py-2 text-sm"
+            [class.text-gray-700]="cachedCanAssignBuildingTypes"
+            [class.hover:bg-gray-100]="cachedCanAssignBuildingTypes"
+            [class.text-gray-400]="!cachedCanAssignBuildingTypes"
+            [class.cursor-not-allowed]="!cachedCanAssignBuildingTypes"
+            (click)="$event.preventDefault(); runActionsMenuItem(cachedCanAssignBuildingTypes, openAssignBuildingTypesDialog.bind(this))"
+            href=""
+            role="menuitem"
+            tabindex="-1"
+            title="Select at least 1 record to assign ESPM building types"
+            >Assign Building Types</a
+          >
+          <a
+            class="block px-4 py-2 text-sm"
+            [class.text-gray-700]="cachedCanDownloadCompositeProfiles"
+            [class.hover:bg-gray-100]="cachedCanDownloadCompositeProfiles"
+            [class.text-gray-400]="!cachedCanDownloadCompositeProfiles"
+            [class.cursor-not-allowed]="!cachedCanDownloadCompositeProfiles"
+            (click)="
+              $event.preventDefault();
+              runActionsMenuItem(cachedCanDownloadCompositeProfiles, openDownloadCompositeProfilesDialog.bind(this))
+            "
+            href=""
+            role="menuitem"
+            tabindex="-1"
+            title="Select at least 1 record to download composite building load profiles"
+            >Download Composite Load Profiles</a
+          >
+          <a
+            class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+            (click)="$event.preventDefault(); addNewRow(); closeActionsMenu()"
+            href=""
+            role="menuitem"
+            tabindex="-1"
+            >+ New Row</a
+          >
+          <a
+            class="block px-4 py-2 text-sm border-t border-gray-200"
+            [class.text-red-700]="cachedCanDeleteRecords"
+            [class.hover:bg-red-50]="cachedCanDeleteRecords"
+            [class.text-gray-400]="!cachedCanDeleteRecords"
+            [class.cursor-not-allowed]="!cachedCanDeleteRecords"
+            (click)="$event.preventDefault(); runActionsMenuItem(cachedCanDeleteRecords, handleDelete.bind(this))"
+            href=""
+            role="menuitem"
+            tabindex="-1"
+            title="Select at least 1 record to delete"
+            >Delete Selected Row(s)</a
+          >
         </div>
       </div>
     </div>
 
     <!-- Export menu -->
     <div class="relative inline-block text-left">
-      <button class="inline-flex w-full justify-center gap-x-1.5 rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 ring-inset hover:bg-gray-50" id="menu-button" (click)="toggleMenu()" type="button" [attr.aria-expanded]="isOpen" aria-haspopup="true">
+      <button
+        class="inline-flex w-full justify-center gap-x-1.5 rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 ring-inset hover:bg-gray-50"
+        id="menu-button"
+        [attr.aria-expanded]="isOpen"
+        (click)="toggleMenu()"
+        type="button"
+        aria-haspopup="true"
+      >
         Export
         <svg class="-mr-1 h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-          <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
+          <path
+            fill-rule="evenodd"
+            d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
+            clip-rule="evenodd"
+          />
         </svg>
       </button>
 
-      <div class="ring-opacity-5 absolute right-0 z-20 mt-2 w-52 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black focus:outline-none" *ngIf="isOpen" role="menu" aria-orientation="vertical" aria-labelledby="menu-button" tabindex="-1">
+      <div
+        class="ring-opacity-5 absolute right-0 z-20 mt-2 w-52 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black focus:outline-none"
+        *ngIf="isOpen"
+        role="menu"
+        aria-orientation="vertical"
+        aria-labelledby="menu-button"
+        tabindex="-1"
+      >
         <!-- Export scope: choose whether to export every (filtered) row or just the checked rows -->
         <fieldset class="border-b border-gray-200 px-4 py-2">
           <legend class="mb-1 text-xs font-semibold tracking-wide text-gray-500 uppercase">Export</legend>
           <label class="flex items-center gap-2 py-0.5 text-sm text-gray-700">
-            <input class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500" type="radio" name="exportScope" value="all" [(ngModel)]="exportScope" />
+            <input
+              class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
+              [(ngModel)]="exportScope"
+              type="radio"
+              name="exportScope"
+              value="all"
+            />
             All ({{ rowData.length }})
           </label>
-          <label class="flex items-center gap-2 py-0.5 text-sm" [class.text-gray-700]="cachedSelectedCount > 0" [class.text-gray-400]="cachedSelectedCount === 0">
-            <input class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500" type="radio" name="exportScope" value="selected" [(ngModel)]="exportScope" [disabled]="cachedSelectedCount === 0" />
+          <label
+            class="flex items-center gap-2 py-0.5 text-sm"
+            [class.text-gray-700]="cachedSelectedCount > 0"
+            [class.text-gray-400]="cachedSelectedCount === 0"
+          >
+            <input
+              class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
+              [(ngModel)]="exportScope"
+              [disabled]="cachedSelectedCount === 0"
+              type="radio"
+              name="exportScope"
+              value="selected"
+            />
             Selected ({{ cachedSelectedCount }})
           </label>
         </fieldset>
         <div class="py-1" role="none">
-          <a class="block border-b border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" id="menu-item-0" (click)="exportAsExcel($event)" href="" role="menuitem" tabindex="-1" [title]="'Export ' + exportScope + ' data to Excel'">Excel</a>
-          <a class="block border-b border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" id="menu-item-1" (click)="exportAsCsv($event)" href="" role="menuitem" tabindex="-1" [title]="'Export ' + exportScope + ' data to CSV'">CSV</a>
-          <a class="block border-b border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" id="menu-item-2" (click)="exportAsJson($event)" href="" role="menuitem" tabindex="-1" [title]="'Export ' + exportScope + ' data to JSON'">JSON</a>
-          <a class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" id="menu-item-3" (click)="exportAsGeoJson($event)" href="" role="menuitem" tabindex="-1" [title]="'Export ' + exportScope + ' data to GeoJSON'">GeoJSON</a>
+          <a
+            class="block border-b border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+            id="menu-item-0"
+            [title]="'Export ' + exportScope + ' data to Excel'"
+            (click)="exportAsExcel($event)"
+            href=""
+            role="menuitem"
+            tabindex="-1"
+            >Excel</a
+          >
+          <a
+            class="block border-b border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+            id="menu-item-1"
+            [title]="'Export ' + exportScope + ' data to CSV'"
+            (click)="exportAsCsv($event)"
+            href=""
+            role="menuitem"
+            tabindex="-1"
+            >CSV</a
+          >
+          <a
+            class="block border-b border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+            id="menu-item-2"
+            [title]="'Export ' + exportScope + ' data to JSON'"
+            (click)="exportAsJson($event)"
+            href=""
+            role="menuitem"
+            tabindex="-1"
+            >JSON</a
+          >
+          <a
+            class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+            id="menu-item-3"
+            [title]="'Export ' + exportScope + ' data to GeoJSON'"
+            (click)="exportAsGeoJson($event)"
+            href=""
+            role="menuitem"
+            tabindex="-1"
+            >GeoJSON</a
+          >
         </div>
       </div>
     </div>
   </div>
-  <div #dataContainer class="map-table-container mt-0 flex w-[90%] flex-col p-0" [class.is-resizing]="isResizingMapTable" id="data-container" *ngIf="hasValidGeoJsonData">
+  <div
+    class="map-table-container mt-0 flex w-[90%] flex-col p-0"
+    id="data-container"
+    #dataContainer
+    *ngIf="hasValidGeoJsonData"
+    [class.is-resizing]="isResizingMapTable"
+  >
     <!-- Map Section -->
     <div class="map-panel w-full" [style.flex-basis.%]="mapPanelPercent">
       <app-mapbox-map [showAllPins]="showAllPins"></app-mapbox-map>
     </div>
 
-    <div class="map-table-splitter" role="separator" tabindex="0" aria-label="Resize map and table" aria-orientation="horizontal" aria-valuemin="20" aria-valuemax="80" [attr.aria-valuenow]="mapPanelPercent | number: '1.0-0'" title="Drag to resize the map and table; use the arrow keys for precise adjustments" (pointerdown)="onMapTableSplitterPointerDown($event)" (pointermove)="onMapTableSplitterPointerMove($event)" (pointerup)="onMapTableSplitterPointerUp($event)" (pointercancel)="onMapTableSplitterPointerUp($event)" (keydown)="onMapTableSplitterKeydown($event)">
+    <div
+      class="map-table-splitter"
+      [attr.aria-valuenow]="mapPanelPercent | number: '1.0-0'"
+      (pointerdown)="onMapTableSplitterPointerDown($event)"
+      (pointermove)="onMapTableSplitterPointerMove($event)"
+      (pointerup)="onMapTableSplitterPointerUp($event)"
+      (pointercancel)="onMapTableSplitterPointerUp($event)"
+      (keydown)="onMapTableSplitterKeydown($event)"
+      role="separator"
+      tabindex="0"
+      aria-label="Resize map and table"
+      aria-orientation="horizontal"
+      aria-valuemin="20"
+      aria-valuemax="80"
+      title="Drag to resize the map and table; use the arrow keys for precise adjustments"
+    >
       <span class="map-table-splitter-handle" aria-hidden="true"></span>
     </div>
 
     <div class="square-one-table-container min-h-0 w-full flex-1">
-      <ag-grid-angular class="ag-theme-quartz" [columnDefs]="colDefs" [defaultColDef]="defaultColDef" [rowData]="rowData" [rowSelection]="{ mode: 'multiRow' }" [getRowId]="getRowId" [preventDefaultOnContextMenu]="true" (gridReady)="onGridReady($event)" (rowClicked)="onRowClicked($event)" (selectionChanged)="onSelectionChanged($event)" (cellContextMenu)="onTableCellContextMenu($event)" theme="legacy" style="height: 100%; width: 100%" />
+      <ag-grid-angular
+        class="ag-theme-quartz"
+        [columnDefs]="colDefs"
+        [defaultColDef]="defaultColDef"
+        [rowData]="rowData"
+        [rowSelection]="{ mode: 'multiRow' }"
+        [getRowId]="getRowId"
+        [preventDefaultOnContextMenu]="true"
+        (gridReady)="onGridReady($event)"
+        (rowClicked)="onRowClicked($event)"
+        (selectionChanged)="onSelectionChanged($event)"
+        (cellContextMenu)="onTableCellContextMenu($event)"
+        theme="legacy"
+        style="height: 100%; width: 100%"
+      />
     </div>
   </div>
 </div>
@@ -138,28 +475,84 @@
       </button>
     </div>
 
-    <p class="mb-4 text-sm text-gray-600">This table shows the percentage of records that have data populated for each column. Click column headers to sort, use the filter icon to filter, and right-click a row for quick delete/merge actions. Essential columns and computed columns are protected from deletion.</p>
+    <p class="mb-4 text-sm text-gray-600">
+      This table shows the percentage of records that have data populated for each column. Click column headers to sort, use the filter icon
+      to filter, and right-click a row for quick delete/merge actions. Essential columns and computed columns are protected from deletion.
+    </p>
 
     <div class="ag-theme-quartz min-h-0 flex-1">
-      <ag-grid-angular class="ag-theme-quartz" [columnDefs]="columnStatsColDefs" [defaultColDef]="columnStatsDefaultColDef" [rowData]="columnStats" [getRowId]="trackByColumnNameRowId" [preventDefaultOnContextMenu]="true" (gridReady)="onColumnStatsGridReady($event)" (cellContextMenu)="onColumnStatsCellContextMenu($event)" theme="legacy" style="height: 100%; width: 100%" />
+      <ag-grid-angular
+        class="ag-theme-quartz"
+        [columnDefs]="columnStatsColDefs"
+        [defaultColDef]="columnStatsDefaultColDef"
+        [rowData]="columnStats"
+        [getRowId]="trackByColumnNameRowId"
+        [preventDefaultOnContextMenu]="true"
+        (gridReady)="onColumnStatsGridReady($event)"
+        (cellContextMenu)="onColumnStatsCellContextMenu($event)"
+        theme="legacy"
+        style="height: 100%; width: 100%"
+      />
     </div>
 
     <div class="mt-6 flex justify-between">
-      <button class="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500" [disabled]="columnStats.length < 2" [class.opacity-50]="columnStats.length < 2" [class.cursor-not-allowed]="columnStats.length < 2" (click)="openMergeDialog()">
+      <button
+        class="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        [disabled]="columnStats.length < 2"
+        [class.opacity-50]="columnStats.length < 2"
+        [class.cursor-not-allowed]="columnStats.length < 2"
+        (click)="openMergeDialog()"
+      >
         <svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+          ></path>
         </svg>
         Merge Columns
       </button>
-      <button class="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500" (click)="closeColumnStatsModal()">Close</button>
+      <button
+        class="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500"
+        (click)="closeColumnStatsModal()"
+      >
+        Close
+      </button>
     </div>
   </div>
 </div>
 
 <!-- Column Statistics right-click context menu -->
-<div class="fixed z-[60] w-48 rounded-md bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5" *ngIf="columnStatsContextMenu.visible" [style.left.px]="columnStatsContextMenu.x" [style.top.px]="columnStatsContextMenu.y">
-  <a class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" (click)="$event.preventDefault(); contextMenuMergeFromHere()" href="" role="menuitem" tabindex="-1">Merge Columns...</a>
-  <a class="block px-4 py-2 text-sm" [class.text-red-700]="canDeleteColumn(columnStatsContextMenu.columnName)" [class.hover:bg-red-50]="canDeleteColumn(columnStatsContextMenu.columnName)" [class.text-gray-400]="!canDeleteColumn(columnStatsContextMenu.columnName)" [class.cursor-not-allowed]="!canDeleteColumn(columnStatsContextMenu.columnName)" (click)="$event.preventDefault(); canDeleteColumn(columnStatsContextMenu.columnName) ? contextMenuDeleteColumn() : closeColumnStatsContextMenu()" href="" role="menuitem" tabindex="-1">Delete Column</a>
+<div
+  class="fixed z-[60] w-48 rounded-md bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5"
+  *ngIf="columnStatsContextMenu.visible"
+  [style.left.px]="columnStatsContextMenu.x"
+  [style.top.px]="columnStatsContextMenu.y"
+>
+  <a
+    class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+    (click)="$event.preventDefault(); contextMenuMergeFromHere()"
+    href=""
+    role="menuitem"
+    tabindex="-1"
+    >Merge Columns...</a
+  >
+  <a
+    class="block px-4 py-2 text-sm"
+    [class.text-red-700]="canDeleteColumn(columnStatsContextMenu.columnName)"
+    [class.hover:bg-red-50]="canDeleteColumn(columnStatsContextMenu.columnName)"
+    [class.text-gray-400]="!canDeleteColumn(columnStatsContextMenu.columnName)"
+    [class.cursor-not-allowed]="!canDeleteColumn(columnStatsContextMenu.columnName)"
+    (click)="
+      $event.preventDefault();
+      canDeleteColumn(columnStatsContextMenu.columnName) ? contextMenuDeleteColumn() : closeColumnStatsContextMenu()
+    "
+    href=""
+    role="menuitem"
+    tabindex="-1"
+    >Delete Column</a
+  >
 </div>
 <!-- Backdrop to close the context menu on outside click -->
 <div class="fixed inset-0 z-[55]" *ngIf="columnStatsContextMenu.visible" (click)="closeColumnStatsContextMenu()"></div>
@@ -176,13 +569,22 @@
       </button>
     </div>
 
-    <p class="mb-6 text-sm text-gray-600">Merge data from one column into another. Empty cells in the target column will be filled with data from the source column. You can choose which column takes priority when both have data. The source column will be deleted after merging.</p>
+    <p class="mb-6 text-sm text-gray-600">
+      Merge data from one column into another. Empty cells in the target column will be filled with data from the source column. You can
+      choose which column takes priority when both have data. The source column will be deleted after merging.
+    </p>
 
     <div class="space-y-6">
       <!-- Target Column Selection -->
       <div>
-        <label class="block text-sm font-medium text-gray-700 mb-2" for="target-column"> Target Column (data will be merged INTO this column): </label>
-        <select class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" id="target-column" [(ngModel)]="mergeConfig.targetColumn">
+        <label class="block text-sm font-medium text-gray-700 mb-2" for="target-column">
+          Target Column (data will be merged INTO this column):
+        </label>
+        <select
+          class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          id="target-column"
+          [(ngModel)]="mergeConfig.targetColumn"
+        >
           <option value="">Select target column...</option>
           <option *ngFor="let column of getAvailableTargetColumns()" [value]="column">
             {{ column }}
@@ -192,8 +594,14 @@
 
       <!-- Source Column Selection -->
       <div>
-        <label class="block text-sm font-medium text-gray-700 mb-2" for="source-column"> Source Column (data will be merged FROM this column, then deleted): </label>
-        <select class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" id="source-column" [(ngModel)]="mergeConfig.sourceColumn">
+        <label class="block text-sm font-medium text-gray-700 mb-2" for="source-column">
+          Source Column (data will be merged FROM this column, then deleted):
+        </label>
+        <select
+          class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          id="source-column"
+          [(ngModel)]="mergeConfig.sourceColumn"
+        >
           <option value="">Select source column...</option>
           <option *ngFor="let column of getAvailableSourceColumns()" [value]="column">
             {{ column }}
@@ -206,11 +614,23 @@
         <fieldset class="space-y-2">
           <legend class="block text-sm font-medium text-gray-700 mb-2">When both columns have data, which should take priority?</legend>
           <label class="flex items-center">
-            <input class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500" [(ngModel)]="mergeConfig.priorityColumn" type="radio" value="target" name="priorityColumn" />
+            <input
+              class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
+              [(ngModel)]="mergeConfig.priorityColumn"
+              type="radio"
+              value="target"
+              name="priorityColumn"
+            />
             <span class="ml-2 text-sm text-gray-700"> Target column (keep existing data in target, don't overwrite) </span>
           </label>
           <label class="flex items-center">
-            <input class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500" [(ngModel)]="mergeConfig.priorityColumn" type="radio" value="source" name="priorityColumn" />
+            <input
+              class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
+              [(ngModel)]="mergeConfig.priorityColumn"
+              type="radio"
+              value="source"
+              name="priorityColumn"
+            />
             <span class="ml-2 text-sm text-gray-700"> Source column (overwrite target with source data) </span>
           </label>
         </fieldset>
@@ -224,8 +644,21 @@
     </div>
 
     <div class="mt-6 flex justify-end space-x-3">
-      <button class="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500" (click)="closeMergeDialog()">Cancel</button>
-      <button class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500" [disabled]="!mergeConfig.targetColumn || !mergeConfig.sourceColumn" [class.opacity-50]="!mergeConfig.targetColumn || !mergeConfig.sourceColumn" [class.cursor-not-allowed]="!mergeConfig.targetColumn || !mergeConfig.sourceColumn" (click)="mergeColumns()">Merge Columns</button>
+      <button
+        class="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500"
+        (click)="closeMergeDialog()"
+      >
+        Cancel
+      </button>
+      <button
+        class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        [disabled]="!mergeConfig.targetColumn || !mergeConfig.sourceColumn"
+        [class.opacity-50]="!mergeConfig.targetColumn || !mergeConfig.sourceColumn"
+        [class.cursor-not-allowed]="!mergeConfig.targetColumn || !mergeConfig.sourceColumn"
+        (click)="mergeColumns()"
+      >
+        Merge Columns
+      </button>
     </div>
   </div>
 </div>
@@ -235,14 +668,21 @@
   <div class="mx-4 w-full max-w-2xl rounded-lg bg-white p-6 shadow-xl">
     <div class="mb-4 flex items-center justify-between">
       <h3 class="text-lg font-semibold text-gray-900">Merge Records</h3>
-      <button class="text-gray-400 hover:text-gray-600 focus:outline-none" (click)="closeRecordMergeDialog()" aria-label="Close record merge dialog">
+      <button
+        class="text-gray-400 hover:text-gray-600 focus:outline-none"
+        (click)="closeRecordMergeDialog()"
+        aria-label="Close record merge dialog"
+      >
         <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
         </svg>
       </button>
     </div>
 
-    <p class="mb-6 text-sm text-gray-600">Merge two building records into one. Empty fields in the priority record will be filled with data from the secondary record. The secondary record will be deleted after merging.</p>
+    <p class="mb-6 text-sm text-gray-600">
+      Merge two building records into one. Empty fields in the priority record will be filled with data from the secondary record. The
+      secondary record will be deleted after merging.
+    </p>
 
     <div class="space-y-6">
       <!-- Selected Records Display -->
@@ -260,13 +700,27 @@
       <!-- Priority Selection -->
       <div>
         <fieldset class="space-y-2">
-          <legend class="block text-sm font-medium text-gray-700 mb-2">Which record should take priority (be kept as the main record)?</legend>
+          <legend class="block text-sm font-medium text-gray-700 mb-2">
+            Which record should take priority (be kept as the main record)?
+          </legend>
           <label class="flex items-center">
-            <input class="h-4 w-4 border-gray-300 text-orange-600 focus:ring-orange-500" [(ngModel)]="recordMergePriority" type="radio" value="first" name="recordPriority" />
+            <input
+              class="h-4 w-4 border-gray-300 text-orange-600 focus:ring-orange-500"
+              [(ngModel)]="recordMergePriority"
+              type="radio"
+              value="first"
+              name="recordPriority"
+            />
             <span class="ml-2 text-sm text-gray-700"> Record 1 - Empty fields will be filled from Record 2 </span>
           </label>
           <label class="flex items-center">
-            <input class="h-4 w-4 border-gray-300 text-orange-600 focus:ring-orange-500" [(ngModel)]="recordMergePriority" type="radio" value="second" name="recordPriority" />
+            <input
+              class="h-4 w-4 border-gray-300 text-orange-600 focus:ring-orange-500"
+              [(ngModel)]="recordMergePriority"
+              type="radio"
+              value="second"
+              name="recordPriority"
+            />
             <span class="ml-2 text-sm text-gray-700"> Record 2 - Empty fields will be filled from Record 1 </span>
           </label>
         </fieldset>
@@ -280,8 +734,18 @@
     </div>
 
     <div class="mt-6 flex justify-end space-x-3">
-      <button class="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500" (click)="closeRecordMergeDialog()">Cancel</button>
-      <button class="rounded-md bg-orange-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500" (click)="mergeRecords()">Merge Records</button>
+      <button
+        class="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500"
+        (click)="closeRecordMergeDialog()"
+      >
+        Cancel
+      </button>
+      <button
+        class="rounded-md bg-orange-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+        (click)="mergeRecords()"
+      >
+        Merge Records
+      </button>
     </div>
   </div>
 </div>
@@ -293,25 +757,52 @@
     <p class="mb-6 text-sm text-gray-600">How would you like to geocode / reverse geocode the selected building?</p>
 
     <div class="mb-6 space-y-3">
-      <button class="flex w-full items-center justify-center rounded-md bg-blue-600 px-4 py-3 text-white transition-colors hover:bg-blue-700" [disabled]="!selectedRowHasFootprint" [class.opacity-50]="!selectedRowHasFootprint" [class.cursor-not-allowed]="!selectedRowHasFootprint" (click)="reverseGeocodeByFootprint()">
+      <button
+        class="flex w-full items-center justify-center rounded-md bg-blue-600 px-4 py-3 text-white transition-colors hover:bg-blue-700"
+        [disabled]="!selectedRowHasFootprint"
+        [class.opacity-50]="!selectedRowHasFootprint"
+        [class.cursor-not-allowed]="!selectedRowHasFootprint"
+        (click)="reverseGeocodeByFootprint()"
+      >
         <svg class="mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 01.553-.894L9 2l6 3 6-3v15l-6 3-6-3z"></path>
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 01.553-.894L9 2l6 3 6-3v15l-6 3-6-3z"
+          ></path>
         </svg>
         Get Address From Footprint Polygon
         <span class="ml-2 text-xs" *ngIf="!selectedRowHasFootprint">(No footprint available)</span>
       </button>
 
-      <button class="flex w-full items-center justify-center rounded-md bg-green-600 px-4 py-3 text-white transition-colors hover:bg-green-700" (click)="reverseGeocodeByLatLng()">
+      <button
+        class="flex w-full items-center justify-center rounded-md bg-green-600 px-4 py-3 text-white transition-colors hover:bg-green-700"
+        (click)="reverseGeocodeByLatLng()"
+      >
         <svg class="mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+          ></path>
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
         </svg>
         Get Address from Lat/Lng
       </button>
 
-      <button class="flex w-full items-center justify-center rounded-md bg-pink-600 px-4 py-3 text-white transition-colors hover:bg-pink-700" (click)="geocodeByAddress()">
+      <button
+        class="flex w-full items-center justify-center rounded-md bg-pink-600 px-4 py-3 text-white transition-colors hover:bg-pink-700"
+        (click)="geocodeByAddress()"
+      >
         <svg class="mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+          ></path>
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
         </svg>
         Get Lat/Lng from Address
@@ -319,7 +810,12 @@
     </div>
 
     <div class="flex justify-end">
-      <button class="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200" (click)="closeReverseGeocodeDialog()">Cancel</button>
+      <button
+        class="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200"
+        (click)="closeReverseGeocodeDialog()"
+      >
+        Cancel
+      </button>
     </div>
   </div>
 </div>
@@ -333,11 +829,11 @@
     <div class="mb-4">
       <p class="mb-2 text-sm font-medium text-gray-700">Data source(s)</p>
       <label class="mb-1 flex items-center gap-2 text-sm text-gray-700">
-        <input type="checkbox" [(ngModel)]="footprintDownloadConfig.sources.ms" />
+        <input [(ngModel)]="footprintDownloadConfig.sources.ms" type="checkbox" />
         Microsoft Building Footprints
       </label>
       <label class="flex items-center gap-2 text-sm text-gray-700">
-        <input type="checkbox" [(ngModel)]="footprintDownloadConfig.sources.osm" />
+        <input [(ngModel)]="footprintDownloadConfig.sources.osm" type="checkbox" />
         OpenStreetMap
       </label>
     </div>
@@ -345,21 +841,41 @@
     <div class="mb-6">
       <p class="mb-2 text-sm font-medium text-gray-700">What to keep</p>
       <label class="mb-1 flex items-start gap-2 text-sm text-gray-700">
-        <input type="radio" class="mt-1" name="footprintKeepMode" [value]="false" [(ngModel)]="footprintDownloadConfig.keepNew" />
+        <input class="mt-1" [(ngModel)]="footprintDownloadConfig.keepNew" [value]="false" type="radio" name="footprintKeepMode" />
         <span>Only keep footprints that overlap a selected building's point</span>
       </label>
       <label class="flex items-start gap-2 text-sm text-gray-700">
-        <input type="radio" class="mt-1" name="footprintKeepMode" [value]="true" [(ngModel)]="footprintDownloadConfig.keepNew" />
+        <input class="mt-1" [(ngModel)]="footprintDownloadConfig.keepNew" [value]="true" type="radio" name="footprintKeepMode" />
         <span>Also add newly discovered footprints found nearby as new rows</span>
       </label>
     </div>
 
     <div class="flex justify-end gap-2">
-      <button class="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200" [disabled]="isDownloadingFootprints" (click)="closeDownloadFootprintsDialog()">Cancel</button>
-      <button class="flex items-center gap-2 rounded-md bg-cyan-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-50" [disabled]="isDownloadingFootprints" (click)="downloadFootprintsForSelection()">
-        <svg class="h-4 w-4 animate-spin" *ngIf="isDownloadingFootprints" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+      <button
+        class="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200"
+        [disabled]="isDownloadingFootprints"
+        (click)="closeDownloadFootprintsDialog()"
+      >
+        Cancel
+      </button>
+      <button
+        class="flex items-center gap-2 rounded-md bg-cyan-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-50"
+        [disabled]="isDownloadingFootprints"
+        (click)="downloadFootprintsForSelection()"
+      >
+        <svg
+          class="h-4 w-4 animate-spin"
+          *ngIf="isDownloadingFootprints"
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+        >
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          <path
+            class="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+          ></path>
         </svg>
         {{ isDownloadingFootprints ? 'Downloading...' : 'Download' }}
       </button>
@@ -372,7 +888,11 @@
   <div class="mx-4 w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
     <div class="mb-4 flex items-center justify-between">
       <h3 class="text-lg font-semibold text-gray-900">Bulk Edit Rows</h3>
-      <button class="text-gray-400 hover:text-gray-600 focus:outline-none" (click)="closeBulkEditDialog()" aria-label="Close bulk edit dialog">
+      <button
+        class="text-gray-400 hover:text-gray-600 focus:outline-none"
+        (click)="closeBulkEditDialog()"
+        aria-label="Close bulk edit dialog"
+      >
         <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
         </svg>
@@ -385,16 +905,28 @@
       <!-- Column Selection -->
       <div>
         <label class="block text-sm font-medium text-gray-700 mb-2" for="bulkEditColumn">Column to Edit</label>
-        <select class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-200" id="bulkEditColumn" [(ngModel)]="bulkEditConfig.column">
+        <select
+          class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-200"
+          id="bulkEditColumn"
+          [(ngModel)]="bulkEditConfig.column"
+        >
           <option value="">Select a column...</option>
-          <option *ngFor="let column of availableColumnsForBulkEdit" [value]="column">{{ getDisplayHeaderName(column) }} ({{ column }})</option>
+          <option *ngFor="let column of availableColumnsForBulkEdit" [value]="column">
+            {{ getDisplayHeaderName(column) }} ({{ column }})
+          </option>
         </select>
       </div>
 
       <!-- Value Input -->
       <div>
         <label class="block text-sm font-medium text-gray-700 mb-2" for="bulkEditValue">New Value</label>
-        <input class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-200" id="bulkEditValue" [(ngModel)]="bulkEditConfig.value" type="text" placeholder="Enter the value to set..." />
+        <input
+          class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-200"
+          id="bulkEditValue"
+          [(ngModel)]="bulkEditConfig.value"
+          type="text"
+          placeholder="Enter the value to set..."
+        />
       </div>
 
       <!-- Preview -->
@@ -405,8 +937,21 @@
     </div>
 
     <div class="mt-6 flex justify-end space-x-3">
-      <button class="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500" (click)="closeBulkEditDialog()">Cancel</button>
-      <button class="rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500" [disabled]="!bulkEditConfig.column || !bulkEditConfig.value" [class.opacity-50]="!bulkEditConfig.column || !bulkEditConfig.value" [class.cursor-not-allowed]="!bulkEditConfig.column || !bulkEditConfig.value" (click)="bulkEditRows()">Apply Changes</button>
+      <button
+        class="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500"
+        (click)="closeBulkEditDialog()"
+      >
+        Cancel
+      </button>
+      <button
+        class="rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500"
+        [disabled]="!bulkEditConfig.column || !bulkEditConfig.value"
+        [class.opacity-50]="!bulkEditConfig.column || !bulkEditConfig.value"
+        [class.cursor-not-allowed]="!bulkEditConfig.column || !bulkEditConfig.value"
+        (click)="bulkEditRows()"
+      >
+        Apply Changes
+      </button>
     </div>
   </div>
 </div>
@@ -416,20 +961,34 @@
   <div class="mx-4 w-full max-w-3xl rounded-lg bg-white p-6 shadow-xl max-h-[85vh] flex flex-col">
     <div class="mb-4 flex items-center justify-between">
       <h3 class="text-lg font-semibold text-gray-900">Assign Building Types</h3>
-      <button class="text-gray-400 hover:text-gray-600 focus:outline-none" (click)="closeAssignBuildingTypesDialog()" aria-label="Close assign building types dialog">
+      <button
+        class="text-gray-400 hover:text-gray-600 focus:outline-none"
+        (click)="closeAssignBuildingTypesDialog()"
+        aria-label="Close assign building types dialog"
+      >
         <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
         </svg>
       </button>
     </div>
 
-    <p class="mb-4 text-sm text-gray-600">Assign up to 3 ENERGY STAR Portfolio Manager (ESPM) building types per building -- primary, secondary, and tertiary -- with a floor-area weight for each. A building with more than one assigned type is downloaded as a floor-area-weighted composite ("mixed-use") load profile; a badge next to each type shows how well it maps to a BuildStock building type.</p>
+    <p class="mb-4 text-sm text-gray-600">
+      Assign up to 3 ENERGY STAR Portfolio Manager (ESPM) building types per building -- primary, secondary, and tertiary -- with a
+      floor-area weight for each. A building with more than one assigned type is downloaded as a floor-area-weighted composite ("mixed-use")
+      load profile; a badge next to each type shows how well it maps to a BuildStock building type.
+    </p>
 
     <div class="flex-1 space-y-4 overflow-y-auto pr-1">
       <div class="rounded-lg border border-gray-200 p-4" *ngFor="let assignmentRow of assignBuildingTypesRows; let rowIndex = index">
         <div class="mb-3 flex items-center justify-between">
           <h4 class="text-sm font-semibold text-gray-900">{{ assignmentRow.label }}</h4>
-          <button class="text-xs font-medium text-blue-600 hover:text-blue-800" (click)="normalizeRowWeights(assignmentRow)" title="Rescale weights to sum to exactly 100%">Normalize to 100%</button>
+          <button
+            class="text-xs font-medium text-blue-600 hover:text-blue-800"
+            (click)="normalizeRowWeights(assignmentRow)"
+            title="Rescale weights to sum to exactly 100%"
+          >
+            Normalize to 100%
+          </button>
         </div>
 
         <!-- Live stacked-bar visualization of this building's assigned type mix -->
@@ -441,28 +1000,70 @@
 
         <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div *ngFor="let slot of buildingTypeSlots">
-            <label class="mb-1 block text-xs font-medium text-gray-500 capitalize">{{ slot }}{{ slot === 'primary' ? ' (required)' : ' (optional)' }}</label>
-            <input class="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200" type="search" autocomplete="off" placeholder="Search building types..." [attr.list]="'building-types-' + rowIndex + '-' + slot" [attr.aria-label]="slot + ' building type'" [(ngModel)]="assignmentRow.slots[slot].type" (ngModelChange)="onAssignBuildingTypeChange(assignmentRow, slot)" />
+            <label class="mb-1 block text-xs font-medium text-gray-500 capitalize"
+              >{{ slot }}{{ slot === 'primary' ? ' (required)' : ' (optional)' }}</label
+            >
+            <input
+              class="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+              [(ngModel)]="assignmentRow.slots[slot].type"
+              [attr.list]="'building-types-' + rowIndex + '-' + slot"
+              [attr.aria-label]="slot + ' building type'"
+              (ngModelChange)="onAssignBuildingTypeChange(assignmentRow, slot)"
+              type="search"
+              autocomplete="off"
+              placeholder="Search building types..."
+            />
             <datalist [id]="'building-types-' + rowIndex + '-' + slot">
               <option *ngFor="let buildingType of espmBuildingTypes" [value]="buildingType.property_type"></option>
             </datalist>
             <div class="mt-1 flex items-center gap-2">
-              <input class="w-20 rounded-md border border-gray-300 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200" type="number" min="0" max="100" [disabled]="!assignmentRow.slots[slot].type" [(ngModel)]="assignmentRow.slots[slot].weight" />
+              <input
+                class="w-20 rounded-md border border-gray-300 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                [(ngModel)]="assignmentRow.slots[slot].weight"
+                [disabled]="!assignmentRow.slots[slot].type"
+                type="number"
+                min="0"
+                max="100"
+              />
               <span class="text-xs text-gray-500">% weight</span>
             </div>
-            <span class="mt-1 inline-block rounded px-1.5 py-0.5 text-xs" *ngIf="assignmentRow.slots[slot].type" [ngClass]="getMatchQualityClass(assignmentRow.slots[slot].type)">
+            <span
+              class="mt-1 inline-block rounded px-1.5 py-0.5 text-xs"
+              *ngIf="assignmentRow.slots[slot].type"
+              [ngClass]="getMatchQualityClass(assignmentRow.slots[slot].type)"
+            >
               {{ getMatchQualityLabel(assignmentRow.slots[slot].type) }}
             </span>
           </div>
         </div>
 
-        <p class="mt-2 text-xs" [class.text-gray-500]="isAssignmentRowValid(assignmentRow)" [class.text-red-600]="!isAssignmentRowValid(assignmentRow)">Total weight: {{ getRowTotalWeight(assignmentRow) }}% <span *ngIf="!isAssignmentRowValid(assignmentRow)">-- select valid building types from the searchable lists and assign the primary type a weight greater than 0.</span></p>
+        <p
+          class="mt-2 text-xs"
+          [class.text-gray-500]="isAssignmentRowValid(assignmentRow)"
+          [class.text-red-600]="!isAssignmentRowValid(assignmentRow)"
+        >
+          Total weight: {{ getRowTotalWeight(assignmentRow) }}%
+          <span *ngIf="!isAssignmentRowValid(assignmentRow)"
+            >-- select valid building types from the searchable lists and assign the primary type a weight greater than 0.</span
+          >
+        </p>
       </div>
     </div>
 
     <div class="mt-6 flex justify-end space-x-3">
-      <button class="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500" (click)="closeAssignBuildingTypesDialog()">Cancel</button>
-      <button class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-50" [disabled]="!canSaveBuildingTypeAssignments()" (click)="saveBuildingTypeAssignments()">Save Assignments</button>
+      <button
+        class="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500"
+        (click)="closeAssignBuildingTypesDialog()"
+      >
+        Cancel
+      </button>
+      <button
+        class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+        [disabled]="!canSaveBuildingTypeAssignments()"
+        (click)="saveBuildingTypeAssignments()"
+      >
+        Save Assignments
+      </button>
     </div>
   </div>
 </div>
@@ -472,24 +1073,54 @@
   <div class="mx-4 w-full max-w-lg rounded-lg bg-white p-6 shadow-xl max-h-[85vh] flex flex-col">
     <div class="mb-4 flex items-center justify-between">
       <h3 class="text-lg font-semibold text-gray-900">Download Composite Building Load Profiles</h3>
-      <button class="text-gray-400 hover:text-gray-600 focus:outline-none" (click)="closeDownloadCompositeProfilesDialog()" aria-label="Close download composite profiles dialog">
+      <button
+        class="text-gray-400 hover:text-gray-600 focus:outline-none"
+        (click)="closeDownloadCompositeProfilesDialog()"
+        aria-label="Close download composite profiles dialog"
+      >
         <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
         </svg>
       </button>
     </div>
 
-    <p class="mb-2 text-sm text-gray-600">Downloads a native-interval annual profile. For each assigned component, the server chooses a representative BuildStock sample using the best building data available.</p>
+    <p class="mb-2 text-sm text-gray-600">
+      Downloads a native-interval annual profile. For each assigned component, the server chooses a representative BuildStock sample using
+      the best building data available.
+    </p>
 
     <div class="mb-4 rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900">
-      <p><strong>Selection:</strong> When both gross floor area and a positive EUI are available, the representative minimizes their combined relative difference. With only one, it selects the closest sample using that field. With neither, it randomly selects a sample from the middle 50% (25th–75th percentile range) of the available floor-area and EUI distributions.</p>
-      <p class="mt-2"><strong>Scaling:</strong> When gross floor area is available, the profile is scaled to that floor area. Without it, the representative sample's original scale is retained.</p>
-      <p class="mt-2"><strong>Server copy:</strong> Each successful profile is also saved under <code>flask_app/data/load_profiles</code>. Its full path and the representative BuildStock building ID(s) are recorded in the row's load-profile columns.</p>
+      <p>
+        <strong>Selection:</strong> When both gross floor area and a positive EUI are available, the representative minimizes their combined
+        relative difference. With only one, it selects the closest sample using that field. With neither, it randomly selects a sample from
+        the middle 50% (25th–75th percentile range) of the available floor-area and EUI distributions.
+      </p>
+      <p class="mt-2">
+        <strong>Scaling:</strong> When gross floor area is available, the profile is scaled to that floor area. Without it, the
+        representative sample's original scale is retained.
+      </p>
+      <p class="mt-2">
+        <strong>Server copy:</strong> Each successful profile is also saved under <code>flask_app/data/load_profiles</code>. Its full path
+        and the representative BuildStock building ID(s) are recorded in the row's load-profile columns.
+      </p>
     </div>
 
-    <div class="mb-4 rounded-lg border p-3 text-sm" [class.border-amber-200]="countSelectedWithBuildingTypeAssigned() === 0" [class.bg-amber-50]="countSelectedWithBuildingTypeAssigned() === 0" [class.border-blue-200]="countSelectedWithBuildingTypeAssigned() > 0" [class.bg-blue-50]="countSelectedWithBuildingTypeAssigned() > 0">
-      {{ countSelectedWithBuildingTypeAssigned() }} of {{ compositeProfilesSelectedCount }} selected building(s) have a building type assigned.
-      <a href="" class="font-medium text-blue-700 underline" *ngIf="countSelectedWithBuildingTypeAssigned() === 0" (click)="$event.preventDefault(); closeDownloadCompositeProfilesDialog(); openAssignBuildingTypesDialog()">Assign Building Types first</a>
+    <div
+      class="mb-4 rounded-lg border p-3 text-sm"
+      [class.border-amber-200]="countSelectedWithBuildingTypeAssigned() === 0"
+      [class.bg-amber-50]="countSelectedWithBuildingTypeAssigned() === 0"
+      [class.border-blue-200]="countSelectedWithBuildingTypeAssigned() > 0"
+      [class.bg-blue-50]="countSelectedWithBuildingTypeAssigned() > 0"
+    >
+      {{ countSelectedWithBuildingTypeAssigned() }} of {{ compositeProfilesSelectedCount }} selected building(s) have a building type
+      assigned.
+      <a
+        class="font-medium text-blue-700 underline"
+        *ngIf="countSelectedWithBuildingTypeAssigned() === 0"
+        (click)="$event.preventDefault(); closeDownloadCompositeProfilesDialog(); openAssignBuildingTypesDialog()"
+        href=""
+        >Assign Building Types first</a
+      >
     </div>
 
     <p class="mb-4 text-sm text-gray-600"><strong>Interval:</strong> Native interval as published by the dataset (no resampling).</p>
@@ -502,19 +1133,39 @@
         <span class="font-mono text-xs text-cyan-700">{{ compositeProfilesElapsedSeconds }}s elapsed</span>
       </div>
       <div class="h-2.5 w-full overflow-hidden rounded-full bg-cyan-100">
-        <div class="h-full rounded-full bg-cyan-600 transition-all duration-300" [style.width.%]="getCompositeProfilesProgressPercent()"></div>
+        <div
+          class="h-full rounded-full bg-cyan-600 transition-all duration-300"
+          [style.width.%]="getCompositeProfilesProgressPercent()"
+        ></div>
       </div>
-      <p class="mt-2 truncate text-xs text-cyan-800" *ngIf="compositeProfilesProgress.currentLabel">Current: {{ compositeProfilesProgress.currentLabel }}</p>
-      <p class="mt-2 text-xs text-cyan-700">This can take a while for large batches -- feel free to let it run; results appear below as each building finishes.</p>
+      <p class="mt-2 truncate text-xs text-cyan-800" *ngIf="compositeProfilesProgress.currentLabel">
+        Current: {{ compositeProfilesProgress.currentLabel }}
+      </p>
+      <p class="mt-2 text-xs text-cyan-700">
+        This can take a while for large batches -- feel free to let it run; results appear below as each building finishes.
+      </p>
     </div>
 
     <div class="mb-2 flex-1 overflow-y-auto" *ngIf="compositeProfilesResults.length > 0">
-      <p class="mb-2 text-sm font-medium text-gray-700">Results ({{ compositeProfilesResults.length }} of {{ compositeProfilesProgress.total || compositeProfilesSelectedCount }})</p>
+      <p class="mb-2 text-sm font-medium text-gray-700">
+        Results ({{ compositeProfilesResults.length }} of {{ compositeProfilesProgress.total || compositeProfilesSelectedCount }})
+      </p>
       <ul class="space-y-1">
-        <li class="rounded px-2 py-1 text-xs" *ngFor="let result of compositeProfilesResults" [class.bg-green-50]="result.success" [class.text-green-800]="result.success" [class.bg-red-50]="!result.success" [class.text-red-800]="!result.success">
+        <li
+          class="rounded px-2 py-1 text-xs"
+          *ngFor="let result of compositeProfilesResults"
+          [class.bg-green-50]="result.success"
+          [class.text-green-800]="result.success"
+          [class.bg-red-50]="!result.success"
+          [class.text-red-800]="!result.success"
+        >
           <span class="font-medium">{{ result.id }}:</span>
           <ng-container *ngIf="result.success">
-            <span>Downloaded ({{ result.row_count }} rows{{ result.components && result.components.length > 1 ? ', composite of ' + result.components.length + ' building types' : '' }}).</span>
+            <span
+              >Downloaded ({{ result.row_count }} rows{{
+                result.components && result.components.length > 1 ? ', composite of ' + result.components.length + ' building types' : ''
+              }}).</span
+            >
             <div *ngIf="result.file_path">
               Saved on server: <code class="break-all">{{ result.file_path }}</code>
             </div>
@@ -529,11 +1180,30 @@
     </div>
 
     <div class="mt-4 flex justify-end gap-2">
-      <button class="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200" (click)="closeDownloadCompositeProfilesDialog()">{{ isDownloadingCompositeProfiles ? 'Cancel' : 'Close' }}</button>
-      <button class="flex items-center gap-2 rounded-md bg-cyan-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-50" [disabled]="isDownloadingCompositeProfiles" (click)="downloadCompositeBuildingLoadProfiles()">
-        <svg class="h-4 w-4 animate-spin" *ngIf="isDownloadingCompositeProfiles" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+      <button
+        class="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200"
+        (click)="closeDownloadCompositeProfilesDialog()"
+      >
+        {{ isDownloadingCompositeProfiles ? 'Cancel' : 'Close' }}
+      </button>
+      <button
+        class="flex items-center gap-2 rounded-md bg-cyan-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-50"
+        [disabled]="isDownloadingCompositeProfiles"
+        (click)="downloadCompositeBuildingLoadProfiles()"
+      >
+        <svg
+          class="h-4 w-4 animate-spin"
+          *ngIf="isDownloadingCompositeProfiles"
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+        >
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          <path
+            class="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+          ></path>
         </svg>
         {{ isDownloadingCompositeProfiles ? 'Downloading...' : 'Download' }}
       </button>
@@ -558,24 +1228,46 @@
       <div class="block text-sm font-medium text-gray-700 mb-2">Edit Mode</div>
       <div class="flex space-x-4">
         <label class="flex items-center">
-          <input class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500" [(ngModel)]="editMode" (change)="openHeaderEditDialog('display')" type="radio" value="display" />
+          <input
+            class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
+            [(ngModel)]="editMode"
+            (change)="openHeaderEditDialog('display')"
+            type="radio"
+            value="display"
+          />
           <span class="ml-2 text-sm text-gray-700">Edit Display Names</span>
         </label>
         <label class="flex items-center">
-          <input class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500" [(ngModel)]="editMode" (change)="openHeaderEditDialog('column')" type="radio" value="column" />
+          <input
+            class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
+            [(ngModel)]="editMode"
+            (change)="openHeaderEditDialog('column')"
+            type="radio"
+            value="column"
+          />
           <span class="ml-2 text-sm text-gray-700">Rename Column Keys</span>
         </label>
       </div>
     </div>
 
-    <p class="mb-6 text-sm text-gray-600" *ngIf="editMode === 'display'">Edit the display names for column headers. Custom names will be used in the table display and all exports (CSV, Excel, JSON). Leave a field empty to use the original column name.</p>
-    <p class="mb-6 text-sm text-gray-600" *ngIf="editMode === 'column'">Rename the actual column keys in your data. This will permanently change the property names in your dataset. Use with caution.</p>
+    <p class="mb-6 text-sm text-gray-600" *ngIf="editMode === 'display'">
+      Edit the display names for column headers. Custom names will be used in the table display and all exports (CSV, Excel, JSON). Leave a
+      field empty to use the original column name.
+    </p>
+    <p class="mb-6 text-sm text-gray-600" *ngIf="editMode === 'column'">
+      Rename the actual column keys in your data. This will permanently change the property names in your dataset. Use with caution.
+    </p>
 
     <div class="overflow-auto max-h-[50vh] mb-6">
       <!-- Empty state when no columns are available -->
       <div class="text-center py-8" *ngIf="headerEditList.length === 0">
         <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+          ></path>
         </svg>
         <h3 class="mt-2 text-sm font-medium text-gray-900">No columns available</h3>
         <p class="mt-1 text-sm text-gray-500">Load some data first to edit column headers.</p>
@@ -599,8 +1291,22 @@
               {{ item.originalKey }}
             </td>
             <td class="px-4 py-3 whitespace-nowrap">
-              <input class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" *ngIf="editMode === 'display'" [(ngModel)]="item.displayName" [placeholder]="item.originalKey" (input)="updateHeaderFromDialog(i, item.displayName)" type="text" />
-              <input class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" *ngIf="editMode === 'column'" [(ngModel)]="item.newColumnName" [placeholder]="item.originalKey" (input)="updateColumnNameFromDialog(i, item.newColumnName || '')" type="text" />
+              <input
+                class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                *ngIf="editMode === 'display'"
+                [(ngModel)]="item.displayName"
+                [placeholder]="item.originalKey"
+                (input)="updateHeaderFromDialog(i, item.displayName)"
+                type="text"
+              />
+              <input
+                class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                *ngIf="editMode === 'column'"
+                [(ngModel)]="item.newColumnName"
+                [placeholder]="item.originalKey"
+                (input)="updateColumnNameFromDialog(i, item.newColumnName || '')"
+                type="text"
+              />
             </td>
           </tr>
         </tbody>
@@ -609,15 +1315,37 @@
 
     <div class="flex justify-end">
       <div class="space-x-2">
-        <button class="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200" (click)="closeHeaderEditDialog()">Cancel</button>
-        <button class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700" (click)="applyHeaderChanges()">Apply Changes</button>
+        <button
+          class="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200"
+          (click)="closeHeaderEditDialog()"
+        >
+          Cancel
+        </button>
+        <button
+          class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+          (click)="applyHeaderChanges()"
+        >
+          Apply Changes
+        </button>
       </div>
     </div>
   </div>
 </div>
 
-<div class="fixed inset-0 z-[85]" *ngIf="tableContextMenu.visible" (click)="closeTableContextMenu()" (contextmenu)="$event.preventDefault(); closeTableContextMenu()"></div>
-<div *ngIf="tableContextMenu.visible" class="fixed z-[90] max-w-md rounded-md border border-gray-200 bg-white py-1 shadow-lg" [style.left.px]="tableContextMenu.x" [style.top.px]="tableContextMenu.y" (click)="$event.stopPropagation()" (contextmenu)="$event.preventDefault()">
+<div
+  class="fixed inset-0 z-[85]"
+  *ngIf="tableContextMenu.visible"
+  (click)="closeTableContextMenu()"
+  (contextmenu)="$event.preventDefault(); closeTableContextMenu()"
+></div>
+<div
+  class="fixed z-[90] max-w-md rounded-md border border-gray-200 bg-white py-1 shadow-lg"
+  *ngIf="tableContextMenu.visible"
+  [style.left.px]="tableContextMenu.x"
+  [style.top.px]="tableContextMenu.y"
+  (click)="$event.stopPropagation()"
+  (contextmenu)="$event.preventDefault()"
+>
   <div class="border-b border-gray-100 px-4 py-2 text-xs text-gray-600">
     <div>
       Square One building: <strong>{{ tableContextMenu.row?.id }}</strong>
@@ -629,10 +1357,20 @@
       {{ tableContextMenu.row.properties.load_profile_match_details }}
     </div>
   </div>
-  <button class="block w-full px-4 py-2 text-left text-sm hover:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-400" [disabled]="!tableContextMenu.row?.properties?.load_profile_file_path" (click)="openLoadProfileFromContext()">Open downloaded load profile</button>
+  <button
+    class="block w-full px-4 py-2 text-left text-sm hover:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-400"
+    [disabled]="!tableContextMenu.row?.properties?.load_profile_file_path"
+    (click)="openLoadProfileFromContext()"
+  >
+    Open downloaded load profile
+  </button>
 </div>
 
-<div *ngIf="showLoadProfileViewer" class="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4" (click)="closeLoadProfileViewer()">
+<div
+  class="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4"
+  *ngIf="showLoadProfileViewer"
+  (click)="closeLoadProfileViewer()"
+>
   <div class="flex max-h-[90vh] w-full max-w-6xl flex-col rounded-lg bg-white p-5 shadow-xl" (click)="$event.stopPropagation()">
     <div class="mb-3 flex items-center justify-between">
       <h3 class="text-lg font-semibold">Downloaded load profile — Square One building {{ loadProfileViewerBuildingId }}</h3>
@@ -643,23 +1381,33 @@
       <div class="mt-1 text-xs" *ngIf="loadProfileViewerMatchDetails">{{ loadProfileViewerMatchDetails }}</div>
       <div class="mt-1 break-all text-xs"><strong>Server file:</strong> {{ loadProfileViewerFilePath }}</div>
     </div>
-    <div *ngIf="isLoadingLoadProfile" class="py-8 text-center text-gray-600">Loading profile…</div>
-    <div *ngIf="loadProfileViewerError" class="rounded bg-red-50 p-3 text-red-700">{{ loadProfileViewerError }}</div>
+    <div class="py-8 text-center text-gray-600" *ngIf="isLoadingLoadProfile">Loading profile…</div>
+    <div class="rounded bg-red-50 p-3 text-red-700" *ngIf="loadProfileViewerError">{{ loadProfileViewerError }}</div>
     <ng-container *ngIf="!isLoadingLoadProfile && !loadProfileViewerError && loadProfileCsv">
       <div class="mb-2 flex items-center gap-2 text-sm">
         <label for="profileMetric">Heat map metric</label
-        ><select id="profileMetric" class="rounded border px-2 py-1" [(ngModel)]="selectedLoadProfileMetric" (change)="drawLoadProfileHeatmap()">
+        ><select
+          class="rounded border px-2 py-1"
+          id="profileMetric"
+          [(ngModel)]="selectedLoadProfileMetric"
+          (change)="drawLoadProfileHeatmap()"
+        >
           <option *ngFor="let metric of loadProfileMetrics" [value]="metric">{{ metric }}</option>
         </select>
       </div>
-      <canvas #loadProfileHeatmapCanvas width="1200" height="320" class="mb-3 w-full rounded border bg-gray-50"></canvas>
+      <canvas class="mb-3 w-full rounded border bg-gray-50" #loadProfileHeatmapCanvas width="1200" height="320"></canvas>
       <p class="mb-1 text-sm font-medium">CSV ({{ loadProfileRows.length }} rows)</p>
-      <textarea class="min-h-[14rem] w-full flex-1 resize-y rounded border bg-gray-50 p-2 font-mono text-xs" readonly [value]="loadProfileCsv"></textarea>
+      <textarea
+        class="min-h-[14rem] w-full flex-1 resize-y rounded border bg-gray-50 p-2 font-mono text-xs"
+        [value]="loadProfileCsv"
+        readonly
+      ></textarea>
     </ng-container>
   </div>
 </div>
 
 <!-- File Upload Dialog -->
-<app-file-upload-dialog [isOpen]="showFileUploadDialog" (dialogClosed)="closeFileUploadDialog()" (fileUploaded)="onFileUploaded($event)"> </app-file-upload-dialog>
+<app-file-upload-dialog [isOpen]="showFileUploadDialog" (dialogClosed)="closeFileUploadDialog()" (fileUploaded)="onFileUploaded($event)">
+</app-file-upload-dialog>
 
 <app-footer></app-footer>
