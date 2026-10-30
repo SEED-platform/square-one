@@ -44,8 +44,8 @@ format: ## Auto-fix formatting/lint issues where possible.
 	poetry run ruff check --fix .
 	cd angular-app && npm run lint:fix
 
-typecheck: ## Run mypy type checking on the Python code.
-	./scripts/run_mypy.sh
+typecheck: ## Run ty type checking on the Python code.
+	bash ./scripts/run_ty.sh
 
 build: ## Build the Angular app for production.
 	cd angular-app && npm run build

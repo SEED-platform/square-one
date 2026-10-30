@@ -62,10 +62,12 @@ class TestCommonService(unittest.TestCase):
         with self.app.test_request_context("/", method="POST", data=json.dumps({"field1": "value1"}), content_type="application/json"):
             result = validate_request_data(["field1", "field2"])
 
-            # Error case returns (None, response, status_code)
-            self.assertEqual(len(result), 3)
-            data, error_response, status_code = result
+            # Error case returns (None, (response, status_code))
+            self.assertEqual(len(result), 2)
+            data, error = result
             self.assertIsNone(data)
+            self.assertIsNotNone(error)
+            error_response, status_code = error
             self.assertIsNotNone(error_response)
             self.assertEqual(status_code, 400)
 
@@ -74,10 +76,12 @@ class TestCommonService(unittest.TestCase):
         with self.app.test_request_context("/", method="POST"):
             result = validate_request_data(["field1"])
 
-            # Error case returns (None, response, status_code)
-            self.assertEqual(len(result), 3)
-            data, error_response, status_code = result
+            # Error case returns (None, (response, status_code))
+            self.assertEqual(len(result), 2)
+            data, error = result
             self.assertIsNone(data)
+            self.assertIsNotNone(error)
+            error_response, status_code = error
             self.assertIsNotNone(error_response)
             self.assertEqual(status_code, 400)
 
@@ -86,10 +90,12 @@ class TestCommonService(unittest.TestCase):
         with self.app.test_request_context("/", method="POST", data="invalid json", content_type="application/json"):
             result = validate_request_data(["field1"])
 
-            # Error case returns (None, response, status_code)
-            self.assertEqual(len(result), 3)
-            data, error_response, status_code = result
+            # Error case returns (None, (response, status_code))
+            self.assertEqual(len(result), 2)
+            data, error = result
             self.assertIsNone(data)
+            self.assertIsNotNone(error)
+            error_response, status_code = error
             self.assertIsNotNone(error_response)
             self.assertEqual(status_code, 400)
 
@@ -138,10 +144,12 @@ class TestCommonService(unittest.TestCase):
         with self.app.app_context():
             result = parse_polygon_from_request({"invalid": "data"})
 
-            # Error case returns (None, response, status_code)
-            self.assertEqual(len(result), 3)
-            polygon, error_response, status_code = result
+            # Error case returns (None, (response, status_code))
+            self.assertEqual(len(result), 2)
+            polygon, error = result
             self.assertIsNone(polygon)
+            self.assertIsNotNone(error)
+            error_response, status_code = error
             self.assertIsNotNone(error_response)
             self.assertEqual(status_code, 400)
 
@@ -155,10 +163,12 @@ class TestCommonService(unittest.TestCase):
 
             result = parse_polygon_from_request(invalid_coordinates)
 
-            # Error case returns (None, response, status_code)
-            self.assertEqual(len(result), 3)
-            polygon, error_response, status_code = result
+            # Error case returns (None, (response, status_code))
+            self.assertEqual(len(result), 2)
+            polygon, error = result
             self.assertIsNone(polygon)
+            self.assertIsNotNone(error)
+            error_response, status_code = error
             self.assertIsNotNone(error_response)
             self.assertEqual(status_code, 400)
 

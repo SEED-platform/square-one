@@ -7,14 +7,14 @@ import logging
 from functools import wraps
 from typing import Any
 
-from flask import jsonify, request
+from flask import Response, jsonify, request
 from shapely.geometry import Polygon
 
 from flask_app.services.file_processing_service import FileProcessingService
 from flask_app.services.logging_utils import log_error_with_context
 
 
-def validate_request_data(required_fields: list) -> tuple[dict | None, Any | None]:
+def validate_request_data(required_fields: list) -> tuple[dict | None, tuple[Any, int] | None]:
     """
     Validate that request contains required fields.
 
@@ -27,18 +27,18 @@ def validate_request_data(required_fields: list) -> tuple[dict | None, Any | Non
     try:
         data = request.get_json()
         if not data:
-            return None, jsonify({"error": "No data provided in request"}), 400
+            return None, (jsonify({"error": "No data provided in request"}), 400)
 
         for field in required_fields:
             if field not in data:
-                return None, jsonify({"error": f"Missing required field: {field}"}), 400
+                return None, (jsonify({"error": f"Missing required field: {field}"}), 400)
 
         return data, None
     except Exception as e:
-        return None, jsonify({"error": f"Invalid request data: {e}"}), 400
+        return None, (jsonify({"error": f"Invalid request data: {e}"}), 400)
 
 
-def parse_polygon_from_request(polygon_data: dict) -> tuple[Polygon | None, Any | None]:
+def parse_polygon_from_request(polygon_data: dict) -> tuple[Polygon | None, tuple[Any, int] | None]:
     """
     Parse polygon data from request into Shapely Polygon.
 
@@ -57,7 +57,7 @@ def parse_polygon_from_request(polygon_data: dict) -> tuple[Polygon | None, Any 
             # Direct coordinates array
             coordinates = polygon_data[0]
         else:
-            return None, jsonify({"error": "Invalid polygon format"}), 400
+            return None, (jsonify({"error": "Invalid polygon format"}), 400)
 
         polygon = Polygon(coordinates)
         logging.info(f"Created Shapely polygon with {len(coordinates)} coordinates")
@@ -65,7 +65,7 @@ def parse_polygon_from_request(polygon_data: dict) -> tuple[Polygon | None, Any 
 
     except Exception as e:
         logging.error(f"Error creating Shapely polygon: {e}")
-        return None, jsonify({"error": f"Invalid polygon format: {e}"}), 400
+        return None, (jsonify({"error": f"Invalid polygon format: {e}"}), 400)
 
 
 def handle_service_exceptions(operation_name: str):
@@ -110,7 +110,7 @@ def create_success_response(data: Any, message: str = "success", extra_fields: d
     return response, 200
 
 
-def create_geojson_response(gdf, count_field_name: str = "footprints_count") -> tuple[dict, int]:
+def create_geojson_response(gdf, count_field_name: str = "footprints_count") -> tuple[Response, int]:
     """
     Create a standardized GeoJSON response from a GeoDataFrame.
 

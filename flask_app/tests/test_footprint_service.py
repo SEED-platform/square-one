@@ -51,21 +51,32 @@ class TestFootprintService(unittest.TestCase):
         self.assertEqual(len(result), 0)
 
     def test_process_osm_footprint(self):
-        """Test that the OSM service returns buildings for Denver."""
+        """Test processing OSM footprints without depending on the Overpass API."""
         # Approximate polygon for Denver block
         denver_polygon = Polygon([(-104.984860, 39.736826), (-104.984852, 39.735269), (-104.983598, 39.735283), (-104.983596, 39.736865)])
 
         service = FootprintService()
-        # Load real OSM footprints
-        osm_gdf = service.load_osm_footprints(denver_polygon)
-        processed_gdf = service.process_osm_footprints(osm_gdf)
-        print(f"Found {len(processed_gdf)} OSM buildings in Denver")
-        self.assertEqual(len(processed_gdf), 8)
+        geometries = [
+            Polygon(
+                [
+                    (-104.985 + index * 0.0001, 39.735),
+                    (-104.98495 + index * 0.0001, 39.735),
+                    (-104.98495 + index * 0.0001, 39.73505),
+                    (-104.985 + index * 0.0001, 39.73505),
+                ]
+            )
+            for index in range(8)
+        ]
+        osm_data = gpd.GeoDataFrame(
+            {"id": range(1, 9), "building": ["civic"] * 8, "geometry": geometries},
+            crs="EPSG:4326",
+        )
+        with patch("flask_app.services.footprint_service.footprints.ox.features_from_polygon", return_value=osm_data) as mock_osm_query:
+            osm_gdf = service.load_osm_footprints(denver_polygon)
+        mock_osm_query.assert_called_once_with(denver_polygon, tags={"building": True})
 
-        # save the file to a geojson in an output directory for inspection
-        output_dir = Path("flask_app/tests/output")
-        output_dir.mkdir(parents=True, exist_ok=True)
-        processed_gdf.to_file(output_dir / "denver_osm_footprints.geojson", driver="GeoJSON")
+        processed_gdf = service.process_osm_footprints(osm_gdf)
+        self.assertEqual(len(processed_gdf), 8)
 
     def test_process_ms_footprint(self):
         """Test that the MS service returns buildings for Denver."""

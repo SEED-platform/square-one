@@ -6,6 +6,7 @@ See also https://github.com/SEED-platform/square-one/blob/main/LICENSE.md
 import json
 import logging
 import os
+from typing import Any
 
 import requests
 from building_data_utilities.geocode_addresses import geocode_addresses as aws_geocode_addresses
@@ -34,7 +35,7 @@ class GeocodingService:
         if not self.amazon_app_id:
             self.logger.warning("AMAZON_APP_ID not found in environment variables")
 
-    def geocode_addresses(self, locations: list) -> tuple[dict | None, str | None]:
+    def geocode_addresses(self, locations: list) -> tuple[list[dict[str, Any]] | None, str | None]:
         """
         Geocode a list of addresses using Amazon Location Services in building_data_utilities package.
 
@@ -48,7 +49,7 @@ class GeocodingService:
             geocoded_data = []
             return geocoded_data, None
 
-        if not self.amazon_api_key:
+        if not self.amazon_api_key or not self.amazon_base_url:
             error_msg = "Amazon Location Services credentials are not fully set in environment variables."
             self.logger.error(error_msg)
             return None, error_msg

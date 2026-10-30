@@ -4,7 +4,6 @@ See also https://github.com/SEED-platform/square-one/blob/main/LICENSE.md
 """
 
 import unittest
-from pathlib import Path
 
 import geopandas as gpd
 from shapely.geometry import Polygon
@@ -46,31 +45,28 @@ class TestMergeFootprint(unittest.TestCase):
         assert "ubid" in merged.columns, "Merged GeoDataFrame should have ubid column"
 
     def test_merge_ms_osm_footprints(self):
-        """Test loading and merging denver footprints (8 buildings +/-)"""
-        # Approximate polygon for Denver block
-        denver_polygon = Polygon([(-104.984860, 39.736826), (-104.984852, 39.735269), (-104.983598, 39.735283), (-104.983596, 39.736865)])
+        """Test merging processed OSM and Microsoft footprints without external services."""
+        geometries = [
+            Polygon(
+                [
+                    (-104.985 + index * 0.0001, 39.735),
+                    (-104.98495 + index * 0.0001, 39.735),
+                    (-104.98495 + index * 0.0001, 39.73505),
+                    (-104.985 + index * 0.0001, 39.73505),
+                ]
+            )
+            for index in range(8)
+        ]
+        osm_gdf = gpd.GeoDataFrame({"id": range(1, 9), "building": ["civic"] * 8, "geometry": geometries}, crs="EPSG:4326")
+        ms_gdf = gpd.GeoDataFrame({"height": [10] * 8, "geometry": geometries}, crs="EPSG:4326")
 
         service = FootprintService()
-        # grab the quadkeys
-        quadkeys = service.get_quadkeys_for_polygon(denver_polygon)
-        service.update_datasets(quadkeys)
-
-        # Load real OSM footprints
-        osm_gdf = service.load_osm_footprints(denver_polygon)
         osm_gdf = service.process_osm_footprints(osm_gdf)
-
-        # Load real MS footprints
-        ms_gdf = service.load_ms_footprints(denver_polygon, quadkeys)
         ms_gdf = service.process_ms_footprints(ms_gdf)
 
         merged_gdf = service.merge_footprint_geodataframes(osm_gdf, ms_gdf)
 
-        # save the file to a geojson in an output directory for inspection
-        output_dir = Path("flask_app/tests/output")
-        output_dir.mkdir(parents=True, exist_ok=True)
-        merged_gdf.to_file(output_dir / "denver_merged_footprints.geojson", driver="GeoJSON")
         self.assertEqual(len(merged_gdf), 8)
 
-        # check some of the merging
-        # the first building have a building type of 'Public services'
+        # The first building has a type of 'Public services'.
         self.assertEqual(merged_gdf.iloc[0]["building_type"], "Public services")
