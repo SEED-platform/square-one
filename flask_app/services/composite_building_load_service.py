@@ -22,7 +22,7 @@ import logging
 import re
 import secrets
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pandas as pd
 from building_energy_profiles import CompositeBuildingType, ComStockProcessor, ResStockProcessor, pull_composite_time_series
@@ -202,11 +202,14 @@ def _select_representative_metadata_row(
         selection_score: float | None = None
     else:
         selected_index = scores.astype(float).idxmin()
-        selected = valid.loc[selected_index].copy()
+        selected = cast(pd.Series, valid.loc[selected_index]).copy()
         selection_score = float(scores.loc[selected_index])
 
-    sample_sqft = float(sqft.loc[selected.name]) if pd.notna(sqft.loc[selected.name]) and float(sqft.loc[selected.name]) > 0 else None
-    sample_eui = float(eui.loc[selected.name]) if pd.notna(eui.loc[selected.name]) and float(eui.loc[selected.name]) > 0 else None
+    selected_name: Any = selected.name
+    sqft_value: Any = sqft.loc[selected_name]
+    eui_value: Any = eui.loc[selected_name]
+    sample_sqft = float(sqft_value) if pd.notna(sqft_value) and float(sqft_value) > 0 else None
+    sample_eui = float(eui_value) if pd.notna(eui_value) and float(eui_value) > 0 else None
     selected["_selection_method"] = selection_method
     selected["_selection_score"] = selection_score
     selected["_sample_floor_area_ft2"] = sample_sqft

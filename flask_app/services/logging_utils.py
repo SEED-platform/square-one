@@ -44,7 +44,7 @@ def handle_service_exceptions(func: Callable) -> Callable:
         try:
             return func(*args, **kwargs)
         except Exception as e:
-            log_error_with_context(f"Error in {func.__name__}", e)
+            log_error_with_context(f"Error in {getattr(func, '__name__', repr(func))}", e)
             raise
 
     return wrapper

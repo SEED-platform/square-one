@@ -53,16 +53,16 @@ from flask_app.services.geocoding_service import GeocodingService
 class NumpyEncoder(json.JSONEncoder):
     """Custom JSON encoder that handles NumPy data types."""
 
-    def default(self, obj):
-        if isinstance(obj, np.ndarray):
-            return obj.tolist()
-        elif isinstance(obj, (np.integer, np.int64, np.int32)):
-            return int(obj)
-        elif isinstance(obj, (np.floating, np.float64, np.float32)):
-            return float(obj)
-        elif isinstance(obj, np.bool_):
-            return bool(obj)
-        return super().default(obj)
+    def default(self, o):
+        if isinstance(o, np.ndarray):
+            return o.tolist()
+        elif isinstance(o, (np.integer, np.int64, np.int32)):
+            return int(o)
+        elif isinstance(o, (np.floating, np.float64, np.float32)):
+            return float(o)
+        elif isinstance(o, np.bool_):
+            return bool(o)
+        return super().default(o)
 
 
 warnings.filterwarnings("ignore", category=RuntimeWarning)
@@ -188,7 +188,7 @@ def check_data():
     return jsonify({"message": "success", "user_data": json_data}), 200
 
 
-def _rows_to_geojson_response(file_data: list[dict], data: list[dict[str, Any]]) -> dict:
+def _rows_to_geojson_response(file_data: list[dict], data: list[dict[str, Any]]) -> str:
     """
     Merge original uploaded row data with per-row geocode/coordinate results and convert to a
     GeoJSON FeatureCollection string, in the same shape the frontend (Square One Table) expects.
@@ -304,7 +304,7 @@ def geocode_missing_addresses():
     for loc in locations:
         loc["street"] = normalize_address(loc["street"])
 
-    AMAZON_API_KEY = os.getenv("AMAZON_API_KEY")
+    AMAZON_API_KEY = os.getenv("AMAZON_API_KEY") or ""
     AMAZON_BASE_URL = os.getenv("AMAZON_BASE_URL") or "https://places.geo.us-east-2.api.aws/v2"
     AMAZON_APP_ID = os.getenv("AMAZON_APP_ID")
 
@@ -434,7 +434,7 @@ def generate_square_one():
     geocoding_warning: str | None = None
 
     if geocode_indices:
-        AMAZON_API_KEY = os.getenv("AMAZON_API_KEY")
+        AMAZON_API_KEY = os.getenv("AMAZON_API_KEY") or ""
         AMAZON_BASE_URL = os.getenv("AMAZON_BASE_URL")
         AMAZON_APP_ID = os.getenv("AMAZON_APP_ID")
 
@@ -765,11 +765,11 @@ def reverse_geocode():
     try:
         # Validate request data
         data, error = validate_request_data(["value"])
-        if error:
+        if data is None:
             return error
 
         # Parse the value
-        json_string = data.get("value")
+        json_string = data["value"]
         app.logger.info(f"json_string: {json_string}")
 
         try:
@@ -789,7 +789,7 @@ def reverse_geocode():
 
         # Parse polygon from coordinates
         polygon, error = parse_polygon_from_request({"coordinates": [coords]})
-        if error:
+        if polygon is None:
             return error
 
         # Get property names and features length
@@ -801,7 +801,7 @@ def reverse_geocode():
 
         # Use geocoding service to reverse geocode
         properties, error_msg = geocoding_service.reverse_geocode_polygon(polygon, property_names)
-        if error_msg:
+        if error_msg or properties is None:
             return jsonify({"message": error_msg}), 400
 
         # Create returned feature
@@ -834,11 +834,11 @@ def geocode():
     try:
         # Validate request data
         data, error = validate_request_data(["value"])
-        if error:
+        if data is None:
             return error
 
         # Parse the value
-        json_string = data.get("value")
+        json_string = data["value"]
 
         locations = []
         try:
@@ -873,17 +873,17 @@ def edit_footprint():
 
     # Validate request data
     data, error = validate_request_data(["value"])
-    if error:
+    if data is None:
         return error
 
     # Parse the value
-    json_string = data.get("value")
+    json_string = data["value"]
     json_data = json.loads(json_string)
     coords = json_data["coordinates"]
 
     # Parse polygon from coordinates
     polygon, error = parse_polygon_from_request({"coordinates": [coords]})
-    if error:
+    if polygon is None:
         return error
 
     # Calculate centroid
@@ -939,7 +939,7 @@ def download_ms_footprints():
     try:
         # Validate request data
         data, error = validate_request_data(["polygon"])
-        if error:
+        if data is None:
             return error
 
         polygon_data = data["polygon"]
@@ -947,7 +947,7 @@ def download_ms_footprints():
 
         # Parse polygon from request
         polygon, error = parse_polygon_from_request(polygon_data)
-        if error:
+        if polygon is None:
             return error
 
         # Get quadkeys for the polygon
@@ -988,7 +988,7 @@ def download_osm_footprints():
     try:
         # Validate request data
         data, error = validate_request_data(["polygon"])
-        if error:
+        if data is None:
             return error
 
         polygon_data = data["polygon"]
@@ -996,7 +996,7 @@ def download_osm_footprints():
 
         # Parse polygon from request
         polygon, error = parse_polygon_from_request(polygon_data)
-        if error:
+        if polygon is None:
             return error
 
         # Load OSM footprints
@@ -1053,7 +1053,7 @@ def download_footprints_for_points():
     app.logger.info("function: download_footprints_for_points")
 
     data, error = validate_request_data(["points", "sources"])
-    if error:
+    if data is None:
         return error
 
     points = data["points"]

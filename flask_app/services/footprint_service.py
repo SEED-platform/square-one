@@ -5,6 +5,7 @@ See also https://github.com/SEED-platform/square-one/blob/main/LICENSE.md
 
 import logging
 from pathlib import Path
+from typing import cast
 
 import geopandas as gpd
 from building_data_utilities import footprints
@@ -56,18 +57,19 @@ class FootprintService:
             self.logger.error(f"Error updating dataset links/quadkeys: {e}")
             raise
 
-    def load_ms_footprints(self, polygon: Polygon, quadkeys: list[int]) -> gpd.GeoDataFrame:
+    def load_ms_footprints(self, polygon: Polygon | MultiPolygon, quadkeys: list[int]) -> gpd.GeoDataFrame:
         """
         Load Microsoft footprints for the given polygon and quadkeys.
 
         Args:
-            polygon: Shapely Polygon object defining the area of interest
+            polygon: Shapely Polygon or MultiPolygon object defining the area of interest
             quadkeys: List of quadkey integers
 
         Returns:
             GeoDataFrame containing Microsoft footprints
         """
-        return footprints.load_ms_footprints(polygon, quadkeys, self.quadkeys_dir)
+        # building_data_utilities annotates Polygon but works with any shapely area geometry
+        return footprints.load_ms_footprints(cast(Polygon, polygon), quadkeys, self.quadkeys_dir)
 
     def process_ms_footprints(self, ms_gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
         """
@@ -81,17 +83,18 @@ class FootprintService:
         """
         return footprints.process_ms_footprints(ms_gdf)
 
-    def load_osm_footprints(self, polygon: Polygon) -> gpd.GeoDataFrame:
+    def load_osm_footprints(self, polygon: Polygon | MultiPolygon) -> gpd.GeoDataFrame:
         """
         Load OpenStreetMap footprints for the given polygon.
 
         Args:
-            polygon: Shapely Polygon object defining the area of interest
+            polygon: Shapely Polygon or MultiPolygon object defining the area of interest
 
         Returns:
             GeoDataFrame containing OSM footprints
         """
-        return footprints.load_osm_footprints(polygon)
+        # building_data_utilities annotates Polygon but works with any shapely area geometry
+        return footprints.load_osm_footprints(cast(Polygon, polygon))
 
     def process_osm_footprints(self, osm_gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
         """
