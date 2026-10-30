@@ -5,6 +5,7 @@ Service for handling data transformation and location processing.
 import csv
 import logging
 import os
+from typing import Any
 
 from building_data_utilities.common import Location
 from building_data_utilities.generate_locations_list import generate_locations_list
@@ -740,7 +741,7 @@ class DataTransformationService:
             # Try each matching attempt in order
             for attempt in match_attempts:
                 print(f" ATTEMPT: {attempt['description']}")
-                matches = []
+                matches: list[dict[str, Any]] = []
 
                 with open(csv_file, encoding="utf-8") as file:
                     reader = csv.DictReader(file)
@@ -827,7 +828,7 @@ class DataTransformationService:
             log_error_with_context("Error performing CSV lookup", e)
             return {}
 
-    def _safe_float_conversion(self, value: str) -> float | None:
+    def _safe_float_conversion(self, value: str | None) -> float | None:
         """
         Safely convert a string value to float, handling empty/null values.
 
