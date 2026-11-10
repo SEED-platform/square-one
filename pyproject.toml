@@ -23,14 +23,14 @@ building-energy-profiles = { git = "https://github.com/NatLabRockies/building-en
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^4.3.0"
-pytest = "9.1.1"
+pytest = "9.2.0"
 pytest-cov = "^7.0.0"
 nbformat = "^5.10.4"
 folium = "^0.20.0"
 osmnx = "^2.0.7"
 notebook = "^7.5.2"
 types-geopandas = "^1.1.2.20251224"
-ty = "0.0.95"
+ty = "0.0.99"
 
 
 [tool.poetry.group.devgit.dependencies]
