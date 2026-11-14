@@ -37,6 +37,9 @@ updates:
         update-types: ['version-update:semver-major']
       - dependency-name: 'typescript'
         versions: ['>=5.9.0']
+      # zone.js (latest 0.16.3) cannot patch jasmine-core 7: "Cannot assign to read only property 'describe'"
+      - dependency-name: 'jasmine-core'
+        update-types: ['version-update:semver-major']
   - package-ecosystem: 'github-actions'
     directory: '/'
     schedule:
