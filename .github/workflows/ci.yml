@@ -44,7 +44,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.10', '3.12']
+        python-version: ['3.12']
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -77,7 +77,6 @@ jobs:
         working-directory: flask_app
         run: poetry run pytest --cov=flask_app --cov-report=html --cov-report=xml --cov-report=term --disable-warnings
       - name: Upload Python Test Coverage
-        if: matrix.python-version == '3.12' # Only upload once per build
         uses: actions/upload-artifact@v7
         with:
           name: python-coverage
