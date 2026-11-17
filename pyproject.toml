@@ -30,7 +30,7 @@ folium = "^0.20.0"
 osmnx = "^2.0.7"
 notebook = "^7.5.2"
 types-geopandas = "^1.1.2.20251224"
-ty = "0.0.101"
+ty = "0.0.104"
 
 
 [tool.poetry.group.devgit.dependencies]
